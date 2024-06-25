@@ -1,6 +1,6 @@
 '''
 Middleware for a server deployment.  This is designed
-to sit between the DataPlane objects (in dataplane)
+to sit between the SDTP objects (in sdtp)
 and a server.  These objects provide two principal
 functions:
 1. Keep the set of tables by name
@@ -8,7 +8,7 @@ functions:
 3. Convert results into the wire format for transmission
 
 There are two major classes: 
-1. Table, which provides a wrapper around the DataPlane Table with the table's
+1. Table, which provides a wrapper around the SDTP Table with the table's
    name, authentication requirememts, and result-conversion utilities
 2. TableServer, which provides a registry and lookup service to Tables
 '''
@@ -48,8 +48,8 @@ from json import load
 
 import pandas as pd
 
-from dataplane.data_plane_utils import InvalidDataException
-from dataplane.data_plane_table import RowTable
+from sdtp.sdtp_utils import InvalidDataException
+from sdtp.sdtp_table import RowTable
 
 class TableNotFoundException(Exception):
     '''
@@ -93,10 +93,10 @@ def _check_headers(headers):
 
 class Table:
     '''
-    A DataPlaneTable with authorization information.  This is what is
-    stored in the TableServer; conceptually, it is a pair, (table, headers) where table is a DataPlaneTable and headers is a dictionary
+    A SDTPTable with authorization information.  This is what is
+    stored in the TableServer; conceptually, it is a pair, (table, headers) where table is a SDTPTable and headers is a dictionary
     of variables and values used to access the data.  raises an InvalidDataException if:
-    (1) The table is not a DataPlaneTable
+    (1) The table is not a SDTPTable
     (2) header_dict is not a dictionary
     (3) A key in header-dict is not a string
     (4) A value in header-dict is not one of <int, str, bool>
@@ -106,9 +106,9 @@ class Table:
     '''
 
     def __init__(self, table, header_dict={}):
-        invalid_error = InvalidDataException('The table parameter to Table must be a DataPlaneTable')
+        invalid_error = InvalidDataException('The table parameter to Table must be a SDTPTable')
         try:
-            if not table.is_dataplane_table:
+            if not table.is_sdtp_table:
                 raise invalid_error
         except AttributeError:
             raise invalid_error
@@ -162,7 +162,7 @@ def build_table_spec(filename):
     }
     Where
     a header is of the form {"variable": <var-name>, "value": <value}
-    a column is of the form {"name" <column-name> "type": <DataPlaneType>}
+    a column is of the form {"name" <column-name> "type": <SDTPType>}
     a row is a list of lists values, each list the same length as the schema, and
        each value is of the type specified for the corresponding entry of
        the schema.  Date, Time, and Datetime entries ate in isoformat.
@@ -248,10 +248,10 @@ class TableServer:
         servers = self.servers.values()
         return [server.table for server in servers if server.authorized(headers)]
 
-    def add_data_plane_table(self, table_spec):
+    def add_sdtp_table(self, table_spec):
         '''
-        Register a DataPlaneTable to serve data for a specific table name.
-        Raises an InvalidDataException if table_name is None or data_plane_table is None or is not an instance of DataPlaneTable.
+        Register a SDTPTable to serve data for a specific table name.
+        Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDTPTable.
 
         Arguments:
             table_spec: dictionary of the form {"name", "table"}, where table is a Table (see above)
@@ -268,7 +268,7 @@ class TableServer:
             table_name: name of the table to search for
             headers: dictionary of header variables and values
         Returns:
-            The DataPlane table corresponding to the request
+            The SDTP table corresponding to the request
         Raises:
             TableNotFoundException if the table is not found
             TableNotAuthorizedException if access to the table is not authorized

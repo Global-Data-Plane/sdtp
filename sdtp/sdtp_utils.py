@@ -1,5 +1,5 @@
 '''
-Constants and utilities for the data plane
+Constants and utilities for the Simple Data Transfer Protocol
 '''
 
 # BSD 3-Clause License
@@ -30,46 +30,46 @@ import json
 import datetime
 import functools
 import pandas as pd
-""" Types for the data plane schema """
+""" Types for the SDTP schema """
 
-DATA_PLANE_STRING = 'string'
-DATA_PLANE_NUMBER = 'number'
-DATA_PLANE_BOOLEAN = 'boolean'
-DATA_PLANE_DATE = 'date'
-DATA_PLANE_DATETIME = 'datetime'
-DATA_PLANE_TIME_OF_DAY = 'timeofday'
+SDTP_STRING = 'string'
+SDTP_NUMBER = 'number'
+SDTP_BOOLEAN = 'boolean'
+SDTP_DATE = 'date'
+SDTP_DATETIME = 'datetime'
+SDTP_TIME_OF_DAY = 'timeofday'
 
-DATA_PLANE_SCHEMA_TYPES = ['string', 'number', 'boolean', 'date', 'datetime', 'timeofday']
+SDTP_SCHEMA_TYPES = ['string', 'number', 'boolean', 'date', 'datetime', 'timeofday']
 
 '''
-DataPlane Python Types
+SDTP Python Types
 '''
-DATA_PLANE_PYTHON_TYPES = {
-    DATA_PLANE_STRING: {str},
-    DATA_PLANE_NUMBER: {int, float},
-    DATA_PLANE_BOOLEAN: {bool},
-    DATA_PLANE_DATE: {datetime.date},
-    DATA_PLANE_DATETIME: {datetime.datetime, pd.Timestamp},
-    DATA_PLANE_TIME_OF_DAY: {datetime.time}
+SDTP_PYTHON_TYPES = {
+    SDTP_STRING: {str},
+    SDTP_NUMBER: {int, float},
+    SDTP_BOOLEAN: {bool},
+    SDTP_DATE: {datetime.date},
+    SDTP_DATETIME: {datetime.datetime, pd.Timestamp},
+    SDTP_TIME_OF_DAY: {datetime.time}
 }
 
-def type_check(data_plane_type, val):
-    return type(val) in DATA_PLANE_PYTHON_TYPES[data_plane_type]
+def type_check(sdtp_type, val):
+    return type(val) in SDTP_PYTHON_TYPES[sdtp_type]
 
-def check_dataplane_type_of_list(data_plane_type, list_of_values):
+def check_sdtp_type_of_list(sdtp_type, list_of_values):
     '''
     Check to make sure the values in list_of_values are all the right Python 
     type for operations.
     Arguments:
-        data_plane_type: One of DATA_PLANE_SCHEMA_TYPES
+        sdtp_type: One of SDTP_SCHEMA_TYPES
         list_of_values: a Python list to be tested
     '''
-    type_check_list = [type_check(data_plane_type, val) for val in list_of_values]
+    type_check_list = [type_check(sdtp_type, val) for val in list_of_values]
     return not (False in type_check_list)
     
 
 '''
-Exceptions for the Data Plane
+Exceptions for the Simple Data Transfer Protocol
 '''
 
 
@@ -84,7 +84,7 @@ class InvalidDataException(Exception):
         super().__init__(message)
         self.message = message
 
-NON_JSONIFIABLE_TYPES = {DATA_PLANE_DATE, DATA_PLANE_TIME_OF_DAY, DATA_PLANE_DATETIME}
+NON_JSONIFIABLE_TYPES = {SDTP_DATE, SDTP_TIME_OF_DAY, SDTP_DATETIME}
 
 def jsonifiable_value(value, column_type):
     '''
@@ -92,7 +92,7 @@ def jsonifiable_value(value, column_type):
     convert them to isoformat strings.  Return everything else as is
     Arguments:
         value -- the value to be converted
-        column_type -- the data plane type of the value
+        column_type -- the SDTP type of the value
     Returns
         A jsonifiable form of the value
     '''
@@ -129,37 +129,37 @@ def jsonifiable_column(column, column_type):
     '''
     Return a jsonifiable version of the column of values, using jsonifiable_value
     to do the conversion.  We actually cheat a little, only calling _jsonifiable_value if column_type
-    is one of DATA_PLANE_TIME, DATA_PLANE_DATE, DATA_PLANE_DATETIME
+    is one of SDTP_TIME, SDTP_DATE, SDTP_DATETIME
     '''
     if column_type in NON_JSONIFIABLE_TYPES:
         return [jsonifiable_value(value, column_type) for value in column]
     else:
         return column
 
-def convert_to_type(data_plane_type, value):
+def convert_to_type(sdtp_type, value):
     '''
-    Convert value to data_plane_type, so that comparisons can be done.  This is used to convert
+    Convert value to sdtp_type, so that comparisons can be done.  This is used to convert
     the values in a filter_spec to a form that can be used in a filter.
     Throws an InvalidDataException if the type can't be converted.
     An exception is Boolean, where "True, true, t" are all converted to True, but any
     other values are converted to False
 
     Arguments:
-        data_plane_type: type to convert to
+        sdtp_type: type to convert to
         value: value to be converted
     Returns:
         value cast to the correct type
     '''
-    if type(value) in DATA_PLANE_PYTHON_TYPES[data_plane_type]:
+    if type(value) in SDTP_PYTHON_TYPES[sdtp_type]:
         return value
-    if data_plane_type == DATA_PLANE_STRING:
+    if sdtp_type == SDTP_STRING:
         if isinstance(value, str):
             return value
         try:
             return str(value)
         except ValueError:
             raise InvalidDataException('Cannot convert value to string')
-    elif data_plane_type == DATA_PLANE_NUMBER:
+    elif sdtp_type == SDTP_NUMBER:
         if isinstance(value, int) or isinstance(value, float):
             return value
 
@@ -185,7 +185,7 @@ def convert_to_type(data_plane_type, value):
         # Everything has failed, so toss the exception
         raise InvalidDataException(f'Cannot convert {value} to number')
 
-    elif data_plane_type == DATA_PLANE_BOOLEAN:
+    elif sdtp_type == SDTP_BOOLEAN:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -197,7 +197,7 @@ def convert_to_type(data_plane_type, value):
         return False
     # Everything else is a date or time
 
-    elif data_plane_type == DATA_PLANE_DATETIME:
+    elif sdtp_type == SDTP_DATETIME:
         if type(value) == datetime.date:
             return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
         if isinstance(value, str):
@@ -207,8 +207,8 @@ def convert_to_type(data_plane_type, value):
                 raise InvalidDataException(f"Can't convert {value} to datetime")
         raise InvalidDataException(f"Can't convert {value} to datetime")
 
-    elif data_plane_type == DATA_PLANE_DATE:
-        if type(value) in DATA_PLANE_PYTHON_TYPES[DATA_PLANE_DATETIME]:
+    elif sdtp_type == SDTP_DATE:
+        if type(value) in SDTP_PYTHON_TYPES[SDTP_DATETIME]:
             return value.date()
         if isinstance(value, str):
             try:
@@ -217,8 +217,8 @@ def convert_to_type(data_plane_type, value):
                 raise InvalidDataException(f"Can't convert {value} to date")
         raise InvalidDataException(f"Can't convert {value} to date")
     
-    else:  # data_plane_type = DATA_PLANE_TIME_OF_DAY
-        if type(value) in DATA_PLANE_PYTHON_TYPES[DATA_PLANE_DATETIME]:
+    else:  # sdtp_type = SDTP_TIME_OF_DAY
+        if type(value) in SDTP_PYTHON_TYPES[SDTP_DATETIME]:
             return value.time()
         if isinstance(value, str):
             try:
@@ -229,54 +229,54 @@ def convert_to_type(data_plane_type, value):
                 except Exception:
                     raise InvalidDataException(f"Can't convert {value} to time")
 
-        raise InvalidDataException(f"Couldn't convert {value} to {data_plane_type}")
+        raise InvalidDataException(f"Couldn't convert {value} to {sdtp_type}")
         
-def convert_list_to_type(data_plane_type, value_list):
+def convert_list_to_type(sdtp_type, value_list):
     '''
-    Convert value_list to data_plane_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
+    Convert value_list to sdtp_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
     Returns a default value if value can't be converted
     Note that it's the responsibility of the object which provides the rows to always provide the correct types,
     so this really should always just return a new copy of value_list
     Arguments:
-        data_plane_type: type to convert to
+        sdtp_type: type to convert to
         value_list: list of values to be converted
     Returns:
         value_list with each element cast to the correct type
     '''
     try:
-        return  [convert_to_type(data_plane_type, elem) for elem in value_list]
+        return  [convert_to_type(sdtp_type, elem) for elem in value_list]
         
         # result = []
-        # for i in range(len(value_list)): result.append(convert_to_type(data_plane_type, value_list[i]))
+        # for i in range(len(value_list)): result.append(convert_to_type(sdtp_type, value_list[i]))
         # return result
     except Exception as exc:
-        raise InvalidDataException(f'Failed to convert {value_list} to {data_plane_type}')
+        raise InvalidDataException(f'Failed to convert {value_list} to {sdtp_type}')
     
-def convert_row_to_type_list(data_plane_type_list, row):
+def convert_row_to_type_list(sdtp_type_list, row):
     # called from convert_rows_to_type_list, which should error check
-    # to make sure that the row is the same length as data_plane_type_list
-    return [convert_to_type(data_plane_type_list[i], row[i]) for i in range(len(row))]
+    # to make sure that the row is the same length as sdtp_type_list
+    return [convert_to_type(sdtp_type_list[i], row[i]) for i in range(len(row))]
 
 
-def convert_rows_to_type_list(data_plane_type_list, rows):
+def convert_rows_to_type_list(sdtp_type_list, rows):
     '''
     Convert the list of rows to the 
     '''
-    length = len(data_plane_type_list)
+    length = len(sdtp_type_list)
     for row in rows:
         if len(row) != length:
             raise InvalidDataException(f'Length mismatch: required number of columns {length}, length {row} = {len(row)}')
-    return  [convert_row_to_type_list(data_plane_type_list, row) for row in rows]
+    return  [convert_row_to_type_list(sdtp_type_list, row) for row in rows]
     
-def convert_dict_to_type(data_plane_type, value_dict):
+def convert_dict_to_type(sdtp_type, value_dict):
     '''
-    Convert value_dict to data_plane_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
+    Convert value_dict to sdtp_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
 
     Returns a default value if value can't be converted
     Note that it's the responsibility of the object which provides the rows to always provide the correct types,
     so this really should always just return a new copy of value_list
     Arguments:
-        data_plane_type: type to convert to
+        sdtp_type: type to convert to
         value_dict: dictionary of values to be converted
     Returns:
         value_dict with each value in the dictionary cast to the correct type
@@ -284,7 +284,7 @@ def convert_dict_to_type(data_plane_type, value_dict):
     result = {}
     try:
         for (key, value) in value_dict.items():
-            result[key] = convert_to_type(data_plane_type, value)
+            result[key] = convert_to_type(sdtp_type, value)
         return result
     except Exception as exc:
-        raise InvalidDataException(f'Failed to convert {value_dict} to {data_plane_type}')
+        raise InvalidDataException(f'Failed to convert {value_dict} to {sdtp_type}')

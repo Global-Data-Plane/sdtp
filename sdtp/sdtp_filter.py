@@ -1,10 +1,10 @@
 '''
-A DataPlaneTable class and associated utilities.  The DataPlaneTable class is initialized
+A SDTPTable class and associated utilities.  The SDTPTable class is initialized
 with the table's schema,  single function,get_rows(), which returns the rows of the table.  To
-use a  DataPlaneTable instance, instantiate it with the schema and a get_rows() function.
-The DataPlaneTable instance can then be passed to a DataPlaneServer with a call to
+use a  SDTPTable instance, instantiate it with the schema and a get_rows() function.
+The SDTPTable instance can then be passed to a SDTPServer with a call to
 galyleo_server_framework.add_table_server, and the server will then be able to serve
-the tables automatically using the instantiated DataPlaneTable.
+the tables automatically using the instantiated SDTPTable.
 '''
 
 # BSD 3-Clause License
@@ -39,13 +39,13 @@ import datetime
 import urllib
 import json
 
-from dataplane.data_plane_utils import DATA_PLANE_BOOLEAN, DATA_PLANE_NUMBER, DATA_PLANE_DATETIME, DATA_PLANE_DATE, \
-    DATA_PLANE_SCHEMA_TYPES, DATA_PLANE_STRING, DATA_PLANE_TIME_OF_DAY
-from dataplane.data_plane_utils import InvalidDataException
-from dataplane.data_plane_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
-from dataplane.data_plane_utils import convert_list_to_type, convert_to_type
+from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
+    SDTP_SCHEMA_TYPES, SDTP_STRING, SDTP_TIME_OF_DAY
+from sdtp.sdtp_utils import InvalidDataException
+from sdtp.sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
+from sdtp.sdtp_utils import convert_list_to_type, convert_to_type
 
-DATA_PLANE_FILTER_FIELDS = {
+SDTP_FILTER_FIELDS = {
     'ALL': {'arguments'},
     'ANY': {'arguments'},
     'NONE': {'arguments'},
@@ -54,7 +54,7 @@ DATA_PLANE_FILTER_FIELDS = {
     'REGEX_MATCH': {'column', 'expression'}
 }
 
-DATA_PLANE_FILTER_OPERATORS = set(DATA_PLANE_FILTER_FIELDS.keys())
+SDTP_FILTER_OPERATORS = set(SDTP_FILTER_FIELDS.keys())
 
 
 
@@ -98,7 +98,7 @@ def check_valid_spec(filter_spec):
     # operator, 'operator' is one of the fields
 
     fields_in_spec = set(filter_spec.keys())
-    missing_fields = DATA_PLANE_FILTER_FIELDS[operator] - fields_in_spec
+    missing_fields = SDTP_FILTER_FIELDS[operator] - fields_in_spec
     if len(missing_fields) > 0:
         raise InvalidDataException(f'{filter_spec} is missing required fields {_canonize_set(missing_fields)}')
     # For ALL and ANY, recursively check the arguments list and return
@@ -158,13 +158,13 @@ def _valid_column_spec(column):
     return False
 
 
-class DataPlaneFilter:
+class SDTPFilter:
     '''
     A Class which implements a Filter used  to filter rows.
     The arguments to the contstructor are a filter_spec, which is a boolean tree
     of filters and the columns which the filter is implemented over.
 
-    This is designed to be instantiated from DataPlaneTable.get_filtered_rows()
+    This is designed to be instantiated from SDTPTable.get_filtered_rows()
     and in no other place -- error checking, if any, should be done there.
 
     Arguments:
@@ -179,7 +179,7 @@ class DataPlaneFilter:
             raise InvalidDataException(f'Invalid column specifications {bad_columns}')
         self.operator = filter_spec["operator"]
         if (self.operator == 'ALL' or self.operator == 'ANY' or self.operator == 'NONE'):
-            self.arguments = [DataPlaneFilter(argument, columns) for argument in filter_spec["arguments"]]
+            self.arguments = [SDTPFilter(argument, columns) for argument in filter_spec["arguments"]]
         else:
             column_names = [column["name"] for column in columns]
             column_types = [column["type"] for column in columns]
@@ -198,9 +198,9 @@ class DataPlaneFilter:
                 self.max_val = max_val if max_val >= min_val else min_val
                 self.min_val = min_val if min_val <= max_val else max_val
             else:  # operator is REGEX_MATCH
-                if column_types[self.column_index] != DATA_PLANE_STRING:
+                if column_types[self.column_index] != SDTP_STRING:
                     raise InvalidDataException(
-                        f'The column type for a REGEX filter must be DATA_PLANE_STRING, not {column_types[self.column_index]}')
+                        f'The column type for a REGEX filter must be SDTP_STRING, not {column_types[self.column_index]}')
                 # note we've already checked for expression and that it's valid
                 self.regex = re.compile(filter_spec['expression'])
                 # hang on to the original expression for later jsonification
@@ -208,8 +208,8 @@ class DataPlaneFilter:
 
     def to_filter_spec(self):
         '''
-        Generate a dictionary form of the DataPlaneFilter.  This is primarily for use on the client side, where
-        A DataPlaneFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
+        Generate a dictionary form of the SDTPFilter.  This is primarily for use on the client side, where
+        A SDTPFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
         the server for server-side filtering.  It's also useful for testing and debugging
         Returns:
             A dictionary form of the Filter

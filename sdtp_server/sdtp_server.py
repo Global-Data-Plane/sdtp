@@ -1,16 +1,16 @@
 '''
 A framework to easily and quickly implement a web server which serves tables according to
-the Data Plane Rest  protocol.  This implements the URL methods get_filtered_rows, get_all_values,
+the SDTP REST  protocol.  This implements the URL methods get_filtered_rows, get_all_values,
 and get_numeric_spec.  It parses the arguments, checking for errors, takes the
-table argument, looks up the appropriate DataPlaneTable to serve for that table, and
+table argument, looks up the appropriate SDTPTable to serve for that table, and
 then calls the method on that server to serve the request.  If no exception is thrown,
 returns a 200 with the result as a JSON structure, and if an exception is thrown, returns
 a 400 with an approrpriate error message.
-All of the methods here except for add_data_plane_table are simply route targets: none are
+All of the methods here except for add_sdtp_table are simply route targets: none are
 designed for calls from any method other than flask.
 The way to use this is very simple:
-1. For each Table to be served, create an instance of data_plane_table.DataPlaneTable
-2. Call add_data_plane_table(table_name, data_plane_table)
+1. For each Table to be served, create an instance of sdtp_table.SDTPTable
+2. Call add_sdtp_table(table_name, sdtp_table)
 After that, requests for the named table will be served by the created data server.
 
 '''
@@ -54,15 +54,15 @@ import csv
 
 from flask import Blueprint, abort, jsonify, request
 
-from dataplane.data_plane_utils import DATA_PLANE_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
+from sdtp.sdtp_utils import SDTP_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
 
-from dataplane.data_plane_utils import InvalidDataException, convert_row_to_type_list
-from dataplane.data_plane_table import RowTable
-from dataplane.data_plane_filter import check_valid_spec
-from data_plane_server.table_server import TableServer, TableNotFoundException, TableNotAuthorizedException, \
+from sdtp.sdtp_utils import InvalidDataException, convert_row_to_type_list
+from sdtp.sdtp_table import RowTable
+from sdtp.sdtp_filter import check_valid_spec
+from sdtp_server.table_server import TableServer, TableNotFoundException, TableNotAuthorizedException, \
     ColumnNotFoundException, build_table_spec, Table
 
-data_plane_server_blueprint = Blueprint('data_plane_server', __name__)
+sdtp_server_blueprint = Blueprint('sdtp_server', __name__)
 
 table_server = TableServer()
 
@@ -171,17 +171,17 @@ def create_server_from_csv(table_name, path_to_csv_file, table_server, headers=N
         columns = [entry.strip() for entry in rows[0]]
         for row in rows[1:]: assert len(row) == num_columns
         types = [entry.strip() for entry in rows[1]]
-        for entry in types: assert entry in DATA_PLANE_SCHEMA_TYPES
+        for entry in types: assert entry in SDTP_SCHEMA_TYPES
     except Exception as error:
         raise InvalidDataException(error)
 
     schema = [{"name": columns[i], "type": types[i]} for i in range(num_columns)]
-    column_type_list = [{"type": data_plane_type} for data_plane_type in types]
+    column_type_list = [{"type": sdtp_type} for sdtp_type in types]
     try:
         final_rows = [convert_row_to_type_list(column_type_list, row) for row in rows[2:]]
-        data_plane_table = RowTable(schema, final_rows)
-        data_server_table = Table(data_plane_table, headers)
-        table_server.add_data_plane_table({"name": table_name, "table": data_server_table})
+        sdtp_table = RowTable(schema, final_rows)
+        data_server_table = Table(sdtp_table, headers)
+        table_server.add_sdtp_table({"name": table_name, "table": data_server_table})
 
     except ValueError as error:
         raise InvalidDataException(f'{error} raised during type conversion')
@@ -231,7 +231,7 @@ def get_post_argument(key, form_data, data, get_multi = False):
 
 
 
-@data_plane_server_blueprint.route('/get_filtered_rows', methods=['POST'])
+@sdtp_server_blueprint.route('/get_filtered_rows', methods=['POST'])
 def get_filtered_rows():
     '''
     Get the filtered rows from a request.   Gets the filter_spec from the filter  field in the body, the table name from the table field
@@ -295,7 +295,7 @@ def _check_required_parameters(route, required_parameters):
         _log_and_abort(msg, 400)
 
 
-@data_plane_server_blueprint.route('/get_range_spec')
+@sdtp_server_blueprint.route('/get_range_spec')
 def get_range_spec():
     '''
     Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the
@@ -310,10 +310,10 @@ def get_range_spec():
     table_name = request.args.get('table_name')
     try:
         result = table_server.get_range_spec(table_name, column_name, request.headers)
-        dataplane_type = _column_type(table_name, column_name)
+        sdtp_type = _column_type(table_name, column_name)
         jsonifiable_result = {
-            "max_val": jsonifiable_value(result["max_val"], dataplane_type ),
-            "min_val": jsonifiable_value(result["min_val"], dataplane_type ),
+            "max_val": jsonifiable_value(result["max_val"], sdtp_type ),
+            "min_val": jsonifiable_value(result["min_val"], sdtp_type ),
         }
         return jsonify(jsonifiable_result)
     except TableNotAuthorizedException:
@@ -324,7 +324,7 @@ def get_range_spec():
         _log_and_abort(f'No column {column_name} in table {table_name}, request /get_range_spec', 400)
 
 
-@data_plane_server_blueprint.route('/get_all_values')
+@sdtp_server_blueprint.route('/get_all_values')
 def get_all_values():
     '''
     Target for the /get_all_values route.  Makes sure that column_name and table_name are  specified in the call, then returns the
@@ -339,8 +339,8 @@ def get_all_values():
     table_name = request.args.get('table_name')
     try:
         result = table_server.get_all_values(table_name, column_name, request.headers)
-        dataplane_type  = _column_type(table_name, column_name)
-        jsonifiable_result = jsonifiable_column(result, dataplane_type)
+        sdtp_type  = _column_type(table_name, column_name)
+        jsonifiable_result = jsonifiable_column(result, sdtp_type)
         return jsonify(jsonifiable_result)
     except TableNotAuthorizedException:
         _log_and_abort(f'Access to table {table_name} not authorized, request /get_all_values', 403)
@@ -350,7 +350,7 @@ def get_all_values():
         _log_and_abort(f'No column {column_name} in table {table_name}, request /get_all_values', 400)
 
 
-@data_plane_server_blueprint.route('/get_tables')
+@sdtp_server_blueprint.route('/get_tables')
 def get_tables():
     '''
     Target for the /get_tables route.  Dumps a JSONIfied dictionary of the form:
@@ -365,7 +365,7 @@ def get_tables():
     return jsonify(items)
 
 
-@data_plane_server_blueprint.route('/get_table_spec')
+@sdtp_server_blueprint.route('/get_table_spec')
 def get_table_spec():
     '''
     Target for the /get_table_spec route.  Returns a dictionary of the
@@ -378,21 +378,21 @@ def get_table_spec():
     return jsonify(table_server.get_auth_spec())
 
 
-@data_plane_server_blueprint.route('/init', methods=['POST', 'GET'])
+@sdtp_server_blueprint.route('/init', methods=['POST', 'GET'])
 def init():
     table_server.__init__()
-    paths = [path for path in ['tables', 'data_plane/tables'] if os.path.isdir(path)]
+    paths = [path for path in ['tables', 'sdtp/tables'] if os.path.isdir(path)]
     path = paths[0] if len(paths) > 0 else None
 
     if path is not None:
         files = glob(f'{path}/*.json')
         for filename in files:
-            table_server.add_data_plane_table(build_table_spec(filename))
+            table_server.add_sdtp_table(build_table_spec(filename))
     return jsonify(table_server.get_auth_spec())
 
 
-@data_plane_server_blueprint.route('/help', methods=['POST', 'GET'])
-@data_plane_server_blueprint.route('/', methods=['POST', 'GET'])
+@sdtp_server_blueprint.route('/help', methods=['POST', 'GET'])
+@sdtp_server_blueprint.route('/', methods=['POST', 'GET'])
 def show_routes():
     '''
     Show the API for the table server
@@ -405,7 +405,7 @@ def show_routes():
         {"url": "/get_filtered_rows?table_name<i>string, required</i>", "method": "POST",
          "body": {"table": "<i> required, the name of the table to get the rows from<i/>",
                   "columns": "<i> If  present, a list of the names of the columns to fetch</i>",
-                  "filter": "<i> optional, a filter_spec in the data plane filter language"},
+                  "filter": "<i> optional, a filter_spec in the SDTP filter language"},
          "headers": "<i> as required for authentication</i>",
          "description": "Get the rows from table Table-Name (and, optionally, Dashboard-Name) which match filter Filter-Spec"},
         {"url": "/get_range_spec?column_name<i>string, required</i>&table_name<i>string, required</i>", "method": "GET",

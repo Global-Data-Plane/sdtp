@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=.
 set BUILDDIR=_build
-set SPHINXPROJ=data_plane
+set SPHINXPROJ=sdtp
 
 if "%1" == "" goto help
 

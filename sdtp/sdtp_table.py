@@ -1,10 +1,10 @@
 '''
-A DataPlaneTable class and associated utilities.  The DataPlaneTable class is initialized
+A SDTPTable class and associated utilities.  The SDTPTable class is initialized
 with the table's schema,  single function,get_rows(), which returns the rows of the table.  To
-use a  DataPlaneTable instance, instantiate it with the schema and a get_rows() function.
-The DataPlaneTable instance can then be passed to a DataPlaneServer with a call to
+use a  SDTPTable instance, instantiate it with the schema and a get_rows() function.
+The SDTPTable instance can then be passed to a SDTPServer with a call to
 galyleo_server_framework.add_table_server, and the server will then be able to serve
-the tables automatically using the instantiated DataPlaneTable.
+the tables automatically using the instantiated SDTPTable.
 '''
 
 # BSD 3-Clause License
@@ -39,17 +39,17 @@ import datetime
 import requests
 import json
 
-from dataplane.data_plane_utils import DATA_PLANE_BOOLEAN, DATA_PLANE_NUMBER, DATA_PLANE_DATETIME, DATA_PLANE_DATE, \
-    DATA_PLANE_SCHEMA_TYPES, DATA_PLANE_STRING, DATA_PLANE_TIME_OF_DAY
-from dataplane.data_plane_utils import InvalidDataException
-from dataplane.data_plane_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
-from dataplane.data_plane_utils import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
-from dataplane.data_plane_filter import DataPlaneFilter
+from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
+    SDTP_SCHEMA_TYPES, SDTP_STRING, SDTP_TIME_OF_DAY
+from sdtp.sdtp_utils import InvalidDataException
+from sdtp.sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
+from sdtp.sdtp_utils import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
+from sdtp.sdtp_filter import SDTPFilter
 
         
 def _select_entries_from_row(row, indices):
     # Pick the entries of row trhat are in indices, maintaining the order of the
-    # indices.  This is to support the column-choice operation in DataPlaneTable.get_filtered_rows
+    # indices.  This is to support the column-choice operation in SDTPTable.get_filtered_rows
     # Arguments:
     #     row: the tow of vaslues
     #     indices: the indices to pick
@@ -67,7 +67,7 @@ The Default for header variables for a table is both required and optional lists
 def get_errors(entry):
     '''
     A Utility to make sure that a schema entry is valid.  It must have a name, a type, both must be strings, 
-    and the type is one of DATA_PLANE_SCHEMA_TYPES.
+    and the type is one of SDTP_SCHEMA_TYPES.
     Arguments:
         entry: a dictionary with (at least) the keys name, type
     Returns:
@@ -83,18 +83,18 @@ def get_errors(entry):
         result.append(f'Name of column {entry} must be a string')
     if not 'type' in keys:
         result.append(f'Column {entry} must have a type')
-    elif not (type(entry['type']) == str and entry['type'] in DATA_PLANE_SCHEMA_TYPES):
-        result.append(f'Type of column {entry} must be one of {DATA_PLANE_SCHEMA_TYPES}' )
+    elif not (type(entry['type']) == str and entry['type'] in SDTP_SCHEMA_TYPES):
+        result.append(f'Type of column {entry} must be one of {SDTP_SCHEMA_TYPES}' )
     return result
             
     
 
-class DataPlaneTable:
+class SDTPTable:
     '''
-    A DataPlaneTable.  This is the abstract superclass for all data plane tables, and 
-    implements the schema methods of every DataPlane class.  The data methods are implemented
-    by the concrete classes.  Any new DataPlaneTable class should:
-    1. Subclass DataPlaneTable
+    An SDTPTable.  This is the abstract superclass for all Simple Data Transfer Protocol tables, and 
+    implements the schema methods of every SDTP class.  The data methods are implemented
+    by the concrete classes.  Any new SDTPTable class should:
+    1. Subclass SDTPTable
     2. Have a constructor with the argument schema
     3. call super(<classname, self).__init__(schema) in the constructor
     4. Implement the methods:
@@ -109,12 +109,12 @@ class DataPlaneTable:
             iia. list from all_values
             iib. dict "max_val", "min_val" from range_spec
             iic. list of lists from get_filtered_rows_from_filter)
-        iii. filter is a an instance of DataPlaneFilter
+        iii. filter is a an instance of SDTPFilter
         iv. if columns is not None for get_filtered_rows, only return entries from those columns
             in the result from get_filtered_rows
     Arguments:
         schema: a list of records of the form {"name": <column_name, "type": <column_type>}.
-           The column_type must be a type from galyleo_constants.DATA_PLANE_TYPES.
+           The column_type must be a type from galyleo_constants.SDTP_TYPES.
     '''
     def __init__(self, schema):
         if type(schema) != list:
@@ -125,7 +125,7 @@ class DataPlaneTable:
             raise InvalidDataException(f"Errors in schema {schema}: {error_entries}")
            
         self.schema = schema
-        self.is_dataplane_table = True
+        self.is_sdtp_table = True
 
     def column_names(self):
         '''
@@ -189,7 +189,7 @@ class DataPlaneTable:
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A DataPlaneFilter 
+            filter: A SDTPFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:
@@ -214,7 +214,7 @@ class DataPlaneTable:
             jsonify is True or as a list if jsonify is False
         '''
         # Note that we don't check if the column names are all valid
-        filter = DataPlaneFilter(filter_spec, self.schema) if filter_spec is not None else None
+        filter = SDTPFilter(filter_spec, self.schema) if filter_spec is not None else None
         return self.get_filtered_rows_from_filter(filter = filter, columns=columns, jsonify=jsonify)
     
     def to_json(self):
@@ -223,9 +223,9 @@ class DataPlaneTable:
         '''
         raise InvalidDataException(f'to_json has not been in {type(self)}.__name__')
 
-class DataPlaneFixedTable(DataPlaneTable):
+class SDTPFixedTable(SDTPTable):
     '''
-    A DataPlaneFixedTable: This is a convenience class for subclasses which generate a fixed 
+    A SDTPFixedTable: This is a convenience class for subclasses which generate a fixed 
     number of rows locally, independent of filtering. This is instantiated with a function get_rows() which  delivers the
     rows, rather than having them explicitly in the Table.  Note that get_rows() *must* return 
     a list of rows, each of which has the appropriate number of entries of the appropriate types.
@@ -235,14 +235,14 @@ class DataPlaneFixedTable(DataPlaneTable):
 
     Arguments:
         schema: a list of records of the form {"name": <column_name, "type": <column_type>}.
-           The column_type must be a type from galyleo_constants.DATA_PLANE_TYPES.
+           The column_type must be a type from galyleo_constants.SDTP_TYPES.
         get_rows: a function which returns a list of list of values.  Each component list
             must have the same length as schema, and the jth element must be of the
             type specified in the jth element of schema
     '''
 
     def __init__(self, schema, get_rows):
-        super(DataPlaneFixedTable, self).__init__(schema)
+        super(SDTPFixedTable, self).__init__(schema)
         self.get_rows = get_rows
 
     # This is used to get the names of a column from the schema
@@ -265,11 +265,11 @@ class DataPlaneFixedTable(DataPlaneTable):
             index = self.column_names().index(column_name)
         except ValueError as original_error:
             raise InvalidDataException(f'{column_name} is not a column of this table') from original_error
-        data_plane_type = self.schema[index]["type"]
+        sdtp_type = self.schema[index]["type"]
         rows = self.get_rows()
         result = list(set([row[index] for row in rows]))
         result.sort()
-        return jsonifiable_column(result, data_plane_type) if jsonify else result
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
     
     def check_column_type(self, column_name):
         '''
@@ -308,7 +308,7 @@ class DataPlaneFixedTable(DataPlaneTable):
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A DataPlaneFilter 
+            filter: A SDTPFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:
@@ -347,17 +347,17 @@ class DataPlaneFixedTable(DataPlaneTable):
         Return the JSON form of this table, for saving on disk or transmission.
         '''
         # Since the columns are already a dictionary, they are simply directly jsonified.  For the rows,
-        # just use the jsonify methods from data_plane_utils
+        # just use the jsonify methods from sdtp_utils
 
         return json.dumps({
-            "type": "DataPlaneTable",
+            "type": "SDTPTable",
             "columns": self.schema,
             "rows": jsonifiable_rows(self.get_rows(), self.column_types())
         })
 
     
 
-class DataFrameTable(DataPlaneFixedTable):
+class DataFrameTable(SDTPFixedTable):
     '''
     A simple utility class to serve data from a PANDAS DataFrame.  The general idea is 
     that the values are in the PANDAS Dataframe, which must have the same column names
@@ -387,7 +387,7 @@ class DataFrameTable(DataPlaneFixedTable):
         return self.dataframe.copy()
 
 
-class RowTable(DataPlaneFixedTable):
+class RowTable(SDTPFixedTable):
     '''
     A simple utility class to serve data from a static list of rows, which
     can be constructed from a CSV file, Excel File, etc.  The idea is to
@@ -406,7 +406,7 @@ class RowTable(DataPlaneFixedTable):
     
         
 
-class  RemoteCSVTable(DataPlaneFixedTable):
+class  RemoteCSVTable(SDTPFixedTable):
     '''
     A very common format for data interchange on the Internet is a downloadable
     CSV file.  It's so common it's worth making a class, just for this.  The
@@ -444,11 +444,11 @@ class  RemoteCSVTable(DataPlaneFixedTable):
 def _column_names(schema):
     return [entry["name"] for entry in schema]
         
-class RemoteDataPlaneTable(DataPlaneTable):
+class RemoteSDTPTable(SDTPTable):
     '''
-    A DataPlane Table on a remote server.  This just has a schema, an URL, and 
-    header variables. This is the primary class for the client side of the DataPlane,
-    and in many packages would be a separate client module.  However, the DataPlane is 
+    A SDTP Table on a remote server.  This just has a schema, an URL, and 
+    header variables. This is the primary class for the client side of the SDTP,
+    and in many packages would be a separate client module.  However, the SDTP is 
     designed so that Remote Tables can be used to serve local tables, so this 
     is part of a server-side framework to.
     Parameters:
@@ -462,7 +462,7 @@ class RemoteDataPlaneTable(DataPlaneTable):
 
     ''' 
     def __init__(self, table_name, schema, url, header_dict = None): 
-        super(RemoteDataPlaneTable, self).__init__(schema)
+        super(RemoteSDTPTable, self).__init__(schema)
         self.url = url
         self.schema = schema
         self.table_name = table_name
@@ -492,7 +492,7 @@ class RemoteDataPlaneTable(DataPlaneTable):
     def connect_with_server(self):
         '''
         Connect with the server, ensuring that the server is:
-        a. a DataPlane server
+        a. a SDTP server
         b. has self.table_name in its list of tables
         c. the table there has a matching schema
         '''
@@ -590,7 +590,7 @@ class RemoteDataPlaneTable(DataPlaneTable):
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A DataPlaneFilter 
+            filter: A SDTPFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:
@@ -623,9 +623,9 @@ class RemoteDataPlaneTable(DataPlaneTable):
             data['filter'] = filter_spec
         if columns is not None and len(columns) > 0:
             data['columns'] = columns
-            data_plane_type_list = [column["type"] for column in self.schema if column["name"] in columns]
+            sdtp_type_list = [column["type"] for column in self.schema if column["name"] in columns]
         else: 
-            data_plane_type_list = self.column_types() 
+            sdtp_type_list = self.column_types() 
         try:
             response = requests.post(request, json=data, headers=self.header_dict) if self.header_dict is not None else requests.post(request, json=data)
             if response.status_code >= 300:
@@ -636,6 +636,6 @@ class RemoteDataPlaneTable(DataPlaneTable):
         if jsonify:
             return result
         else:
-            return convert_rows_to_type_list(data_plane_type_list, result)
+            return convert_rows_to_type_list(sdtp_type_list, result)
         
                     
