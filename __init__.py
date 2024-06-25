@@ -1,11 +1,7 @@
 """Top-level package for Data Plane."""
-import sys
-
-sys.path.append('.')
-sys.path.append('./')
 
 __author__ = """Rick McGeer"""
-__email__ = 'rick.mcgeer@engageLively.com'
+__email__ = 'rick@mcgeer.com'
 __version__ = '0.1.0'
 
 # from main import create_app

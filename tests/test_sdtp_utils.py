@@ -36,6 +36,8 @@ import datetime
 import os
 from sdtp.sdtp_utils import *
 import math
+
+
 good_types = {
   SDTP_STRING: ["foo"],
   SDTP_NUMBER: [3.2, 32],
