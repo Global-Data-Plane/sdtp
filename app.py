@@ -39,13 +39,14 @@ import os
 
 sys.path.append('.')
 # sys.path.append('./data_plane')
-from sdtp_server.sdtp_server import sdtp_server_blueprint
+from sdtp import sdtp_server_blueprint
 app = Flask(__name__)
 
 app.register_blueprint(sdtp_server_blueprint)
 @app.route('/cwd')
 def cwd():
     return os.getcwd()
+
 
 if __name__ == '__main__':
     app.run()

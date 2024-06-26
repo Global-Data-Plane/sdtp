@@ -39,12 +39,12 @@ import datetime
 import requests
 import json
 
-from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
+from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
     SDTP_SCHEMA_TYPES, SDTP_STRING, SDTP_TIME_OF_DAY
-from sdtp.sdtp_utils import InvalidDataException
-from sdtp.sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
-from sdtp.sdtp_utils import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
-from sdtp.sdtp_filter import SDTPFilter
+from sdtp import InvalidDataException
+from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
+from sdtp import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
+from sdtp import SDTPFilter
 
         
 def _select_entries_from_row(row, indices):

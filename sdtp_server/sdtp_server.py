@@ -54,12 +54,12 @@ import csv
 
 from flask import Blueprint, abort, jsonify, request
 
-from sdtp.sdtp_utils import SDTP_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
+from sdtp import SDTP_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
 
-from sdtp.sdtp_utils import InvalidDataException, convert_row_to_type_list
-from sdtp.sdtp_table import RowTable
-from sdtp.sdtp_filter import check_valid_spec
-from sdtp_server.table_server import TableServer, TableNotFoundException, TableNotAuthorizedException, \
+from sdtp import InvalidDataException, convert_row_to_type_list
+from sdtp import RowTable
+from sdtp import check_valid_spec
+from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, \
     ColumnNotFoundException, build_table_spec, Table
 
 sdtp_server_blueprint = Blueprint('sdtp_server', __name__)
@@ -381,7 +381,7 @@ def get_table_spec():
 @sdtp_server_blueprint.route('/init', methods=['POST', 'GET'])
 def init():
     table_server.__init__()
-    paths = [path for path in ['tables', 'sdtp/tables'] if os.path.isdir(path)]
+    paths = [path for path in ['tables', 'sdtp/tables', 'tests/tables'] if os.path.isdir(path)]
     path = paths[0] if len(paths) > 0 else None
 
     if path is not None:

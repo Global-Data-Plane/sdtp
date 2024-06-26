@@ -193,4 +193,3 @@ def test_get_filtered_rows():
     assert response.status_code == 200
     assert response.json == result
 
-test_get_filtered_rows()

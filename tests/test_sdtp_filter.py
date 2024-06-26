@@ -39,8 +39,8 @@ import random
 
 import pandas as pd
 import pytest
-from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
-from sdtp.sdtp_filter import SDTPFilter,  check_valid_spec, SDTP_FILTER_FIELDS, SDTP_FILTER_OPERATORS
+from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
+from sdtp import SDTPFilter,  check_valid_spec, SDTP_FILTER_FIELDS, SDTP_FILTER_OPERATORS
 
 
 def _check_valid_spec_error(bad_filter_spec, error_message):

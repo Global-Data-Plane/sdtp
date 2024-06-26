@@ -37,10 +37,10 @@ from json import dumps
 
 import pandas as pd
 import pytest
-from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
-from sdtp.sdtp_utils import check_dataplane_type_of_list
-from sdtp.sdtp_utils import jsonifiable_value, jsonifiable_column
-from sdtp.sdtp_table import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDTPTable
+from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
+from sdtp import check_sdtp_type_of_list
+from sdtp import jsonifiable_value, jsonifiable_column
+from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDTPTable
 from pytest_httpserver import HTTPServer
 
 table_test_1 = {
@@ -124,7 +124,7 @@ def test_construct_dataframe():
     assert(df.columns.tolist() == row_table.column_names())
     for column in schema:
         column_values = df[column["name"]].tolist()
-        assert(check_dataplane_type_of_list(column["type"], column_values))
+        assert(check_sdtp_type_of_list(column["type"], column_values))
 
 
 import requests

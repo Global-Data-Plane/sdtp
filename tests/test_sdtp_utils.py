@@ -34,7 +34,12 @@ Run tests on the dashboard table
 import pytest
 import datetime
 import os
-from sdtp.sdtp_utils import *
+from sdtp import SDTP_STRING, SDTP_NUMBER, SDTP_BOOLEAN, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY
+from sdtp import type_check, check_sdtp_type_of_list
+from sdtp import jsonifiable_value, jsonifiable_row, jsonifiable_rows, jsonifiable_column
+from sdtp import convert_to_type, convert_list_to_type, convert_dict_to_type
+from sdtp import InvalidDataException
+# from sdtp_data.sdtp_utils import *
 import math
 
 

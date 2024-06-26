@@ -32,11 +32,11 @@ Run tests on the table server, the middleware that sits between the data plane s
 and the data plane server
 '''
 import pytest
-from sdtp_server.table_server import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, build_table_spec, Table
-from sdtp.sdtp_table import RowTable
-from sdtp.sdtp_utils import InvalidDataException, SDTP_STRING
-import os
-os.chdir('/workspaces/dataplane/data_plane')
+from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, build_table_spec, Table
+from sdtp import RowTable
+from sdtp import InvalidDataException, SDTP_STRING
+# import os
+# os.chdir('/workspaces/dataplane/data_plane')
 
 def test_build_table_spec():
     '''
@@ -44,7 +44,7 @@ def test_build_table_spec():
     tables directory.  Just make sure it builds the right row tables and extracts the 
     name and the headers
     '''
-    spec = build_table_spec('./tables/protected.json')
+    spec = build_table_spec('./tests/tables/protected.json')
     assert spec["name"] == 'protected'
     assert spec['table'].header_dict == {'foo': 'bar'}
     assert spec['table'].table.schema == [
@@ -59,7 +59,7 @@ def test_build_table_spec():
         ["Alexandra", 25],
         ["Hitomi", 45]
     ]
-    spec = build_table_spec('./tables/unprotected.json')
+    spec = build_table_spec('./tests/tables/unprotected.json')
     assert spec["name"] == 'unprotected'
     assert spec['table'].header_dict == {}
     assert spec['table'].table.schema == [
@@ -116,12 +116,12 @@ table_server = TableServer()
 files = ['protected.json', 'unprotected.json', 'test1.json']
 specs = {}
 for file in files:
-    spec = build_table_spec(f'./tables/{file}')
-    table_server.add_data_plane_table(spec)
+    spec = build_table_spec(f'./tests/tables/{file}')
+    table_server.add_sdtp_table(spec)
     specs[spec["name"]] = spec["table"]
 
 
-def test_add_data_plane_table():
+def test_add_sdtp_plane_table():
     # Test to make sure the tables were all added properly
     assert table_server.servers == specs
 

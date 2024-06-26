@@ -39,10 +39,10 @@ import random
 
 import pandas as pd
 import pytest
-from sdtp.sdtp_utils import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
-from sdtp.sdtp_utils import jsonifiable_column
-from sdtp.sdtp_filter import SDTPFilter
-from sdtp.sdtp_table import RowTable
+from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
+from sdtp import jsonifiable_column
+from sdtp import SDTPFilter
+from sdtp import RowTable
 
 
 
@@ -258,7 +258,7 @@ def test_get_all_column_values_in_filter():
     _compare_get_all_values({"operator": "ALL", "arguments": [list_filter, range_filter]}, schema, "foo", {1,2, 3, 4, 5})
 
 from pytest_httpserver import HTTPServer
-from sdtp.sdtp_table import RemoteSDTPTable
+from sdtp import RemoteSDTPTable
 from werkzeug.wrappers import Response
 
 def remote_filter_handler(request):

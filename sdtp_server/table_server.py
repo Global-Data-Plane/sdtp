@@ -48,8 +48,8 @@ from json import load
 
 import pandas as pd
 
-from sdtp.sdtp_utils import InvalidDataException
-from sdtp.sdtp_table import RowTable
+from sdtp import InvalidDataException
+from sdtp import RowTable
 
 class TableNotFoundException(Exception):
     '''
