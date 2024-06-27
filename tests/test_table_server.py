@@ -35,10 +35,8 @@ import pytest
 from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, build_table_spec, Table
 from sdtp import RowTable
 from sdtp import InvalidDataException, SDTP_STRING
-# import os
-# os.chdir('/workspaces/dataplane/data_plane')
 
-import os
+
 
 
 def test_build_table_spec():
@@ -84,7 +82,7 @@ def _check_ok(table, dataplane_table, headers):
     assert table.table == dataplane_table
     assert table.header_dict == headers
 
-import os
+
 def test_table():
     # test the Table() constructor.  Most of the correct cases were tested
     # by test_build_table
