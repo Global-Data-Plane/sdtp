@@ -38,13 +38,17 @@ from sdtp import InvalidDataException, SDTP_STRING
 # import os
 # os.chdir('/workspaces/dataplane/data_plane')
 
+import os
+
+
 def test_build_table_spec():
     '''
     Test build_table_spec.  We have three table files in the right format sitting in the 
     tables directory.  Just make sure it builds the right row tables and extracts the 
     name and the headers
     '''
-    spec = build_table_spec('./tests/tables/protected.json')
+    # spec = build_table_spec(f'{test_root}/tests/tables/protected.json')
+    spec = build_table_spec(f'/var/sdtp/protected.json')
     assert spec["name"] == 'protected'
     assert spec['table'].header_dict == {'foo': 'bar'}
     assert spec['table'].table.schema == [
@@ -59,7 +63,7 @@ def test_build_table_spec():
         ["Alexandra", 25],
         ["Hitomi", 45]
     ]
-    spec = build_table_spec('./tests/tables/unprotected.json')
+    spec = build_table_spec('/var/sdtp/unprotected.json')
     assert spec["name"] == 'unprotected'
     assert spec['table'].header_dict == {}
     assert spec['table'].table.schema == [
@@ -80,6 +84,7 @@ def _check_ok(table, dataplane_table, headers):
     assert table.table == dataplane_table
     assert table.header_dict == headers
 
+import os
 def test_table():
     # test the Table() constructor.  Most of the correct cases were tested
     # by test_build_table
@@ -115,8 +120,10 @@ def test_table():
 table_server = TableServer()
 files = ['protected.json', 'unprotected.json', 'test1.json']
 specs = {}
+
 for file in files:
-    spec = build_table_spec(f'./tests/tables/{file}')
+    # spec = build_table_spec(f'{test_root}/tests/tables/{file}')
+    spec = build_table_spec(f'/var/sdtp/{file}')
     table_server.add_sdtp_table(spec)
     specs[spec["name"]] = spec["table"]
 

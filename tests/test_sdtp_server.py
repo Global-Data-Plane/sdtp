@@ -35,8 +35,8 @@ import pytest
 import json
 import os
 
-os.chdir('/workspaces/sdtp')
-from app import app
+os.chdir('/workspaces/sdtp_package/src/sdtp')
+from sdtp import app
 
 client = app.test_client()
 

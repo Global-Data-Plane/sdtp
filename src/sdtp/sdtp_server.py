@@ -377,11 +377,14 @@ def get_table_spec():
     '''
     return jsonify(table_server.get_auth_spec())
 
+@sdtp_server_blueprint.route('/cwd')
+def cwd():
+    return os.getcwd()
 
 @sdtp_server_blueprint.route('/init', methods=['POST', 'GET'])
 def init():
     table_server.__init__()
-    paths = [path for path in ['tables', 'sdtp/tables', 'tests/tables'] if os.path.isdir(path)]
+    paths = [path for path in ['tables', 'sdtp/tables', 'tests/tables', '/var/sdtp'] if os.path.isdir(path)]
     path = paths[0] if len(paths) > 0 else None
 
     if path is not None:
