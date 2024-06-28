@@ -35,9 +35,13 @@ import pytest
 from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, build_table_spec, Table
 from sdtp import RowTable
 from sdtp import InvalidDataException, SDTP_STRING
+import os
 
-
-
+test_table_dir = '/var/sdtp'
+try:
+    test_table_dir = os.environ['SDTP_TEST_TABLE_DIR']
+except KeyError:
+    pass
 
 def test_build_table_spec():
     '''
@@ -46,7 +50,7 @@ def test_build_table_spec():
     name and the headers
     '''
     # spec = build_table_spec(f'{test_root}/tests/tables/protected.json')
-    spec = build_table_spec(f'/var/sdtp/protected.json')
+    spec = build_table_spec(f'{test_table_dir}/protected.json')
     assert spec["name"] == 'protected'
     assert spec['table'].header_dict == {'foo': 'bar'}
     assert spec['table'].table.schema == [
@@ -61,7 +65,7 @@ def test_build_table_spec():
         ["Alexandra", 25],
         ["Hitomi", 45]
     ]
-    spec = build_table_spec('/var/sdtp/unprotected.json')
+    spec = build_table_spec(f'{test_table_dir}/unprotected.json')
     assert spec["name"] == 'unprotected'
     assert spec['table'].header_dict == {}
     assert spec['table'].table.schema == [
@@ -121,7 +125,7 @@ specs = {}
 
 for file in files:
     # spec = build_table_spec(f'{test_root}/tests/tables/{file}')
-    spec = build_table_spec(f'/var/sdtp/{file}')
+    spec = build_table_spec(f'{test_table_dir}/{file}')
     table_server.add_sdtp_table(spec)
     specs[spec["name"]] = spec["table"]
 

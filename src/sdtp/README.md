@@ -8,3 +8,4 @@ This directory also contains the modules that serve SDTP tables.  The principal 
 The `TableServer` does not work with `SDTPTable`s directly, but with a containing class here, `Table`, which adds the ability to authenticate to use a `Table`.  `Table` also offers the ability to create a `RowTable` from a JSON specification.
 In addition, table_server.py implements the self-explanatory `TableNotFoundException` and `TableNotAuthorizedException` exceptions.
 `sdtp_server` is a reference implementation of an SDTP server, implemented in Flask.  It implements all of the routes specified in the SDTP specification.  The route / and /help prints a list of the supported routes.
+`app` is a thin overlay on `stdp_server`; it simply initializes the stdp server with the tables found in the directories in the `SDTP_PATH` environment variable.

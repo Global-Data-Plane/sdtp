@@ -43,10 +43,13 @@ from sdtp import sdtp_server_blueprint
 app = Flask(__name__)
 
 app.register_blueprint(sdtp_server_blueprint)
+
+
 @app.route('/cwd')
 def cwd():
     return os.getcwd()
 
 
 if __name__ == '__main__':
+    sdtp_server_blueprint.init_tables()
     app.run()

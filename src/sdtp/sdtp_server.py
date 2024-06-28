@@ -62,13 +62,53 @@ from sdtp import check_valid_spec
 from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, \
     ColumnNotFoundException, build_table_spec, Table
 
-sdtp_server_blueprint = Blueprint('sdtp_server', __name__)
 
-table_server = TableServer()
+
+def _paths_from_env():
+    # A little utility to get the paths from the environment
+    try:
+        paths = os.environ['SDTP_PATH']
+        return paths.split(':')
+    except KeyError:
+        return []
+
+class STDPServer(Blueprint):
+    '''
+    An SDTP Server.  This is just an overlay on a Flask Blueprint, added so 
+    we can expose initialize methods to the application
+    '''
+    def __init__(self, name, __name__):
+        super(STDPServer, self).__init__(name, __name__)
+        self.table_server = TableServer()
+
+    def init_tables(self, paths = None):
+        '''
+        Initialize the TableServer, reading files from the directories in the 
+        paths parameter.  If paths is None, reads the list of paths from the
+        SDTP_PATH variable in the environment.  To initialize with no tables,
+        just pass an empty list
+        Parameters:
+            paths: the list of paths to check for tables
+        Returns:
+            a JSON dump of the tables
+        '''
+        self.table_server = TableServer()
+        if paths is None:
+            paths = _paths_from_env()
+        paths = [path for path in paths if os.path.isdir(path)]
+        for path in paths:
+            files = glob(f'{path}/*.json')
+            for filename in files:
+                self.table_server.add_sdtp_table(build_table_spec(filename))
+        return jsonify(self.table_server.get_auth_spec())
+
+
+sdtp_server_blueprint = STDPServer('sdtp_server', __name__)
+
 
 def _log_and_abort(message, code=400):
     '''
-    Sent an abort with error code (defaut 400) and log the error message.  Utility, internal use only
+    Sent an abort with error code (default 400) and log the error message.  Utility, internal use only
 
     Arguments:
         message: string with the message to be logged/sent
@@ -88,7 +128,7 @@ def _table_server_if_authorized(request_api, table_name):
         table_name: the table to get
     '''
     try:
-        return table_server.get_table(table_name, request.headers)
+        return sdtp_server_blueprint.table_server.get_table(table_name, request.headers)
     except TableNotFoundException:
         msg = f'No handler defined for table {table_name} for request {request_api}'
         code = 400
@@ -123,7 +163,7 @@ def _column_type(table_name, column):
         The type of the column
 
     '''
-    table = table_server.get_table(table_name, request.headers)
+    table = sdtp_server_blueprint.table_server.get_table(table_name, request.headers)
     return table.get_column_type(column)
 
 
@@ -309,7 +349,7 @@ def get_range_spec():
     column_name = request.args.get('column_name')
     table_name = request.args.get('table_name')
     try:
-        result = table_server.get_range_spec(table_name, column_name, request.headers)
+        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name, request.headers)
         sdtp_type = _column_type(table_name, column_name)
         jsonifiable_result = {
             "max_val": jsonifiable_value(result["max_val"], sdtp_type ),
@@ -338,7 +378,7 @@ def get_all_values():
     column_name = request.args.get('column_name')
     table_name = request.args.get('table_name')
     try:
-        result = table_server.get_all_values(table_name, column_name, request.headers)
+        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name, request.headers)
         sdtp_type  = _column_type(table_name, column_name)
         jsonifiable_result = jsonifiable_column(result, sdtp_type)
         return jsonify(jsonifiable_result)
@@ -360,7 +400,7 @@ def get_tables():
     Arguments:
             None
     '''
-    items = table_server.get_table_dictionary(request.headers)
+    items = sdtp_server_blueprint.table_server.get_table_dictionary(request.headers)
 
     return jsonify(items)
 
@@ -375,23 +415,28 @@ def get_table_spec():
          A dictionary of the form {table_name: list of required authorization variables}
 
     '''
-    return jsonify(table_server.get_auth_spec())
+    return jsonify(sdtp_server_blueprint.table_server.get_auth_spec())
 
-@sdtp_server_blueprint.route('/cwd')
-def cwd():
-    return os.getcwd()
+
+
 
 @sdtp_server_blueprint.route('/init', methods=['POST', 'GET'])
-def init():
-    table_server.__init__()
-    paths = [path for path in ['tables', 'sdtp/tables', 'tests/tables', '/var/sdtp'] if os.path.isdir(path)]
-    path = paths[0] if len(paths) > 0 else None
+def init_route():
+    '''
+    Target for the '/init' route.  This is just a front end on the init(paths) method,
+    extracting the paths to check from the parameter list (if present) or the SDTP_PATH
+    environment variable (if set)
 
-    if path is not None:
-        files = glob(f'{path}/*.json')
-        for filename in files:
-            table_server.add_sdtp_table(build_table_spec(filename))
-    return jsonify(table_server.get_auth_spec())
+    '''
+    request_paths = None
+
+    params = request.args.getlist('paths') or request.form.getlist('paths')
+    if len(params) == 1 and ':' in params[0]:
+        request_paths = params[0].split(':')
+    elif len(params) > 0:
+        request_paths = params
+
+    return sdtp_server_blueprint.init_tables(request_paths)
 
 
 @sdtp_server_blueprint.route('/help', methods=['POST', 'GET'])
@@ -419,7 +464,7 @@ def show_routes():
          "description": "Get all the distinct values for column <i>column_name</i> in table <i>table_name</i>, returned as a sorted list.  Authentication variables shjould be in headers."},
         {"url": "/get_table_spec", "method": "GET",
          "description": "Return the dictionary of table names and authorization variables"},
-        {"url": "/init", "method": "GET",
+        {"url": "/init?path<i>string, optional, multiple</i>", "method": ["GET", "POST"],
          "description": "Restart the table server and load any initial tables.  Returns the list returned by /get_table_spec"},
 
     ]
