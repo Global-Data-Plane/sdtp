@@ -49,7 +49,7 @@ from json import load
 import pandas as pd
 
 from sdtp import InvalidDataException
-from sdtp import RowTable
+from sdtp import RowTableFactory, RemoteCSVTableFactory, RemoteSDTPTableFactory
 
 class TableNotFoundException(Exception):
     '''
@@ -150,22 +150,20 @@ class Table:
 
 def build_table_spec(filename):
     '''
-    Read a RowTable from a JSON file and register it.  The
+    Read a Table from a JSON file and register it.  The
     file should be a JSON dictionary of the form
     {
         "name": <table_name>,
         "headers": <optional, list of headers>,
         "table": {
             "schema": <list of columns>
+            "type": type opf table
             "rows": <list of rows>
         }
     }
     Where
     a header is of the form {"variable": <var-name>, "value": <value}
     a column is of the form {"name" <column-name> "type": <SDTPType>}
-    a row is a list of lists values, each list the same length as the schema, and
-       each value is of the type specified for the corresponding entry of
-       the schema.  Date, Time, and Datetime entries ate in isoformat.
     Note there is no error-checking
     Arguments:
         filename: name of the json file
@@ -176,26 +174,33 @@ def build_table_spec(filename):
         table_spec = load(file)
 
     table = table_spec["table"]
-    row_table = RowTable(table["schema"], table["rows"])
-    headers = table_spec['headers'] if 'headers' in table_spec else []
-    return {
-        "name": table_spec["name"],
-        "table": Table(row_table, headers)
-    }
-
+    
 
 def _check_type(value, type, message_prefix):
     assert isinstance(value, type), f'{message_prefix} {type(value)}'
+
+def _check_dict_and_keys(dictionary, keys, dict_message, dict_name):
+    _check_type(dictionary, dict, dict_message)
+    missing_keys = keys - dictionary.keys()
+    assert len(missing_keys) == 0, f'{dict_name} is missing keys {missing_keys}'
+
 
 
 def _check_table_spec(table_spec):
     # Make sure a table_spec is a dictionary with two entries, a name and a table,
     # and the type of name is a string and the type of table is a Table
-    _check_type(table_spec, dict, 'table_spec must be a dictionary, not')
-    missing_keys = {'name', 'table'} - table_spec.keys()
-    assert len(missing_keys) == 0, f'table_spec is missing keys {missing_keys}'
+    _check_dict_and_keys(table_spec, {'name', 'table'}, 'table_spec must be a dictionary not', 'table_spec')
     _check_type(table_spec["name"], str, 'The name in table_spec must be a string, not')
     _check_type(table_spec["table"], Table, 'The table in table_spec must be a Table, not')
+
+def _check_valid_form(table_form):
+    # Make sure a table_form is a dictionary with two entries, a name and a table,
+    # and the type of name is a string, the type of table is a dictionary, and the 
+    # table dictionary contains fields schema and type
+    _check_dict_and_keys(table_form, {'name', 'table'}, 'table_form must be a dictionary not', 'table_form')
+    _check_type(table_form["name"], str, 'The name in table_form must be a string, not')
+    _check_dict_and_keys(table_form['table'], {'type', 'schema'}, 'table_form["table"] must be a dictionary not', 'table_form')
+
 
 
 class TableServer:
@@ -207,6 +212,23 @@ class TableServer:
     # Conceptually, there is only a single TableServer  (why would there #  be more?), and so this could be in a global variable and its # methods global.
     def __init__(self):
         self.servers = {}
+        self.factories = {}
+        # factories which are part of the standard  distribution
+        self.add_table_factory('RowTable', RowTableFactory())
+        self.add_table_factory('RemoteSDTPTable', RemoteSDTPTableFactory())
+        self.add_table_factory('RemoteCSVTable', RemoteCSVTableFactory())
+
+
+    def add_table_factory(self, table_type, table_factory):
+        '''
+        Add a TableFactory for table type table_type.  When 
+        self.add_table_from_dictionary(table_spec) is called, the appropriate 
+        factory is called to build it
+        Arguments:
+           table_type: a string indicating the table type
+           table_factory: an instance of a subclass of TableFactory which actually builds the table
+        '''
+        self.factories[table_type] = table_factory
 
     def get_table_dictionary(self, headers={}):
         '''
@@ -259,6 +281,31 @@ class TableServer:
         '''
         _check_table_spec(table_spec)
         self.servers[table_spec["name"]] = table_spec["table"]
+
+
+    def add_sdtp_table_from_dictionary(self, table_dictionary):
+        '''
+        Add an  SDTPTable from a dictionary (intermediate on-disk form).  The intermediate form has
+        a name and a table dictionary.  The table dictionary has fields schema and type, and then type-
+        specific fields.  Calls self.factories[table_dictionary["table"]["type"]] to build the table,
+        then calls self.add_sdtp_table to add the table.
+        Raises an InvalidDataException if self.add_table_spec raises it or if the factory 
+        is not present, or if the factory raises an exception
+
+        Arguments:
+            table_dictionary: dictionary of the form {"name", "table"}, where table is a table specification: a dictionary
+                             with the fields type and schema
+
+        '''
+        _check_valid_form(table_dictionary)
+        name = table_dictionary['name']
+        table_dict = table_dictionary['table']
+        table_type = table_dict['type']
+        if table_type in self.factories.keys():
+            table = self.factories[table_type].build_table(table_dict)
+            self.add_sdtp_table({"name": name, "table": Table(table)})
+        else:
+            raise InvalidDataException(f'No factory registered for {table_type}')
 
     def get_table(self, table_name, headers={}):
         '''
@@ -329,3 +376,6 @@ class TableServer:
             return table.range_spec(column_name)
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
+        
+
+

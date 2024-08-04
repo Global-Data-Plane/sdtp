@@ -217,11 +217,45 @@ class SDTPTable:
         filter = SDTPFilter(filter_spec, self.schema) if filter_spec is not None else None
         return self.get_filtered_rows_from_filter(filter = filter, columns=columns, jsonify=jsonify)
     
+    def to_dictionary(self):
+        '''
+        Return the dictionary  of this table, for saving on disk or transmission.
+        '''
+        raise InvalidDataException(f'to_dictionary has not been in {type(self)}.__name__')
+    
     def to_json(self):
         '''
         Return the JSON form of this table, for saving on disk or transmission.
         '''
-        raise InvalidDataException(f'to_json has not been in {type(self)}.__name__')
+        # Since the columns are already a dictionary, they are simply directly jsonified.  For the rows,
+        # just use the jsonify methods from sdtp_utils
+
+        return json.dumps(self.to_dictionary, indent = 2)
+
+class SDTPTableFactory:
+    '''
+    A class which builds an SDTPTable of a specific type.  All SDTPTables have a schema, but after
+    that the specification varies, depending on the method the table uses to get the table rows.
+    Specific factories should subclass this and instantiate the class method build_table.
+    The tag is the table type, simply a string which indicates which class of table should be
+    built.
+    A new SDTPTableFactory class should be built for each concrete subclass of SDTPTable, and ideally
+    in the same file.  The SDTPTable subclass should put a "type" field in the intermediate form,
+    and the value of "type" should be the type built by the SDTP Table field
+    SDTPTableFactory is an abstract class -- each concrete subclass should call the init method on the 
+    table_type on initialization.  build_table is the method which actually builds the table; the superclass 
+    convenience version of the method throws an InvalidDataException if the spec has the wrong table type 
+    '''
+    def __init__(self, table_type):
+        self.table_type = table_type
+    
+    def build_table(self, table_spec):
+        if (table_spec["type"] != self.table_type):
+            raise InvalidDataException(f'Bad table type {table_spec["type"]} to build_table: expecting {self.table_type}')
+        return None
+        
+
+       
 
 class SDTPFixedTable(SDTPTable):
     '''
@@ -342,19 +376,28 @@ class SDTPFixedTable(SDTPTable):
         
         return  pd.DataFrame(self.get_rows(), columns = self.column_names())
     
-    def to_json(self):
+    def to_dictionary(self):
         '''
-        Return the JSON form of this table, for saving on disk or transmission.
+        Return the intermediate form of this table as a dictioary
         '''
-        # Since the columns are already a dictionary, they are simply directly jsonified.  For the rows,
-        # just use the jsonify methods from sdtp_utils
-
-        return json.dumps({
-            "type": "SDTPTable",
-            "columns": self.schema,
+        return {
+            "type": "RowTable",
+            "schema": self.schema,
             "rows": jsonifiable_rows(self.get_rows(), self.column_types())
-        })
-
+        }
+    
+    
+class RowTableFactory(SDTPTableFactory):
+    '''
+    A factory to build RowTables -- in fact, all SDTPFixedTables.  build_table is very simple, just instantiating
+    a RowTable on the rows and schema of the specification
+    '''
+    def __init__(self):
+        super(RowTableFactory, self).__init__('RowTable')
+    
+    def build_table(self, table_spec):
+        super(RowTableFactory, self).build_table(table_spec)
+        return RowTable(table_spec["schema"], table_spec["rows"])    
     
 
 class DataFrameTable(SDTPFixedTable):
@@ -429,8 +472,8 @@ class  RemoteCSVTable(SDTPFixedTable):
 
     def to_dataframe(self):
         return self.dataframe_table.to_dataframe()  
-
-    def to_json(self):
+    
+    def to_dictionary(self):
         return {
             "type":  "RemoteCSVTable",
             "columns": self.schema,
@@ -438,7 +481,19 @@ class  RemoteCSVTable(SDTPFixedTable):
                 "url": self.url,
                 "type": "csv"
             }
-        }      
+        }   
+
+class RemoteCSVTableFactory(SDTPTableFactory):
+    '''
+    A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
+    a RemoteCSVTable on the url and schema of the specification
+    '''
+    def __init__(self):
+        super(RemoteCSVTableFactory, self).__init__('RemoteCSVTable')
+    
+    def build_table(self, table_spec):
+        super(RemoteCSVTableFactory, self).build_table(table_spec)
+        return RemoteCSVTable(table_spec["schema"], table_spec["url"])          
 
 
 def _column_names(schema):
@@ -468,6 +523,15 @@ class RemoteSDTPTable(SDTPTable):
         self.table_name = table_name
         self.header_dict = header_dict
         self.ok = False
+
+    def to_dictionary(self):
+        return {
+            "name": self.table_name,
+            "type": "RemoteSDTPTable",
+            "schema": self.schema,
+            "url": self.url,
+            "headers": self.header_dict if self.header_dict is not None else {}
+        }
 
     def _connect_error(self, msg):
         self.ok = False
@@ -516,9 +580,7 @@ class RemoteSDTPTable(SDTPTable):
         self.ok = True
         
         # also check to make sure that we can authenticate to the table.  See /get_table_spec
-
     
-        
     def _check_column_and_get_type(self, column_name):
          if not column_name in self.column_names():
             raise InvalidDataException(f'Column {column_name} is not a column of {self.table_name}')
@@ -638,4 +700,15 @@ class RemoteSDTPTable(SDTPTable):
         else:
             return convert_rows_to_type_list(sdtp_type_list, result)
         
-                    
+class RemoteSDTPTableFactory(SDTPTableFactory):
+    '''
+    A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
+    a RemoteCSVTable on the url and schema of the specification
+    '''
+    def __init__(self):
+        super(RemoteSDTPTableFactory, self).__init__('RemoteSDTPTable')
+    
+    def build_table(self, table_spec):
+        super(RemoteSDTPTableFactory, self).build_table(table_spec)
+        header_dict = table_spec['header_dict'] if header_dict in table_spec.keys() else None
+        return RemoteSDTPTable(table_spec['table_name'], table_spec['schema'], table_spec['url'], header_dict)  

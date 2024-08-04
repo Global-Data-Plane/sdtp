@@ -65,6 +65,21 @@ def _canonize_set(any_set):
     result.sort()
     return result
 
+def check_valid_spec_return_boolean(filter_spec):
+    '''
+    Class method which checks to make sure that a filter spec is valid.
+    Returns True iff the filter_spec is valid.  Doesn't give a reason 
+    if it's invalid
+
+    Arguments:
+        filter_spec: spec to test for validity
+    '''
+    try:
+        check_valid_spec(filter_spec)
+        return True
+    except InvalidDataException:
+        return False
+
 
 def check_valid_spec(filter_spec):
     '''
