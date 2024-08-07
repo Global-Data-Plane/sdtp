@@ -17,7 +17,7 @@ After that, requests for the named table will be served by the created data serv
 
 # BSD 3-Clause License
 
-# Copyright (c) 2023, engageLively
+# Copyright (c) 2024, The Regents of the University of California (Regents)
 # All rights reserved.
 
 # Redistribution and use in source and binary forms, with or without

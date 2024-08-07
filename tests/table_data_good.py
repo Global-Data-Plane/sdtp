@@ -1,4 +1,32 @@
+# BSD 3-Clause License
 
+# Copyright (c) 2024, The Regents of the University of California (Regents)
+# All rights reserved.
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import datetime
 names = ['Pearla', 'Karleen', 'Bathsheba', 'Casi', 'Gusti', 'Anastassia', 'Nonah', 'Janine', 'Nicki', 'Noemi', 'Vivyanne', 'Jeanne', 'Carina', 'Ivy', 'Jenine', 'Tandie', 'Abbe', 'Laney', 'Shandeigh', 'Aarika', 'Caria', 'Jorrie', 'Maisey', 'Shani', 'Casi', 'Ashley', 'Roselia', 'Petronia', 'Brandice', 'Debi', 'Andee', 'Teodora', 'Neysa', 'Beverley', 'Rey', 'Brittni', 'Rheba', 'Jeanna', 'Lyssa', 'Elayne', 'Magdalene', 'Violante', 'Netta', 'Virginia', 'Natalie', 'Mildred', 'Ophelia', 'Alma', 'Lettie', 'Catherina', 'Philipa', 'Marget', 'Karol', 'Berget', 'Doloritas', 'Kessia', 'Jaynell', 'Bethanne', 'Mildred', 'Gustie', 'Irina', 'Felipa', 'Charlean', 'Jaquelin', 'Isadora', 'Jelene', 'Benedicta', 'Piper', 'Almeria', 'Editha', 'Deena', 'Celestyn', 'Betsy', 'Georgianna', 'Jacklin', 'Georgiana', 'Robby', 'Emmalyn', 'Robinett', 'Nickie', 'Jo-Ann', 'Rosita', 'Ingrid', 'Erminie', 'Tami', 'Meg', 'Devan', 'Annaliese', 'Ginevra', 'Wilmette', 'Imogen', 'Melony', 'Kalli', 'Tessy', 'Lesly', 'Deedee', 'Mellisent', 'Perl', 'Milzie', 'Allegra']
 ages = [64, 78, 79, 13, 28, 70, 79, 87, 31, 7, 46, 51, 29, 13, 43, 17, 83, 29, 46, 55, 60, 37, 50, 9, 57, 88, 74, 47, 67, 42, 82, 63, 79, 81, 34, 77, 80, 51, 68, 61, 72, 71, 59, 55, 31, 57, 31, 66, 91, 45, 58, 59, 77, 15, 42, 39, 92, 82, 90, 77, 60, 20, 23, 31, 83, 34, 89, 83, 55, 38, 45, 51, 10, 90, 55, 85, 38, 53, 75, 11, 74, 80, 52, 31, 69, 25, 76, 63, 11, 77, 33, 18, 19, 53, 64, 11, 17, 50, 92, 55]
