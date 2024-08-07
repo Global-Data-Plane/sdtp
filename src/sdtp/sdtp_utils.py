@@ -32,36 +32,36 @@ import functools
 import pandas as pd
 """ Types for the SDTP schema """
 
-SDTP_STRING = 'string'
-SDTP_NUMBER = 'number'
-SDTP_BOOLEAN = 'boolean'
-SDTP_DATE = 'date'
-SDTP_DATETIME = 'datetime'
-SDTP_TIME_OF_DAY = 'timeofday'
+SDML_STRING = 'string'
+SDML_NUMBER = 'number'
+SDML_BOOLEAN = 'boolean'
+SDML_DATE = 'date'
+SDML_DATETIME = 'datetime'
+SDML_TIME_OF_DAY = 'timeofday'
 
-SDTP_SCHEMA_TYPES = ['string', 'number', 'boolean', 'date', 'datetime', 'timeofday']
+SDML_SCHEMA_TYPES = ['string', 'number', 'boolean', 'date', 'datetime', 'timeofday']
 
 '''
 SDTP Python Types
 '''
-SDTP_PYTHON_TYPES = {
-    SDTP_STRING: {str},
-    SDTP_NUMBER: {int, float},
-    SDTP_BOOLEAN: {bool},
-    SDTP_DATE: {datetime.date},
-    SDTP_DATETIME: {datetime.datetime, pd.Timestamp},
-    SDTP_TIME_OF_DAY: {datetime.time}
+SDML_PYTHON_TYPES = {
+    SDML_STRING: {str},
+    SDML_NUMBER: {int, float},
+    SDML_BOOLEAN: {bool},
+    SDML_DATE: {datetime.date},
+    SDML_DATETIME: {datetime.datetime, pd.Timestamp},
+    SDML_TIME_OF_DAY: {datetime.time}
 }
 
 def type_check(sdtp_type, val):
-    return type(val) in SDTP_PYTHON_TYPES[sdtp_type]
+    return type(val) in SDML_PYTHON_TYPES[sdtp_type]
 
 def check_sdtp_type_of_list(sdtp_type, list_of_values):
     '''
     Check to make sure the values in list_of_values are all the right Python 
     type for operations.
     Arguments:
-        sdtp_type: One of SDTP_SCHEMA_TYPES
+        sdtp_type: One of SDML_SCHEMA_TYPES
         list_of_values: a Python list to be tested
     '''
     type_check_list = [type_check(sdtp_type, val) for val in list_of_values]
@@ -84,7 +84,7 @@ class InvalidDataException(Exception):
         super().__init__(message)
         self.message = message
 
-NON_JSONIFIABLE_TYPES = {SDTP_DATE, SDTP_TIME_OF_DAY, SDTP_DATETIME}
+NON_JSONIFIABLE_TYPES = {SDML_DATE, SDML_TIME_OF_DAY, SDML_DATETIME}
 
 def jsonifiable_value(value, column_type):
     '''
@@ -129,7 +129,7 @@ def jsonifiable_column(column, column_type):
     '''
     Return a jsonifiable version of the column of values, using jsonifiable_value
     to do the conversion.  We actually cheat a little, only calling _jsonifiable_value if column_type
-    is one of SDTP_TIME, SDTP_DATE, SDTP_DATETIME
+    is one of SDML_TIME, SDML_DATE, SDML_DATETIME
     '''
     if column_type in NON_JSONIFIABLE_TYPES:
         return [jsonifiable_value(value, column_type) for value in column]
@@ -150,16 +150,16 @@ def convert_to_type(sdtp_type, value):
     Returns:
         value cast to the correct type
     '''
-    if type(value) in SDTP_PYTHON_TYPES[sdtp_type]:
+    if type(value) in SDML_PYTHON_TYPES[sdtp_type]:
         return value
-    if sdtp_type == SDTP_STRING:
+    if sdtp_type == SDML_STRING:
         if isinstance(value, str):
             return value
         try:
             return str(value)
         except ValueError:
             raise InvalidDataException('Cannot convert value to string')
-    elif sdtp_type == SDTP_NUMBER:
+    elif sdtp_type == SDML_NUMBER:
         if isinstance(value, int) or isinstance(value, float):
             return value
 
@@ -185,7 +185,7 @@ def convert_to_type(sdtp_type, value):
         # Everything has failed, so toss the exception
         raise InvalidDataException(f'Cannot convert {value} to number')
 
-    elif sdtp_type == SDTP_BOOLEAN:
+    elif sdtp_type == SDML_BOOLEAN:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -197,7 +197,7 @@ def convert_to_type(sdtp_type, value):
         return False
     # Everything else is a date or time
 
-    elif sdtp_type == SDTP_DATETIME:
+    elif sdtp_type == SDML_DATETIME:
         if type(value) == datetime.date:
             return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
         if isinstance(value, str):
@@ -207,8 +207,8 @@ def convert_to_type(sdtp_type, value):
                 raise InvalidDataException(f"Can't convert {value} to datetime")
         raise InvalidDataException(f"Can't convert {value} to datetime")
 
-    elif sdtp_type == SDTP_DATE:
-        if type(value) in SDTP_PYTHON_TYPES[SDTP_DATETIME]:
+    elif sdtp_type == SDML_DATE:
+        if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
             return value.date()
         if isinstance(value, str):
             try:
@@ -217,8 +217,8 @@ def convert_to_type(sdtp_type, value):
                 raise InvalidDataException(f"Can't convert {value} to date")
         raise InvalidDataException(f"Can't convert {value} to date")
     
-    else:  # sdtp_type = SDTP_TIME_OF_DAY
-        if type(value) in SDTP_PYTHON_TYPES[SDTP_DATETIME]:
+    else:  # sdtp_type = SDML_TIME_OF_DAY
+        if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
             return value.time()
         if isinstance(value, str):
             try:

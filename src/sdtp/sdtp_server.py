@@ -54,7 +54,7 @@ import csv
 
 from flask import Blueprint, abort, jsonify, request
 
-from sdtp import SDTP_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
+from sdtp import SDML_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
 
 from sdtp import InvalidDataException, convert_row_to_type_list
 from sdtp import RowTable
@@ -200,7 +200,7 @@ def create_server_from_csv(table_name, path_to_csv_file, table_server, headers=N
         columns = [entry.strip() for entry in rows[0]]
         for row in rows[1:]: assert len(row) == num_columns
         types = [entry.strip() for entry in rows[1]]
-        for entry in types: assert entry in SDTP_SCHEMA_TYPES
+        for entry in types: assert entry in SDML_SCHEMA_TYPES
     except Exception as error:
         raise InvalidDataException(error)
 

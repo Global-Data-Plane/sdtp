@@ -39,8 +39,8 @@ import datetime
 import requests
 import json
 
-from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
-    SDTP_SCHEMA_TYPES, SDTP_STRING, SDTP_TIME_OF_DAY
+from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
+    SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
 from sdtp import InvalidDataException
 from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
 from sdtp import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
@@ -67,7 +67,7 @@ The Default for header variables for a table is both required and optional lists
 def get_errors(entry):
     '''
     A Utility to make sure that a schema entry is valid.  It must have a name, a type, both must be strings, 
-    and the type is one of SDTP_SCHEMA_TYPES.
+    and the type is one of SDML_SCHEMA_TYPES.
     Arguments:
         entry: a dictionary with (at least) the keys name, type
     Returns:
@@ -83,8 +83,8 @@ def get_errors(entry):
         result.append(f'Name of column {entry} must be a string')
     if not 'type' in keys:
         result.append(f'Column {entry} must have a type')
-    elif not (type(entry['type']) == str and entry['type'] in SDTP_SCHEMA_TYPES):
-        result.append(f'Type of column {entry} must be one of {SDTP_SCHEMA_TYPES}' )
+    elif not (type(entry['type']) == str and entry['type'] in SDML_SCHEMA_TYPES):
+        result.append(f'Type of column {entry} must be one of {SDML_SCHEMA_TYPES}' )
     return result
             
     

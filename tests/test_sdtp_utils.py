@@ -34,7 +34,7 @@ Run tests on the dashboard table
 import pytest
 import datetime
 import os
-from sdtp import SDTP_STRING, SDTP_NUMBER, SDTP_BOOLEAN, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY
+from sdtp import SDML_STRING, SDML_NUMBER, SDML_BOOLEAN, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY
 from sdtp import type_check, check_sdtp_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_row, jsonifiable_rows, jsonifiable_column
 from sdtp import convert_to_type, convert_list_to_type, convert_dict_to_type
@@ -44,12 +44,12 @@ import math
 
 
 good_types = {
-  SDTP_STRING: ["foo"],
-  SDTP_NUMBER: [3.2, 32],
-  SDTP_BOOLEAN: [True, False],
-  SDTP_DATE: [datetime.date(2021, 1, 1)],
-  SDTP_DATETIME: [datetime.datetime(2021, 1, 1, 12, 0, 0)],
-  SDTP_TIME_OF_DAY: [datetime.time(12, 0, 0)]
+  SDML_STRING: ["foo"],
+  SDML_NUMBER: [3.2, 32],
+  SDML_BOOLEAN: [True, False],
+  SDML_DATE: [datetime.date(2021, 1, 1)],
+  SDML_DATETIME: [datetime.datetime(2021, 1, 1, 12, 0, 0)],
+  SDML_TIME_OF_DAY: [datetime.time(12, 0, 0)]
 }
 
 # Test check_valid for good and bad types
@@ -58,12 +58,12 @@ def test_type_check_good():
     for item in item_list: assert(type_check(key, item))
 
 bad_types = {
-  SDTP_STRING: [None, 3.2, 32, True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
-  SDTP_NUMBER: [None, "foo", True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
-  SDTP_BOOLEAN: [None, 3.2, 32, "foo", datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
-  SDTP_DATE: [None, 3.2, 32, True, False, "foo", datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
-  SDTP_DATETIME: [None, 3.2, 32, True, False,  datetime.date(2021, 1, 1), "foo", datetime.time(12, 0, 0)],
-  SDTP_TIME_OF_DAY: [None, 3.2, 32, True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), "foo"]
+  SDML_STRING: [None, 3.2, 32, True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
+  SDML_NUMBER: [None, "foo", True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
+  SDML_BOOLEAN: [None, 3.2, 32, "foo", datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
+  SDML_DATE: [None, 3.2, 32, True, False, "foo", datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.time(12, 0, 0)],
+  SDML_DATETIME: [None, 3.2, 32, True, False,  datetime.date(2021, 1, 1), "foo", datetime.time(12, 0, 0)],
+  SDML_TIME_OF_DAY: [None, 3.2, 32, True, False, datetime.date(2021, 1, 1), datetime.datetime(2021, 1, 1, 12, 0, 0), "foo"]
 }
 
 def test_type_check_bad():
@@ -73,19 +73,19 @@ def test_type_check_bad():
 # Check the list; since we know that type_sest works, this just makes sure it's right on a list of 
 # length 0, 1 > 1
 def test_check_type_of_list():
-  assert(check_sdtp_type_of_list(SDTP_STRING, []))
-  assert(check_sdtp_type_of_list(SDTP_STRING, ["foo"]))
-  assert(check_sdtp_type_of_list(SDTP_STRING, ["foo", "bar"]))
-  assert(not check_sdtp_type_of_list(SDTP_STRING, [32]))
-  assert(not check_sdtp_type_of_list(SDTP_STRING, ["foo", 32]))
+  assert(check_sdtp_type_of_list(SDML_STRING, []))
+  assert(check_sdtp_type_of_list(SDML_STRING, ["foo"]))
+  assert(check_sdtp_type_of_list(SDML_STRING, ["foo", "bar"]))
+  assert(not check_sdtp_type_of_list(SDML_STRING, [32]))
+  assert(not check_sdtp_type_of_list(SDML_STRING, ["foo", 32]))
 
 jsonifiable_values = {
-  SDTP_STRING: [("foo", "foo")],
-  SDTP_NUMBER: [(3.2, 3.2), (32, 32)],
-  SDTP_BOOLEAN: [(True, True), (False, False)],
-  SDTP_DATE: [(datetime.date(2021, 1, 1), "2021-01-01")],
-  SDTP_DATETIME: [(datetime.datetime(2021, 1, 1, 12, 0, 0), "2021-01-01T12:00:00")],
-  SDTP_TIME_OF_DAY: [(datetime.time(12, 0, 0), "12:00:00")]
+  SDML_STRING: [("foo", "foo")],
+  SDML_NUMBER: [(3.2, 3.2), (32, 32)],
+  SDML_BOOLEAN: [(True, True), (False, False)],
+  SDML_DATE: [(datetime.date(2021, 1, 1), "2021-01-01")],
+  SDML_DATETIME: [(datetime.datetime(2021, 1, 1, 12, 0, 0), "2021-01-01T12:00:00")],
+  SDML_TIME_OF_DAY: [(datetime.time(12, 0, 0), "12:00:00")]
 }
 
 # Check jsonifiable values
@@ -105,22 +105,22 @@ jsonifiable_rows_test = [
 
 def test_jsonifiable_row():
   for row in jsonifiable_rows_test:
-    assert(jsonifiable_row(row[0], [SDTP_DATE, SDTP_DATETIME]) == row[1])
+    assert(jsonifiable_row(row[0], [SDML_DATE, SDML_DATETIME]) == row[1])
 
 def test_jsonifiable_rows():
   rows = [jsonifiable_rows_test[0][0], jsonifiable_rows_test[1][0]]
   solutions = [jsonifiable_rows_test[0][1], jsonifiable_rows_test[1][1]]
-  assert(jsonifiable_rows(rows, [SDTP_DATE, SDTP_DATETIME]) == solutions)
+  assert(jsonifiable_rows(rows, [SDML_DATE, SDML_DATETIME]) == solutions)
 
 # Check a jsonifiable column.  Since we know the values convert properly, this is just a 
 # test on individual columns.  STRING, NUMBER, and BOOLEAN just return the identity,
 # DATE, TIME, and DATETIME convert to strings
 
 def test_jsonifiable_column():
-  assert(jsonifiable_column([3.2, 2], SDTP_NUMBER) == [3.2, 2])
-  assert(jsonifiable_column([datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.datetime(2021, 1, 1, 12, 1, 1)], SDTP_DATETIME) == ["2021-01-01T12:00:00", "2021-01-01T12:01:01"])
-  assert(jsonifiable_column([datetime.time(12, 0, 0), datetime.time(12, 1, 1)], SDTP_TIME_OF_DAY) == ["12:00:00", "12:01:01"])
-  assert(jsonifiable_column([datetime.date(2021, 1, 1), datetime.date(2021, 2, 1)], SDTP_DATE) == ["2021-01-01", "2021-02-01"])
+  assert(jsonifiable_column([3.2, 2], SDML_NUMBER) == [3.2, 2])
+  assert(jsonifiable_column([datetime.datetime(2021, 1, 1, 12, 0, 0), datetime.datetime(2021, 1, 1, 12, 1, 1)], SDML_DATETIME) == ["2021-01-01T12:00:00", "2021-01-01T12:01:01"])
+  assert(jsonifiable_column([datetime.time(12, 0, 0), datetime.time(12, 1, 1)], SDML_TIME_OF_DAY) == ["12:00:00", "12:01:01"])
+  assert(jsonifiable_column([datetime.date(2021, 1, 1), datetime.date(2021, 2, 1)], SDML_DATE) == ["2021-01-01", "2021-02-01"])
   
 # Test value conversion. 
 
@@ -129,7 +129,7 @@ def test_jsonifiable_column():
 def test_convert_string():
   results = [('foo', 'foo'), (1, '1'), (1.2, '1.2'), ({'a': 1, 'b':[1, 2, 3]}, "{'a': 1, 'b': [1, 2, 3]}"), (None, 'None')]
   for test in results:
-    assert(convert_to_type(SDTP_STRING, test[0]) == test[1])
+    assert(convert_to_type(SDML_STRING, test[0]) == test[1])
 
 # Numbers.  Special cases:
 # all strings convert to floats
@@ -139,14 +139,14 @@ def test_convert_string():
 def test_convert_number():
   results = [(1, 1), (1.2, 1.2),  ('1', 1.0)]
   for test in results:
-    assert(convert_to_type(SDTP_NUMBER, test[0]) == test[1])
+    assert(convert_to_type(SDML_NUMBER, test[0]) == test[1])
   nans = [math.nan, 'nan']
   for nan in nans:
-    assert(math.isnan(convert_to_type(SDTP_NUMBER, nan)))
+    assert(math.isnan(convert_to_type(SDML_NUMBER, nan)))
   exceptions = [None, 'foo', [1, 2]]
   for err in exceptions:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_NUMBER, err)
+      convert_to_type(SDML_NUMBER, err)
       assert(repr(exc) == f'Cannot convert {err} to number')
 
 # Booleans.  Special cases:
@@ -154,17 +154,17 @@ def test_convert_number():
 # Nonzero numbers convert to True
 # everything else converts to False
 def test_convert_bool():
-  assert(convert_to_type(SDTP_BOOLEAN, True))
-  assert(not convert_to_type(SDTP_BOOLEAN, False))
+  assert(convert_to_type(SDML_BOOLEAN, True))
+  assert(not convert_to_type(SDML_BOOLEAN, False))
   true_vals = {'True', 'true', 't', '1', '1.0'}
   for val in true_vals:
-    assert(convert_to_type(SDTP_BOOLEAN, val))
+    assert(convert_to_type(SDML_BOOLEAN, val))
   numbers = [1, 1.0, 0.1, 5, 10, -3, math.nan]
   for num in numbers:
-    assert(convert_to_type(SDTP_BOOLEAN, num))
+    assert(convert_to_type(SDML_BOOLEAN, num))
   false_vals  = [None, 0, 0.0, '', [1, 2, 3], "f"]
   for false in false_vals:
-    assert(not convert_to_type(SDTP_BOOLEAN, false))
+    assert(not convert_to_type(SDML_BOOLEAN, false))
 
 # Datetimes.  The only valid datetimes are datetimes, dates, and isoformat strings
 # that are read by datetime.datetime or datetime.date
@@ -176,16 +176,16 @@ def test_convert_datetime():
     ('2021-01-01', datetime.datetime(2021, 1, 1, 0, 0, 0))
   ]
   for v in valid:
-    assert(convert_to_type(SDTP_DATETIME, v[0]) == v[1])
+    assert(convert_to_type(SDML_DATETIME, v[0]) == v[1])
   invalid_strings = ['foo', '2021', '2021-01', '2021-1-1', '2021-01-01T0:0:0']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_DATETIME, iv)
+      convert_to_type(SDML_DATETIME, iv)
       assert(repr(exc) == f'Cannot convert {iv} to datetime')
   invalid = [None, 1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_DATETIME, iv)
+      convert_to_type(SDML_DATETIME, iv)
       assert(repr(exc) == f'Cannot convert {iv} to datetime')
   
 # Dates.  The only valid dates are datetimes, dates, and isoformat strings
@@ -198,16 +198,16 @@ def test_convert_date():
     ('2021-01-01', datetime.date(2021, 1, 1))
   ]
   for v in valid:
-    assert(convert_to_type(SDTP_DATE, v[0]) == v[1])
+    assert(convert_to_type(SDML_DATE, v[0]) == v[1])
   invalid_strings = ['foo', '2021', '2021-01', '2021-1-1', '2021-01-01T0:0:0']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_DATE, iv)
+      convert_to_type(SDML_DATE, iv)
       assert(repr(exc) == f'Cannot convert {iv} to date')
   invalid = [None, 1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_DATE, iv)
+      convert_to_type(SDML_DATE, iv)
       assert(repr(exc) == f'Cannot convert {iv} to date')
   
 # Times.  The only valid datetimes are datetimes, times, and isoformat strings
@@ -223,16 +223,16 @@ def test_convert_times():
     ('00:01:00', datetime.time(0, 1, 0))
   ]
   for v in valid:
-    assert(convert_to_type(SDTP_TIME_OF_DAY, v[0]) == v[1])
+    assert(convert_to_type(SDML_TIME_OF_DAY, v[0]) == v[1])
   invalid_strings = ['foo', '0:0:0', '0', '2021-01-01T0:0:0']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_TIME_OF_DAY, iv)
+      convert_to_type(SDML_TIME_OF_DAY, iv)
       assert(repr(exc) == f'Cannot convert {iv} to date')
   invalid = [None, 1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDTP_TIME_OF_DAY, iv)
+      convert_to_type(SDML_TIME_OF_DAY, iv)
       assert(repr(exc) == f'Cannot convert {iv} to date')
   
   
@@ -246,10 +246,10 @@ def test_convert_times():
 def test_convert_list_to_type():
   conversions = [([], []), ([True, 1], [True, True])]
   for conversion in conversions:
-    assert(convert_list_to_type(SDTP_BOOLEAN, conversion[0]) == conversion[1])
+    assert(convert_list_to_type(SDML_BOOLEAN, conversion[0]) == conversion[1])
   exceptions = [
-    (None, SDTP_BOOLEAN, 'Failed to convert None to boolean'),
-    ([1, 2, "foo"], SDTP_NUMBER, 'Failed to convert [1, 2, "foo"] to number')
+    (None, SDML_BOOLEAN, 'Failed to convert None to boolean'),
+    ([1, 2, "foo"], SDML_NUMBER, 'Failed to convert [1, 2, "foo"] to number')
   ]
   for exception in exceptions:
     with pytest.raises(InvalidDataException) as exc:
@@ -261,13 +261,13 @@ def test_convert_list_to_type():
 # 
 def test_convert_dict_to_type():
   conversions = [
-    ({"a": "a"}, SDTP_STRING, {"a": "a"}),
-    ({"a": 1}, SDTP_NUMBER, {"a": 1}),
-    ({"a": '2024-01-01'}, SDTP_DATE, {"a": datetime.date(2024, 1, 1)}),
-    ({"a": '2024-01-01T12:00:01'}, SDTP_DATETIME, {"a": datetime.datetime(2024, 1, 1, 12, 0, 1)}),
-    ({"a": '12:00:01'}, SDTP_TIME_OF_DAY, {"a": datetime.time(12, 0, 1)}),
-    ({"a": 1}, SDTP_BOOLEAN, {"a": True}),
-    ({}, SDTP_DATETIME, {})
+    ({"a": "a"}, SDML_STRING, {"a": "a"}),
+    ({"a": 1}, SDML_NUMBER, {"a": 1}),
+    ({"a": '2024-01-01'}, SDML_DATE, {"a": datetime.date(2024, 1, 1)}),
+    ({"a": '2024-01-01T12:00:01'}, SDML_DATETIME, {"a": datetime.datetime(2024, 1, 1, 12, 0, 1)}),
+    ({"a": '12:00:01'}, SDML_TIME_OF_DAY, {"a": datetime.time(12, 0, 1)}),
+    ({"a": 1}, SDML_BOOLEAN, {"a": True}),
+    ({}, SDML_DATETIME, {})
   ]
   for conversion in conversions:
     assert(convert_dict_to_type(conversion[1], conversion[0]) == conversion[2])
@@ -275,5 +275,5 @@ def test_convert_dict_to_type():
   non_dicts = [None, {"a"}, "a", [1, 2, 3]]
   for non_dict in non_dicts:
     with pytest.raises(InvalidDataException) as exc:
-      convert_dict_to_type(non_dict, SDTP_BOOLEAN) # Type doesn't matter
-      assert(repr(exc) == f'Failed to conver {non_dict} to {SDTP_BOOLEAN}')
+      convert_dict_to_type(non_dict, SDML_BOOLEAN) # Type doesn't matter
+      assert(repr(exc) == f'Failed to conver {non_dict} to {SDML_BOOLEAN}')

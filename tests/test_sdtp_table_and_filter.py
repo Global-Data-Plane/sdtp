@@ -44,7 +44,7 @@ sys.path.append('.')
 
 import pandas as pd
 import pytest
-from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
+from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import jsonifiable_column
 from sdtp import SDQLFilter
 from sdtp import RowTable
@@ -60,12 +60,12 @@ from tests.table_data_good import names, ages, dates, times, datetimes, booleans
 rows = [[names[i], ages[i], dates[i], times[i], datetimes[i], booleans[i]] for i in range(len(names))]
 
 schema = [
-    {"name": "name", "type": SDTP_STRING},
-    {"name": "age", "type": SDTP_NUMBER},
-    {"name": "date", "type": SDTP_DATE},
-    {"name": "time", "type": SDTP_TIME_OF_DAY},
-    {"name": "datetime", "type": SDTP_DATETIME},
-    {"name": "boolean", "type": SDTP_BOOLEAN}
+    {"name": "name", "type": SDML_STRING},
+    {"name": "age", "type": SDML_NUMBER},
+    {"name": "date", "type": SDML_DATE},
+    {"name": "time", "type": SDML_TIME_OF_DAY},
+    {"name": "datetime", "type": SDML_DATETIME},
+    {"name": "boolean", "type": SDML_BOOLEAN}
 ]
 
 table = RowTable(schema, rows)
@@ -250,8 +250,8 @@ def test_get_all_column_values_in_filter():
     range_filter = {"operator": "IN_RANGE", "column": "foo", "max_val": 5, "min_val": 4}
     regex_filter = {"operator": "REGEX_MATCH", "column": "bar", "expression": "a.*b"}
     schema = [
-        {"name": "foo", "type": SDTP_NUMBER},
-        {"name": "bar", "type": SDTP_STRING}
+        {"name": "foo", "type": SDML_NUMBER},
+        {"name": "bar", "type": SDML_STRING}
     ]
     _compare_get_all_values(list_filter, schema, None, set())
     _compare_get_all_values(list_filter, schema, 1, set())
@@ -290,7 +290,7 @@ def test_remote_table_filter():
     # Test columns
     assert(remote_table.get_filtered_rows(columns=['name']) == table.get_filtered_rows(columns=['name']))
     # test filter on name
-    date_list = jsonifiable_column(dates[:4], SDTP_DATE)
+    date_list = jsonifiable_column(dates[:4], SDML_DATE)
     filter_spec = {'operator': 'IN_LIST', 'column': 'date', 'values': date_list}
     # first, make sure just passing the filter_spec works
     assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows(filter_spec = filter_spec))

@@ -38,7 +38,7 @@ sys.path.append('src')
 
 from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, Table
 from sdtp import RowTable
-from sdtp import InvalidDataException, SDTP_STRING
+from sdtp import InvalidDataException, SDML_STRING
 import os
 from json import load
 
@@ -96,7 +96,7 @@ def test_table():
     # test the Table() constructor.  Most of the correct cases were tested
     # by test_build_table
     # Simple table for the tests
-    schema = [{"name": 'name', 'type':  SDTP_STRING}]
+    schema = [{"name": 'name', 'type':  SDML_STRING}]
     rows = [['Tom'], ['Dick']]
     table = RowTable(schema, rows)
     # Test a bad table type

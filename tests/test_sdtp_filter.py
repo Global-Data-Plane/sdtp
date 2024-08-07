@@ -39,8 +39,8 @@ import random
 
 import pandas as pd
 import pytest
-from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
-from sdtp import SDQLFilter,  check_valid_spec, SDTP_FILTER_FIELDS, SDTP_FILTER_OPERATORS
+from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
+from sdtp import SDQLFilter,  check_valid_spec, SDQL_FILTER_FIELDS, SDQL_FILTER_OPERATORS
 
 
 def _check_valid_spec_error(bad_filter_spec, error_message):
@@ -73,8 +73,8 @@ def test_check_valid_spec_missing_fields():
     '''
     Test missing-field errors
     '''
-    for operator in SDTP_FILTER_OPERATORS:
-        fields = SDTP_FILTER_FIELDS[operator]
+    for operator in SDQL_FILTER_OPERATORS:
+        fields = SDQL_FILTER_FIELDS[operator]
         for field in fields:
             other_fields = fields - {field}
             test_dict = _form_test_dict(operator, other_fields)
@@ -215,13 +215,13 @@ def test_sdtp_filter_bad_columns():
     '''
     filter_spec = {"operator": "IN_LIST", "column": "name", "values": []}
     _bad_columns_check(filter_spec, [1, 2], 'Invalid column specifcations [1, 2]' )
-    _bad_columns_check(filter_spec, [{"a": 3, "type": SDTP_STRING}], 'Invalid column specifications [{"a": 3, "type": SDTP_STRING}]' )
+    _bad_columns_check(filter_spec, [{"a": 3, "type": SDML_STRING}], 'Invalid column specifications [{"a": 3, "type": SDML_STRING}]' )
     _bad_columns_check(filter_spec, [{"name": 3}], 'Invalid column specifcations [{"name": 3}]' )
-    _bad_columns_check(filter_spec, [{"name": 3}, {"name": "name", "type": {SDTP_STRING}}], 'Invalid column specifications [{"name": 3}]' )
-    _bad_columns_check(filter_spec, [{"name": "age", "type": SDTP_NUMBER}], 'name is not a valid column name')
+    _bad_columns_check(filter_spec, [{"name": 3}, {"name": "name", "type": {SDML_STRING}}], 'Invalid column specifications [{"name": 3}]' )
+    _bad_columns_check(filter_spec, [{"name": "age", "type": SDML_NUMBER}], 'name is not a valid column name')
     filter_spec = {"operator": "REGEX_MATCH", "expression": "^.*$", "column": "age"}
-    columns = [{"name": "name", "type": SDTP_STRING}, {"name": "age", "type": SDTP_NUMBER}]
-    _bad_columns_check(filter_spec, columns,  'The column type for a REGEX filter must be SDTP_STRING, not number')
+    columns = [{"name": "name", "type": SDML_STRING}, {"name": "age", "type": SDML_NUMBER}]
+    _bad_columns_check(filter_spec, columns,  'The column type for a REGEX filter must be SDML_STRING, not number')
 
 
 
@@ -243,8 +243,8 @@ def _check_match(filter_spec, filter):
 
 SIMPLE_OVER_COLUMNS =  [spec for spec in VALID_SIMPLE_SPECS if spec["column"] in {"name", "age"}]
 COLUMNS_FOR_FILTER_TEST = [
-    {"name": "name", "type": SDTP_STRING},
-    {"name": "age", "type": SDTP_NUMBER},
+    {"name": "name", "type": SDML_STRING},
+    {"name": "age", "type": SDML_NUMBER},
 ]
 
 

@@ -37,7 +37,7 @@ from json import dumps
 
 import pandas as pd
 import pytest
-from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
+from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdtp_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
 from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDMLTable
@@ -46,8 +46,8 @@ from pytest_httpserver import HTTPServer
 table_test_1 = {
     "rows": [["Ted", 21], ["Alice", 24]],
     "schema": [
-        {"name": "name", "type": SDTP_STRING},
-        {"name": "age", "type": SDTP_NUMBER}
+        {"name": "name", "type": SDML_STRING},
+        {"name": "age", "type": SDML_NUMBER}
     ]
 }
 
@@ -60,7 +60,7 @@ def test_create():
     '''
     table = _makeTable()
     assert table.column_names() == ['name', 'age']
-    assert table.column_types() == [SDTP_STRING, SDTP_NUMBER]
+    assert table.column_types() == [SDML_STRING, SDML_NUMBER]
     assert table.get_rows() == table_test_1["rows"]
     for column in table_test_1["schema"]:
         assert(table.get_column_type(column["name"]) == column["type"])
@@ -99,12 +99,12 @@ from tests.table_data_good import names, ages, dates, times, datetimes, booleans
 rows = [[names[i], ages[i], dates[i], times[i], datetimes[i], booleans[i]] for i in range(len(names))]
 
 schema = [
-    {"name": "name", "type": SDTP_STRING},
-    {"name": "age", "type": SDTP_NUMBER},
-    {"name": "date", "type": SDTP_DATE},
-    {"name": "time", "type": SDTP_TIME_OF_DAY},
-    {"name": "datetime", "type": SDTP_DATETIME},
-    {"name": "boolean", "type": SDTP_BOOLEAN}
+    {"name": "name", "type": SDML_STRING},
+    {"name": "age", "type": SDML_NUMBER},
+    {"name": "date", "type": SDML_DATE},
+    {"name": "time", "type": SDML_TIME_OF_DAY},
+    {"name": "datetime", "type": SDML_DATETIME},
+    {"name": "boolean", "type": SDML_BOOLEAN}
 ]
 
 
@@ -192,7 +192,7 @@ def test_bad_schema():
         remote_table.connect_with_server()
     assert('Schema mismatch' in repr(exception))
     bad_schema = [dict(entry) for entry in schema]
-    bad_schema[0]["type"] = SDTP_DATETIME
+    bad_schema[0]["type"] = SDML_DATETIME
     remote_table.schema = bad_schema
     with pytest.raises(InvalidDataException) as exception:
         remote_table.connect_with_server()

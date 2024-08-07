@@ -39,13 +39,13 @@ import datetime
 import urllib
 import json
 
-from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
-    SDTP_SCHEMA_TYPES, SDTP_STRING, SDTP_TIME_OF_DAY
+from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
+    SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
 from sdtp import InvalidDataException
 from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
 from sdtp import convert_list_to_type, convert_to_type
 
-SDTP_FILTER_FIELDS = {
+SDQL_FILTER_FIELDS = {
     'ALL': {'arguments'},
     'ANY': {'arguments'},
     'NONE': {'arguments'},
@@ -54,7 +54,7 @@ SDTP_FILTER_FIELDS = {
     'REGEX_MATCH': {'column', 'expression'}
 }
 
-SDTP_FILTER_OPERATORS = set(SDTP_FILTER_FIELDS.keys())
+SDQL_FILTER_OPERATORS = set(SDQL_FILTER_FIELDS.keys())
 
 
 
@@ -113,7 +113,7 @@ def check_valid_spec(filter_spec):
     # operator, 'operator' is one of the fields
 
     fields_in_spec = set(filter_spec.keys())
-    missing_fields = SDTP_FILTER_FIELDS[operator] - fields_in_spec
+    missing_fields = SDQL_FILTER_FIELDS[operator] - fields_in_spec
     if len(missing_fields) > 0:
         raise InvalidDataException(f'{filter_spec} is missing required fields {_canonize_set(missing_fields)}')
     # For ALL and ANY, recursively check the arguments list and return
@@ -213,9 +213,9 @@ class SDQLFilter:
                 self.max_val = max_val if max_val >= min_val else min_val
                 self.min_val = min_val if min_val <= max_val else max_val
             else:  # operator is REGEX_MATCH
-                if column_types[self.column_index] != SDTP_STRING:
+                if column_types[self.column_index] != SDML_STRING:
                     raise InvalidDataException(
-                        f'The column type for a REGEX filter must be SDTP_STRING, not {column_types[self.column_index]}')
+                        f'The column type for a REGEX filter must be SDML_STRING, not {column_types[self.column_index]}')
                 # note we've already checked for expression and that it's valid
                 self.regex = re.compile(filter_spec['expression'])
                 # hang on to the original expression for later jsonification

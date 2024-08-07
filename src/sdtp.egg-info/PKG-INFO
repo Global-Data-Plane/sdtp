@@ -55,10 +55,10 @@ The Python implementation of table types is in  `sdtp.sdtp_table.py`
 ### Simple Data Transfer Protocol Data Types
 This is a list of the permissible types.  Each column of a table is of one of these types
 See sdtp.sdtp_utils.py.  The native types these convert to are language-specific
-1. SDTP_STRING: A string.  In Python, class str.
-2. SDTP_NUMBER: A real or an integer.  In Python, class float or class int.
-3. SDTP_BOOLEAN: true or false. In Python, class bool.
-4. SDTP_DATE: A date.  In Python, class datetime.date
-5. SDTP_DATETIME: A datetime.  In Python, class datetime.datetime
-6. SDTP_TIME_OF_DAY: A time.  In Python, class datetime.time
+1. SDML_STRING: A string.  In Python, class str.
+2. SDML_NUMBER: A real or an integer.  In Python, class float or class int.
+3. SDML_BOOLEAN: true or false. In Python, class bool.
+4. SDML_DATE: A date.  In Python, class datetime.date
+5. SDML_DATETIME: A datetime.  In Python, class datetime.datetime
+6. SDML_TIME_OF_DAY: A time.  In Python, class datetime.time
 
