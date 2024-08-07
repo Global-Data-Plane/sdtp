@@ -49,7 +49,7 @@ from json import load
 import pandas as pd
 
 from sdtp import InvalidDataException
-from sdtp import RowTableFactory, RemoteCSVTableFactory, RemoteSDTPTableFactory
+from sdtp import RowTableFactory, RemoteCSVTableFactory, RemoteSDMLTableFactory
 
 class TableNotFoundException(Exception):
     '''
@@ -93,10 +93,10 @@ def _check_headers(headers):
 
 class Table:
     '''
-    A SDTPTable with authorization information.  This is what is
-    stored in the TableServer; conceptually, it is a pair, (table, headers) where table is a SDTPTable and headers is a dictionary
+    A SDMLTable with authorization information.  This is what is
+    stored in the TableServer; conceptually, it is a pair, (table, headers) where table is a SDMLTable and headers is a dictionary
     of variables and values used to access the data.  raises an InvalidDataException if:
-    (1) The table is not a SDTPTable
+    (1) The table is not a SDMLTable
     (2) header_dict is not a dictionary
     (3) A key in header-dict is not a string
     (4) A value in header-dict is not one of <int, str, bool>
@@ -106,7 +106,7 @@ class Table:
     '''
 
     def __init__(self, table, header_dict={}):
-        invalid_error = InvalidDataException('The table parameter to Table must be a SDTPTable')
+        invalid_error = InvalidDataException('The table parameter to Table must be a SDMLTable')
         try:
             if not table.is_sdtp_table:
                 raise invalid_error
@@ -190,7 +190,7 @@ class TableServer:
         self.factories = {}
         # factories which are part of the standard  distribution
         self.add_table_factory('RowTable', RowTableFactory())
-        self.add_table_factory('RemoteSDTPTable', RemoteSDTPTableFactory())
+        self.add_table_factory('RemoteSDMLTable', RemoteSDMLTableFactory())
         self.add_table_factory('RemoteCSVTable', RemoteCSVTableFactory())
 
 
@@ -247,8 +247,8 @@ class TableServer:
 
     def add_sdtp_table(self, table_spec):
         '''
-        Register a SDTPTable to serve data for a specific table name.
-        Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDTPTable.
+        Register a SDMLTable to serve data for a specific table name.
+        Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDMLTable.
 
         Arguments:
             table_spec: dictionary of the form {"name", "table"}, where table is a Table (see above)
@@ -260,7 +260,7 @@ class TableServer:
 
     def add_sdtp_table_from_dictionary(self, table_dictionary):
         '''
-        Add an  SDTPTable from a dictionary (intermediate on-disk form).  The intermediate form has
+        Add an  SDMLTable from a dictionary (intermediate on-disk form).  The intermediate form has
         a name and a table dictionary.  The table dictionary has fields schema and type, and then type-
         specific fields.  Calls self.factories[table_dictionary["table"]["type"]] to build the table,
         then calls self.add_sdtp_table to add the table.

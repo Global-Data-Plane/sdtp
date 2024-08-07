@@ -2,14 +2,14 @@
 A framework to easily and quickly implement a web server which serves tables according to
 the SDTP REST  protocol.  This implements the URL methods get_filtered_rows, get_all_values,
 and get_numeric_spec.  It parses the arguments, checking for errors, takes the
-table argument, looks up the appropriate SDTPTable to serve for that table, and
+table argument, looks up the appropriate SDMLTable to serve for that table, and
 then calls the method on that server to serve the request.  If no exception is thrown,
 returns a 200 with the result as a JSON structure, and if an exception is thrown, returns
 a 400 with an approrpriate error message.
 All of the methods here except for add_sdtp_table are simply route targets: none are
 designed for calls from any method other than flask.
 The way to use this is very simple:
-1. For each Table to be served, create an instance of sdtp_table.SDTPTable
+1. For each Table to be served, create an instance of sdtp_table.SDMLTable
 2. Call add_sdtp_table(table_name, sdtp_table)
 After that, requests for the named table will be served by the created data server.
 

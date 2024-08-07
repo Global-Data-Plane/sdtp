@@ -42,7 +42,7 @@ The structure is as follows:
   
 # The Simple Data Transfer Protocol
 
-The SDTP Server implements the Simple Data Transfer Protocol, a universal way to query and transmit tabular data.  The SDTP uses http/https as the underlying transport protocol.  There is no client; rather, a program accessing an SDTP server creates a `RemoteSDTPTable` (see `sdtp.sdtp_table.py`) and accesses that through the standard SDTP Table methods.
+The SDTP Server implements the Simple Data Transfer Protocol, a universal way to query and transmit tabular data.  The SDTP uses http/https as the underlying transport protocol.  There is no client; rather, a program accessing an SDTP server creates a `RemoteSDMLTable` (see `sdtp.sdtp_table.py`) and accesses that through the standard SDTP Table methods.
 
 This is a quick summary of the Simple Data Transfer Protocol.  A more extended description can be found at:
 

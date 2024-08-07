@@ -40,7 +40,7 @@ import pytest
 from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdtp_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDTPTable
+from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDMLTable
 from pytest_httpserver import HTTPServer
 
 table_test_1 = {
@@ -135,7 +135,7 @@ from pytest_httpserver import HTTPServer
 
 def test_connect():
     httpserver = HTTPServer(port=8888)
-    remote_table = RemoteSDTPTable('test', schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     httpserver.start()
@@ -145,7 +145,7 @@ def test_connect():
 
 def test_no_connect():
     httpserver = HTTPServer(port=8888)
-    remote_table = RemoteSDTPTable('test', schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     with pytest.raises(InvalidDataException) as exception:
         remote_table.connect_with_server()
     assert(f'Error connecting with {remote_table.url}/get_tables' in repr(exception))
@@ -153,7 +153,7 @@ def test_no_connect():
     
 def test_bad_connect():
     httpserver = HTTPServer(port=8888)
-    remote_table = RemoteSDTPTable('test', schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
     httpserver.expect_request("/foobar").respond_with_json({"foo": "bar"})
     httpserver.start()
@@ -165,7 +165,7 @@ def test_bad_connect():
 
 def test_bad_table():
     httpserver = HTTPServer(port=8888)
-    remote_table = RemoteSDTPTable('test1', schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test1', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     httpserver.start()
@@ -178,7 +178,7 @@ def test_bad_table():
 def test_bad_schema():
     httpserver = HTTPServer(port=8888)
     bad_schema = schema[1:]
-    remote_table = RemoteSDTPTable('test', bad_schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test', bad_schema, httpserver.url_for("/"))
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     httpserver.start()
     with pytest.raises(InvalidDataException) as exception:
@@ -221,7 +221,7 @@ def test_all_values_and_range_spec():
         httpserver.expect_request("/get_range_spec", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         range_spec_responses[column["name"]] = response
     httpserver.start()
-    remote_table = RemoteSDTPTable('test', schema, httpserver.url_for("/"))
+    remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     for column in schema:
         assert(remote_table.all_values(column["name"]) == all_values_responses[column["name"]])
         assert(remote_table.range_spec(column["name"]) == range_spec_responses[column["name"]])

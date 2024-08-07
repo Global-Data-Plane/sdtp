@@ -1,10 +1,10 @@
 '''
-A SDTPTable class and associated utilities.  The SDTPTable class is initialized
+A SDMLTable class and associated utilities.  The SDMLTable class is initialized
 with the table's schema,  single function,get_rows(), which returns the rows of the table.  To
-use a  SDTPTable instance, instantiate it with the schema and a get_rows() function.
-The SDTPTable instance can then be passed to a SDTPServer with a call to
+use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.
+The SDMLTable instance can then be passed to a SDTPServer with a call to
 galyleo_server_framework.add_table_server, and the server will then be able to serve
-the tables automatically using the instantiated SDTPTable.
+the tables automatically using the instantiated SDMLTable.
 '''
 
 # BSD 3-Clause License
@@ -179,7 +179,7 @@ class SDQLFilter:
     The arguments to the contstructor are a filter_spec, which is a boolean tree
     of filters and the columns which the filter is implemented over.
 
-    This is designed to be instantiated from SDTPTable.get_filtered_rows()
+    This is designed to be instantiated from SDMLTable.get_filtered_rows()
     and in no other place -- error checking, if any, should be done there.
 
     Arguments:

@@ -1,10 +1,10 @@
 '''
-A SDTPTable class and associated utilities.  The SDTPTable class is initialized
+A SDMLTable class and associated utilities.  The SDMLTable class is initialized
 with the table's schema,  single function,get_rows(), which returns the rows of the table.  To
-use a  SDTPTable instance, instantiate it with the schema and a get_rows() function.
-The SDTPTable instance can then be passed to a SDTPServer with a call to
+use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.
+The SDMLTable instance can then be passed to a SDTPServer with a call to
 galyleo_server_framework.add_table_server, and the server will then be able to serve
-the tables automatically using the instantiated SDTPTable.
+the tables automatically using the instantiated SDMLTable.
 '''
 
 # BSD 3-Clause License
@@ -49,7 +49,7 @@ from sdtp import SDQLFilter
         
 def _select_entries_from_row(row, indices):
     # Pick the entries of row trhat are in indices, maintaining the order of the
-    # indices.  This is to support the column-choice operation in SDTPTable.get_filtered_rows
+    # indices.  This is to support the column-choice operation in SDMLTable.get_filtered_rows
     # Arguments:
     #     row: the tow of vaslues
     #     indices: the indices to pick
@@ -89,12 +89,12 @@ def get_errors(entry):
             
     
 
-class SDTPTable:
+class SDMLTable:
     '''
-    An SDTPTable.  This is the abstract superclass for all Simple Data Transfer Protocol tables, and 
+    An SDMLTable.  This is the abstract superclass for all Simple Data Transfer Protocol tables, and 
     implements the schema methods of every SDTP class.  The data methods are implemented
-    by the concrete classes.  Any new SDTPTable class should:
-    1. Subclass SDTPTable
+    by the concrete classes.  Any new SDMLTable class should:
+    1. Subclass SDMLTable
     2. Have a constructor with the argument schema
     3. call super(<classname, self).__init__(schema) in the constructor
     4. Implement the methods:
@@ -232,17 +232,17 @@ class SDTPTable:
 
         return json.dumps(self.to_dictionary, indent = 2)
 
-class SDTPTableFactory:
+class SDMLTableFactory:
     '''
-    A class which builds an SDTPTable of a specific type.  All SDTPTables have a schema, but after
+    A class which builds an SDMLTable of a specific type.  All SDMLTables have a schema, but after
     that the specification varies, depending on the method the table uses to get the table rows.
     Specific factories should subclass this and instantiate the class method build_table.
     The tag is the table type, simply a string which indicates which class of table should be
     built.
-    A new SDTPTableFactory class should be built for each concrete subclass of SDTPTable, and ideally
-    in the same file.  The SDTPTable subclass should put a "type" field in the intermediate form,
+    A new SDMLTableFactory class should be built for each concrete subclass of SDMLTable, and ideally
+    in the same file.  The SDMLTable subclass should put a "type" field in the intermediate form,
     and the value of "type" should be the type built by the SDTP Table field
-    SDTPTableFactory is an abstract class -- each concrete subclass should call the init method on the 
+    SDMLTableFactory is an abstract class -- each concrete subclass should call the init method on the 
     table_type on initialization.  build_table is the method which actually builds the table; the superclass 
     convenience version of the method throws an InvalidDataException if the spec has the wrong table type 
     '''
@@ -257,7 +257,7 @@ class SDTPTableFactory:
 
        
 
-class SDTPFixedTable(SDTPTable):
+class SDTPFixedTable(SDMLTable):
     '''
     A SDTPFixedTable: This is a convenience class for subclasses which generate a fixed 
     number of rows locally, independent of filtering. This is instantiated with a function get_rows() which  delivers the
@@ -387,7 +387,7 @@ class SDTPFixedTable(SDTPTable):
         }
     
     
-class RowTableFactory(SDTPTableFactory):
+class RowTableFactory(SDMLTableFactory):
     '''
     A factory to build RowTables -- in fact, all SDTPFixedTables.  build_table is very simple, just instantiating
     a RowTable on the rows and schema of the specification
@@ -483,7 +483,7 @@ class  RemoteCSVTable(SDTPFixedTable):
             }
         }   
 
-class RemoteCSVTableFactory(SDTPTableFactory):
+class RemoteCSVTableFactory(SDMLTableFactory):
     '''
     A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
     a RemoteCSVTable on the url and schema of the specification
@@ -499,7 +499,7 @@ class RemoteCSVTableFactory(SDTPTableFactory):
 def _column_names(schema):
     return [entry["name"] for entry in schema]
         
-class RemoteSDTPTable(SDTPTable):
+class RemoteSDMLTable(SDMLTable):
     '''
     A SDTP Table on a remote server.  This just has a schema, an URL, and 
     header variables. This is the primary class for the client side of the SDTP,
@@ -517,7 +517,7 @@ class RemoteSDTPTable(SDTPTable):
 
     ''' 
     def __init__(self, table_name, schema, url, header_dict = None): 
-        super(RemoteSDTPTable, self).__init__(schema)
+        super(RemoteSDMLTable, self).__init__(schema)
         self.url = url
         self.schema = schema
         self.table_name = table_name
@@ -527,7 +527,7 @@ class RemoteSDTPTable(SDTPTable):
     def to_dictionary(self):
         return {
             "name": self.table_name,
-            "type": "RemoteSDTPTable",
+            "type": "RemoteSDMLTable",
             "schema": self.schema,
             "url": self.url,
             "headers": self.header_dict if self.header_dict is not None else {}
@@ -700,15 +700,15 @@ class RemoteSDTPTable(SDTPTable):
         else:
             return convert_rows_to_type_list(sdtp_type_list, result)
         
-class RemoteSDTPTableFactory(SDTPTableFactory):
+class RemoteSDMLTableFactory(SDMLTableFactory):
     '''
     A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
     a RemoteCSVTable on the url and schema of the specification
     '''
     def __init__(self):
-        super(RemoteSDTPTableFactory, self).__init__('RemoteSDTPTable')
+        super(RemoteSDMLTableFactory, self).__init__('RemoteSDMLTable')
     
     def build_table(self, table_spec):
-        super(RemoteSDTPTableFactory, self).build_table(table_spec)
+        super(RemoteSDMLTableFactory, self).build_table(table_spec)
         header_dict = table_spec['header_dict'] if header_dict in table_spec.keys() else None
-        return RemoteSDTPTable(table_spec['table_name'], table_spec['schema'], table_spec['url'], header_dict)  
+        return RemoteSDMLTable(table_spec['table_name'], table_spec['schema'], table_spec['url'], header_dict)  

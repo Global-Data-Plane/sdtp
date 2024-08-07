@@ -266,7 +266,7 @@ def test_get_all_column_values_in_filter():
     _compare_get_all_values({"operator": "ALL", "arguments": [list_filter, range_filter]}, schema, "foo", {1,2, 3, 4, 5})
 
 from pytest_httpserver import HTTPServer
-from sdtp import RemoteSDTPTable
+from sdtp import RemoteSDMLTable
 from werkzeug.wrappers import Response
 
 def remote_filter_handler(request):
@@ -280,7 +280,7 @@ def remote_filter_handler(request):
 
 def test_remote_table_filter():
     http_server = HTTPServer(port=8888)
-    remote_table = RemoteSDTPTable('test', schema, http_server.url_for('/'))
+    remote_table = RemoteSDMLTable('test', schema, http_server.url_for('/'))
     http_server.expect_request("/get_tables").respond_with_json({"test": schema})
     http_server.expect_request("/get_filtered_rows").respond_with_handler(remote_filter_handler)
     http_server.start()
