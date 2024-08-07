@@ -40,7 +40,7 @@ import random
 import pandas as pd
 import pytest
 from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
-from sdtp import SDTPFilter,  check_valid_spec, SDTP_FILTER_FIELDS, SDTP_FILTER_OPERATORS
+from sdtp import SDQLFilter,  check_valid_spec, SDTP_FILTER_FIELDS, SDTP_FILTER_OPERATORS
 
 
 def _check_valid_spec_error(bad_filter_spec, error_message):
@@ -200,18 +200,18 @@ def test_sdtp_filter_invalid_spec():
     Make sure an invalid spec throws an error
     '''
     with pytest.raises(InvalidDataException) as e:
-        SDTPFilter(None, ['a', 'b', 'c'])
+        SDQLFilter(None, ['a', 'b', 'c'])
         # assert e.message == 'filter_spec must be a dictionary, not None'
 
 def _bad_columns_check(filter_spec, columns, expected_message):
     
     with pytest.raises(InvalidDataException) as e:
-        SDTPFilter(filter_spec, columns)
+        SDQLFilter(filter_spec, columns)
         # assert e.message == expected_message
 
 def test_sdtp_filter_bad_columns():
     '''
-    Test to make sure that if a column name is missing, SDTPFilter throws an error
+    Test to make sure that if a column name is missing, SDQLFilter throws an error
     '''
     filter_spec = {"operator": "IN_LIST", "column": "name", "values": []}
     _bad_columns_check(filter_spec, [1, 2], 'Invalid column specifcations [1, 2]' )
@@ -254,10 +254,10 @@ def test_filters_formed_correctly():
     '''
     
     for spec in SIMPLE_OVER_COLUMNS:
-        _check_match(spec, SDTPFilter(spec, COLUMNS_FOR_FILTER_TEST))
+        _check_match(spec, SDQLFilter(spec, COLUMNS_FOR_FILTER_TEST))
 
     complex_spec = _complex_expression(SIMPLE_OVER_COLUMNS)
-    _check_match(complex_spec, SDTPFilter(complex_spec, COLUMNS_FOR_FILTER_TEST))
+    _check_match(complex_spec, SDQLFilter(complex_spec, COLUMNS_FOR_FILTER_TEST))
 
 
 def test_to_filter_spec():
@@ -266,10 +266,10 @@ def test_to_filter_spec():
     input spec
     '''
     for spec in SIMPLE_OVER_COLUMNS:
-        filter = SDTPFilter(spec, COLUMNS_FOR_FILTER_TEST)
+        filter = SDQLFilter(spec, COLUMNS_FOR_FILTER_TEST)
         assert spec == filter.to_filter_spec()
 
     complex_spec = _complex_expression(SIMPLE_OVER_COLUMNS)
-    complex_filter = SDTPFilter(complex_spec,  COLUMNS_FOR_FILTER_TEST)
+    complex_filter = SDQLFilter(complex_spec,  COLUMNS_FOR_FILTER_TEST)
     assert complex_spec == complex_filter.to_filter_spec()
 

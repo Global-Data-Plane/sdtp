@@ -46,7 +46,7 @@ import pandas as pd
 import pytest
 from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_STRING, SDTP_DATE, SDTP_DATETIME, SDTP_TIME_OF_DAY, InvalidDataException
 from sdtp import jsonifiable_column
-from sdtp import SDTPFilter
+from sdtp import SDQLFilter
 from sdtp import RowTable
 
 
@@ -78,7 +78,7 @@ def _compare_indices(filter_spec, reference_indices):
     # Parameters:
     #   filter_spec: specification of the filter
     #   reference_indices: row indices to compare against
-    data_plane_filter = SDTPFilter(filter_spec, schema)
+    data_plane_filter = SDQLFilter(filter_spec, schema)
     filter_indices = data_plane_filter.filter_index(rows)
     assert(filter_indices == reference_indices)
 
@@ -241,7 +241,7 @@ def _compare_get_all_values(filter_spec, schema, column_name, expected):
     #   schema: a list of the form {name, type}
     #   column_name: the name of the column to find the values for
     #   expected: the results expected
-    data_plane_filter = SDTPFilter(filter_spec, schema)
+    data_plane_filter = SDQLFilter(filter_spec, schema)
     result = data_plane_filter.get_all_column_values_in_filter(column_name)
     assert(result == expected)
 
@@ -294,7 +294,7 @@ def test_remote_table_filter():
     filter_spec = {'operator': 'IN_LIST', 'column': 'date', 'values': date_list}
     # first, make sure just passing the filter_spec works
     assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows(filter_spec = filter_spec))
-    filter = SDTPFilter(filter_spec, schema)
+    filter = SDQLFilter(filter_spec, schema)
     assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows_from_filter(filter = filter))
     assert(remote_table.get_filtered_rows_from_filter(filter =filter) == table.get_filtered_rows_from_filter(filter = filter))
     http_server.stop()

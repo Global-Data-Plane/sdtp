@@ -44,7 +44,7 @@ from sdtp import SDTP_BOOLEAN, SDTP_NUMBER, SDTP_DATETIME, SDTP_DATE, \
 from sdtp import InvalidDataException
 from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
 from sdtp import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
-from sdtp import SDTPFilter
+from sdtp import SDQLFilter
 
         
 def _select_entries_from_row(row, indices):
@@ -109,7 +109,7 @@ class SDTPTable:
             iia. list from all_values
             iib. dict "max_val", "min_val" from range_spec
             iic. list of lists from get_filtered_rows_from_filter)
-        iii. filter is a an instance of SDTPFilter
+        iii. filter is a an instance of SDQLFilter
         iv. if columns is not None for get_filtered_rows, only return entries from those columns
             in the result from get_filtered_rows
     Arguments:
@@ -189,7 +189,7 @@ class SDTPTable:
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A SDTPFilter 
+            filter: A SDQLFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:
@@ -214,7 +214,7 @@ class SDTPTable:
             jsonify is True or as a list if jsonify is False
         '''
         # Note that we don't check if the column names are all valid
-        filter = SDTPFilter(filter_spec, self.schema) if filter_spec is not None else None
+        filter = SDQLFilter(filter_spec, self.schema) if filter_spec is not None else None
         return self.get_filtered_rows_from_filter(filter = filter, columns=columns, jsonify=jsonify)
     
     def to_dictionary(self):
@@ -342,7 +342,7 @@ class SDTPFixedTable(SDTPTable):
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A SDTPFilter 
+            filter: A SDQLFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:
@@ -652,7 +652,7 @@ class RemoteSDTPTable(SDTPTable):
         a json list if jsonify is True, as a list of the appropriate types otherwise
 
         Arguments:
-            filter: A SDTPFilter 
+            filter: A SDQLFilter 
             columns: the names of the columns to return.  Returns all columns if absent
             jsonify: if True, returns a JSON list
         Returns:

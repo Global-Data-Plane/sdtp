@@ -173,7 +173,7 @@ def _valid_column_spec(column):
     return False
 
 
-class SDTPFilter:
+class SDQLFilter:
     '''
     A Class which implements a Filter used  to filter rows.
     The arguments to the contstructor are a filter_spec, which is a boolean tree
@@ -194,7 +194,7 @@ class SDTPFilter:
             raise InvalidDataException(f'Invalid column specifications {bad_columns}')
         self.operator = filter_spec["operator"]
         if (self.operator == 'ALL' or self.operator == 'ANY' or self.operator == 'NONE'):
-            self.arguments = [SDTPFilter(argument, columns) for argument in filter_spec["arguments"]]
+            self.arguments = [SDQLFilter(argument, columns) for argument in filter_spec["arguments"]]
         else:
             column_names = [column["name"] for column in columns]
             column_types = [column["type"] for column in columns]
@@ -223,8 +223,8 @@ class SDTPFilter:
 
     def to_filter_spec(self):
         '''
-        Generate a dictionary form of the SDTPFilter.  This is primarily for use on the client side, where
-        A SDTPFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
+        Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where
+        A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
         the server for server-side filtering.  It's also useful for testing and debugging
         Returns:
             A dictionary form of the Filter
