@@ -36,6 +36,11 @@ from json import dumps
 import math
 import re
 import random
+import sys
+
+sys.path.append('src')
+sys.path.append('.')
+
 
 import pandas as pd
 import pytest
@@ -95,6 +100,7 @@ def _test_type(type_name):
 def test_in_range_filter():
     _test_type("in_range")
 
+
 # Run all the in_list tests
 
 
@@ -105,6 +111,8 @@ def test_in_list_filter():
 
 def test_regex_filter():
     _test_type("regex_match")
+
+test_regex_filter()
 
 # Flatten the list of primitive tests to put them all in a single 
 # list, where each item is of the form (spec, expected)

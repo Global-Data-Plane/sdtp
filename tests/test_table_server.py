@@ -32,10 +32,15 @@ Run tests on the table server, the middleware that sits between the data plane s
 and the data plane server
 '''
 import pytest
-from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, build_table_spec, Table
+import sys
+
+sys.path.append('src')
+
+from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, ColumnNotFoundException, Table
 from sdtp import RowTable
 from sdtp import InvalidDataException, SDTP_STRING
 import os
+from json import load
 
 test_table_dir = '/var/sdtp'
 try:
@@ -116,6 +121,41 @@ def test_table():
     with pytest.raises(InvalidDataException) as err:
         Table(table, {"foo": (3, 2)})
 
+def build_table_spec(filename):
+    '''
+    Read a Table from a JSON file and register it.  The
+    file should be a JSON dictionary of the form
+    {
+        "name": <table_name>,
+        "headers": <optional, list of headers>,
+        "table": {
+            "schema": <list of columns>
+            "type": type opf table
+            "rows": <list of rows>
+        }
+    }
+    Where
+    a header is of the form {"variable": <var-name>, "value": <value}
+    a column is of the form {"name" <column-name> "type": <SDTPType>}
+    Note there is no error-checking
+    Arguments:
+        filename: name of the json file
+    Returns:
+         A table_spec: dictionary of the form {"name", "headers", "table"}
+    '''
+    with open(filename, 'r') as file:
+        full_table_spec = load(file)
+
+    table_spec = full_table_spec["table"]
+
+    # table = table_spec["table"]
+    table = RowTable(table_spec["schema"], table_spec["rows"])
+    headers = full_table_spec['headers'] if 'headers' in full_table_spec else None
+    return {
+        'name': full_table_spec['name'],
+        'table': Table(table, headers)
+    }
+    
 
 # Set up the table server for the remaining tests, and add the test tables to it
 
@@ -215,9 +255,4 @@ def test_get_range_spec():
     # Check the good cases
     assert table_server.get_range_spec('protected', 'column2', {'foo': 'bar'}) == specs['protected'].table.range_spec('column2')
 
-test_table()
-
-    
-
-
-        
+# test_table()

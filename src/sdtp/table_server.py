@@ -148,32 +148,7 @@ class Table:
         '''
         return list(self.header_dict.keys())
 
-def build_table_spec(filename):
-    '''
-    Read a Table from a JSON file and register it.  The
-    file should be a JSON dictionary of the form
-    {
-        "name": <table_name>,
-        "headers": <optional, list of headers>,
-        "table": {
-            "schema": <list of columns>
-            "type": type opf table
-            "rows": <list of rows>
-        }
-    }
-    Where
-    a header is of the form {"variable": <var-name>, "value": <value}
-    a column is of the form {"name" <column-name> "type": <SDTPType>}
-    Note there is no error-checking
-    Arguments:
-        filename: name of the json file
-    Returns:
-         A table_spec: dictionary of the form {"name", "headers", "table"}
-    '''
-    with open(filename, 'r') as file:
-        table_spec = load(file)
 
-    table = table_spec["table"]
     
 
 def _check_type(value, type, message_prefix):

@@ -33,12 +33,22 @@ Run tests on the table server
 
 import pytest
 import json
-import os
+import sys
+from flask import Flask
 
-os.chdir('/workspaces/sdtp_package/src/sdtp')
-from sdtp import app
+sys.path.append('./src')
+sys.path.append('../src')
+from sdtp import sdtp_server_blueprint
+app = Flask(__name__)
+app.register_blueprint(sdtp_server_blueprint)
+
+from tests.server_test_tables import test_tables
+for table_spec in test_tables:
+    sdtp_server_blueprint.table_server.add_sdtp_table(table_spec)
+
 
 client = app.test_client()
+
 
 UNPROTECTED_SPEC = {
     "unprotected": [
@@ -62,7 +72,6 @@ PROTECTED_SPEC["protected"] = PROTECTED_SPEC["unprotected"]
 unprotected_tables = ['unprotected', 'test1']
 
 def test_get_table_spec():
-    response = client.get('/init')
     response = client.get('/get_table_spec')
     assert response.status_code == 200
     # result = json.loads(response.json)
@@ -81,6 +90,7 @@ def test_get_table_spec():
         assert response.status_code == 200
         assert response.json == result
 
+test_get_table_spec()
 def test_all_values_and_range_spec():
     # For get_all_values and get_range_spec, just check the response codes -- 
     # we know the values from testing the table server
