@@ -49,7 +49,7 @@ from json import load
 import pandas as pd
 
 from sdtp import InvalidDataException
-from sdtp import RowTableFactory, RemoteCSVTableFactory, RemoteSDMLTableFactory
+from sdtp import RowTableFactory, RemoteSDMLTableFactory
 
 class TableNotFoundException(Exception):
     '''
@@ -191,7 +191,6 @@ class TableServer:
         # factories which are part of the standard  distribution
         self.add_table_factory('RowTable', RowTableFactory())
         self.add_table_factory('RemoteSDMLTable', RemoteSDMLTableFactory())
-        self.add_table_factory('RemoteCSVTable', RemoteCSVTableFactory())
 
 
     def add_table_factory(self, table_type, table_factory):

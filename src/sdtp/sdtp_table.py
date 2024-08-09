@@ -257,9 +257,9 @@ class SDMLTableFactory:
 
        
 
-class SDTPFixedTable(SDMLTable):
+class SDMLFixedTable(SDMLTable):
     '''
-    A SDTPFixedTable: This is a convenience class for subclasses which generate a fixed 
+    A SDMLFixedTable: This is a convenience class for subclasses which generate a fixed 
     number of rows locally, independent of filtering. This is instantiated with a function get_rows() which  delivers the
     rows, rather than having them explicitly in the Table.  Note that get_rows() *must* return 
     a list of rows, each of which has the appropriate number of entries of the appropriate types.
@@ -276,7 +276,7 @@ class SDTPFixedTable(SDMLTable):
     '''
 
     def __init__(self, schema, get_rows):
-        super(SDTPFixedTable, self).__init__(schema)
+        super(SDMLFixedTable, self).__init__(schema)
         self.get_rows = get_rows
 
     # This is used to get the names of a column from the schema
@@ -389,7 +389,7 @@ class SDTPFixedTable(SDMLTable):
     
 class RowTableFactory(SDMLTableFactory):
     '''
-    A factory to build RowTables -- in fact, all SDTPFixedTables.  build_table is very simple, just instantiating
+    A factory to build RowTables -- in fact, all SDMLFixedTables.  build_table is very simple, just instantiating
     a RowTable on the rows and schema of the specification
     '''
     def __init__(self):
@@ -400,14 +400,14 @@ class RowTableFactory(SDMLTableFactory):
         return RowTable(table_spec["schema"], table_spec["rows"])    
     
 
-class DataFrameTable(SDTPFixedTable):
+class SDMLDataFrameTable(SDMLFixedTable):
     '''
     A simple utility class to serve data from a PANDAS DataFrame.  The general idea is 
     that the values are in the PANDAS Dataframe, which must have the same column names
     as the schema and compatible types.
     '''
     def __init__(self, schema, dataframe):
-        super(DataFrameTable, self).__init__(schema, self._get_rows)
+        super(SDMLDataFrameTable, self).__init__(schema, self._get_rows)
         self.dataframe = dataframe.copy()
         # Make sure the column names and types match
         self.dataframe.columns = self.column_names()
@@ -430,7 +430,7 @@ class DataFrameTable(SDTPFixedTable):
         return self.dataframe.copy()
 
 
-class RowTable(SDTPFixedTable):
+class RowTable(SDMLFixedTable):
     '''
     A simple utility class to serve data from a static list of rows, which
     can be constructed from a CSV file, Excel File, etc.  The idea is to
@@ -447,53 +447,7 @@ class RowTable(SDTPFixedTable):
     def _get_rows(self):
         return [row for row in self.rows]
     
-        
-
-class  RemoteCSVTable(SDTPFixedTable):
-    '''
-    A very common format for data interchange on the Internet is a downloadable
-    CSV file.  It's so common it's worth making a class, just for this.  The
-    idea is that, when a get_rows request comes in, we download the table
-    into a dataframe and then return the list of rows, perhaps after doing
-    unit conversion.  We use an internal DataFrame table for this, so that the 
-    logic of converting to/from dataframes is centralized
-    '''
-
-    def __init__(self, schema, url):
-        super(RemoteCSVTable, self).__init__(schema, self.get_rows)
-        self.url = url
-        self.reset_dataframe()
-
-    def reset_dataframe(self):
-        self.dataframe_table = DataFrameTable(self.schema, pd.read_csv(self.url))
-
-    def get_rows(self):
-        return self.dataframe_table.get_rows()
-
-    def to_dataframe(self):
-        return self.dataframe_table.to_dataframe()  
-    
-    def to_dictionary(self):
-        return {
-            "type":  "RemoteCSVTable",
-            "columns": self.schema,
-            "connector": {
-                "url": self.url,
-                "type": "csv"
-            }
-        }   
-
-class RemoteCSVTableFactory(SDMLTableFactory):
-    '''
-    A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
-    a RemoteCSVTable on the url and schema of the specification
-    '''
-    def __init__(self):
-        super(RemoteCSVTableFactory, self).__init__('RemoteCSVTable')
-    
-    def build_table(self, table_spec):
-        super(RemoteCSVTableFactory, self).build_table(table_spec)
-        return RemoteCSVTable(table_spec["schema"], table_spec["url"])          
+               
 
 
 def _column_names(schema):

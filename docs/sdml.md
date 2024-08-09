@@ -82,36 +82,7 @@ A _RemoteTable_  is an SDML Table hosted on a remote Simple Data Transfer Protoc
 }
 ```
 
-#### RemoteCSVTable
-
-A common method of publishing data on the Internet is through uploaded CSV or XLSX tables.  A good example is at [Data.gov: Supply Chain  Greenhouse Gas Emission Factors v.12](https://catalog.data.gov/dataset/supply-chain-greenhouse-gas-emission-factors-v1-2-by-naics-6), with [this download link](https://pasteur.epa.gov/uploads/10.23719/1528686/SupplyChainGHGEmissionFactors_v1.2_NAICS_CO2e_USD2021.csv).  The Remote CSV table for this example is given here:
-```
-{
-  "name": "SupplyChainGHGEmissionFactors v.12",
-  "table": {
-    "type": "RemoteCSVTable",
-    "schema": [
-      {"name":"2017 NAICS Code","type":"number"},
-      {"name":"2017 NAICS Title","type":"string"},
-      {"name":"GHG", "type": "string"},
-      {"name": "Unit","type":"string"},
-      {"name":"Supply Chain Emission Factors without Margins","type":"number"},
-      {"name":"Margins of Supply Chain Emission Factors","type":"number"},
-      {"name":"Supply Chain Emission Factors with Margins","type":"number"},
-      {"name":"Reference USEEIO Code","type":"string"},
-
-    ],
-    "url": "https://pasteur.epa.gov/uploads/10.23719/1528686/SupplyChainGHGEmissionFactors_v1.2_NAICS_CO2e_USD2021.csv",
-    "header_row": true
-  }
-}
-```
-
-This indicates that there is a CSV table with the data at the URL [https://pasteur.epa.gov/uploads/10.23719/1528686/SupplyChainGHGEmissionFactors_v1.2_NAICS_CO2e_USD2021.csv], and that the data has a header row.  
-
-Note that only SDML-compliant CSV files can be referenced as `RemoteCSVTable`s.  These files must:
-- Have data in rows, with at most a single header row
-- The values must be in the format of SDML value types.  For example, the CSV file at [Los Angeles Crime Data](https://catalog.data.gov/dataset/crime-data-from-2020-to-present) is non-compliant, because the date columns are not in ISO format.
+A `RemoteCSVTable` type is under consideration.
 
 ##### Further Table Types
 Further table types are planned, under  conditions:

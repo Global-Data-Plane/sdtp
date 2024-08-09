@@ -272,7 +272,7 @@ sdtp_table.py
 >     
 > class RowTableFactory(SDMLTableFactory):
 >     '''
->     A factory to build RowTables -- in fact, all SDTPFixedTables.  build_table is very simple, just instantiating
+>     A factory to build RowTables -- in fact, all SDMLFixedTables.  build_table is very simple, just instantiating
 >     a RowTable on the rows and schema of the specification
 >     '''
 >     def __init__(self):

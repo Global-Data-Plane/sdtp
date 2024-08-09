@@ -40,7 +40,7 @@ import pytest
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDMLTable
+from sdtp import SDMLFixedTable, RowTable, SDMLDataFrameTable, RemoteSDMLTable
 from pytest_httpserver import HTTPServer
 
 table_test_1 = {
@@ -52,7 +52,7 @@ table_test_1 = {
 }
 
 def _makeTable():
-    return  SDTPFixedTable(table_test_1["schema"], lambda: table_test_1["rows"])
+    return  SDMLFixedTable(table_test_1["schema"], lambda: table_test_1["rows"])
 
 def test_create():
     '''
