@@ -35,7 +35,7 @@ import pytest
 import datetime
 import os
 from sdtp import SDML_STRING, SDML_NUMBER, SDML_BOOLEAN, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY
-from sdtp import type_check, check_sdtp_type_of_list
+from sdtp import type_check, check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_row, jsonifiable_rows, jsonifiable_column
 from sdtp import convert_to_type, convert_list_to_type, convert_dict_to_type
 from sdtp import InvalidDataException
@@ -49,7 +49,7 @@ good_types = {
   SDML_BOOLEAN: [True, False],
   SDML_DATE: [datetime.date(2021, 1, 1)],
   SDML_DATETIME: [datetime.datetime(2021, 1, 1, 12, 0, 0)],
-  SDML_TIME_OF_DAY: [datetime.time(12, 0, 0)]
+  SDML_TIME_OF_DAY: [datetime.time(12, 0, 0)],
 }
 
 # Test check_valid for good and bad types
@@ -73,11 +73,11 @@ def test_type_check_bad():
 # Check the list; since we know that type_sest works, this just makes sure it's right on a list of 
 # length 0, 1 > 1
 def test_check_type_of_list():
-  assert(check_sdtp_type_of_list(SDML_STRING, []))
-  assert(check_sdtp_type_of_list(SDML_STRING, ["foo"]))
-  assert(check_sdtp_type_of_list(SDML_STRING, ["foo", "bar"]))
-  assert(not check_sdtp_type_of_list(SDML_STRING, [32]))
-  assert(not check_sdtp_type_of_list(SDML_STRING, ["foo", 32]))
+  assert(check_sdml_type_of_list(SDML_STRING, []))
+  assert(check_sdml_type_of_list(SDML_STRING, ["foo"]))
+  assert(check_sdml_type_of_list(SDML_STRING, ["foo", "bar"]))
+  assert(not check_sdml_type_of_list(SDML_STRING, [32]))
+  assert(not check_sdml_type_of_list(SDML_STRING, ["foo", 32]))
 
 jsonifiable_values = {
   SDML_STRING: [("foo", "foo")],

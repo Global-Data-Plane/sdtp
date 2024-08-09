@@ -38,7 +38,7 @@ from json import dumps
 import pandas as pd
 import pytest
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
-from sdtp import check_sdtp_type_of_list
+from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
 from sdtp import SDTPFixedTable, RowTable, DataFrameTable, RemoteSDMLTable
 from pytest_httpserver import HTTPServer
@@ -124,7 +124,7 @@ def test_construct_dataframe():
     assert(df.columns.tolist() == row_table.column_names())
     for column in schema:
         column_values = df[column["name"]].tolist()
-        assert(check_sdtp_type_of_list(column["type"], column_values))
+        assert(check_sdml_type_of_list(column["type"], column_values))
 
 
 import requests

@@ -702,8 +702,8 @@ class RemoteSDMLTable(SDMLTable):
         
 class RemoteSDMLTableFactory(SDMLTableFactory):
     '''
-    A factory to build RemoteCSVTables.  build_table is very simple, just instantiating
-    a RemoteCSVTable on the url and schema of the specification
+    A factory to build RemoteSDMLTables.  build_table is very simple, just instantiating
+    a RemoteSDMLTables on the url and schema of the specification
     '''
     def __init__(self):
         super(RemoteSDMLTableFactory, self).__init__('RemoteSDMLTable')

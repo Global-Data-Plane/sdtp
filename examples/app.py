@@ -46,7 +46,10 @@ This is a very thin overlay on the server in sdtp_server.py, with three major ex
 from conf import SDTP_PATH, TABLE_FACTORIES
 
 sys.path.append('.')
+
+sys.path.append('src')
 # sys.path.append('./data_plane')
+print(sys.path)
 from sdtp import sdtp_server_blueprint
 from flask import Flask
 
@@ -111,5 +114,10 @@ def cwd():
 
 
 if __name__ == '__main__':
-    sdtp_server_blueprint.init_tables()
+    table_files = glob('examples/tables/*.sdml')
+    for file in table_files:
+        spec = load(open(file))
+        sdtp_server_blueprint.table_server.add_sdtp_table_from_dictionary(spec)
+
+
     app.run()

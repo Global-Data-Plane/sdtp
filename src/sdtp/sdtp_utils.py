@@ -53,18 +53,18 @@ SDML_PYTHON_TYPES = {
     SDML_TIME_OF_DAY: {datetime.time}
 }
 
-def type_check(sdtp_type, val):
-    return type(val) in SDML_PYTHON_TYPES[sdtp_type]
+def type_check(sdml_type, val):
+    return type(val) in SDML_PYTHON_TYPES[sdml_type]
 
-def check_sdtp_type_of_list(sdtp_type, list_of_values):
+def check_sdml_type_of_list(sdml_type, list_of_values):
     '''
     Check to make sure the values in list_of_values are all the right Python 
     type for operations.
     Arguments:
-        sdtp_type: One of SDML_SCHEMA_TYPES
+        sdml_type: One of SDML_SCHEMA_TYPES
         list_of_values: a Python list to be tested
     '''
-    type_check_list = [type_check(sdtp_type, val) for val in list_of_values]
+    type_check_list = [type_check(sdml_type, val) for val in list_of_values]
     return not (False in type_check_list)
     
 
@@ -135,57 +135,61 @@ def jsonifiable_column(column, column_type):
         return [jsonifiable_value(value, column_type) for value in column]
     else:
         return column
+    
+def _convert_to_number(value):
+    # Return a numeric form of value, if possible, or throw an InValidDataException if it won't convert
+    if isinstance(value, int) or isinstance(value, float):
+        return value
 
-def convert_to_type(sdtp_type, value):
+    # try an automated conversion to float.  If it fails, it still
+    # might be an int in base 2, 8, or 16, so pass the error to try
+    # all of those
+
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        pass
+    # if we get here, it must be a string or won't convert
+    if not isinstance(value, str):
+        raise InvalidDataException(f'Cannot convert {value} to number')
+
+    # Try to convert to binary, octal, decimal
+
+    for base in [2, 8, 16]:
+        try:
+            return int(value, base)
+        except ValueError:
+            pass
+    # Everything has failed, so toss the exception
+    raise InvalidDataException(f'Cannot convert {value} to number')
+
+
+def convert_to_type(sdml_type, value):
     '''
-    Convert value to sdtp_type, so that comparisons can be done.  This is used to convert
+    Convert value to sdml_type, so that comparisons can be done.  This is used to convert
     the values in a filter_spec to a form that can be used in a filter.
     Throws an InvalidDataException if the type can't be converted.
     An exception is Boolean, where "True, true, t" are all converted to True, but any
     other values are converted to False
 
     Arguments:
-        sdtp_type: type to convert to
+        sdml_type: type to convert to
         value: value to be converted
     Returns:
         value cast to the correct type
     '''
-    if type(value) in SDML_PYTHON_TYPES[sdtp_type]:
+    if type(value) in SDML_PYTHON_TYPES[sdml_type]:
         return value
-    if sdtp_type == SDML_STRING:
+    if sdml_type == SDML_STRING:
         if isinstance(value, str):
             return value
         try:
             return str(value)
         except ValueError:
             raise InvalidDataException('Cannot convert value to string')
-    elif sdtp_type == SDML_NUMBER:
-        if isinstance(value, int) or isinstance(value, float):
-            return value
-
-        # try an automated conversion to float.  If it fails, it still
-        # might be an int in base 2, 8, or 16, so pass the error to try
-        # all of those
-
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            pass
-        # if we get here, it must be a string or won't convert
-        if not isinstance(value, str):
-            raise InvalidDataException(f'Cannot convert {value} to number')
-
-        # Try to convert to binary, octal, decimal
-
-        for base in [2, 8, 16]:
-            try:
-                return int(value, base)
-            except ValueError:
-                pass
-        # Everything has failed, so toss the exception
-        raise InvalidDataException(f'Cannot convert {value} to number')
-
-    elif sdtp_type == SDML_BOOLEAN:
+    elif sdml_type == SDML_NUMBER:
+        return _convert_to_number(value)
+    elif sdml_type == SDML_BOOLEAN:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -197,7 +201,7 @@ def convert_to_type(sdtp_type, value):
         return False
     # Everything else is a date or time
 
-    elif sdtp_type == SDML_DATETIME:
+    elif sdml_type == SDML_DATETIME:
         if type(value) == datetime.date:
             return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
         if isinstance(value, str):
@@ -207,7 +211,7 @@ def convert_to_type(sdtp_type, value):
                 raise InvalidDataException(f"Can't convert {value} to datetime")
         raise InvalidDataException(f"Can't convert {value} to datetime")
 
-    elif sdtp_type == SDML_DATE:
+    elif sdml_type == SDML_DATE:
         if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
             return value.date()
         if isinstance(value, str):
@@ -217,7 +221,7 @@ def convert_to_type(sdtp_type, value):
                 raise InvalidDataException(f"Can't convert {value} to date")
         raise InvalidDataException(f"Can't convert {value} to date")
     
-    else:  # sdtp_type = SDML_TIME_OF_DAY
+    elif sdml_type == SDML_TIME_OF_DAY:
         if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
             return value.time()
         if isinstance(value, str):
@@ -229,54 +233,56 @@ def convert_to_type(sdtp_type, value):
                 except Exception:
                     raise InvalidDataException(f"Can't convert {value} to time")
 
-        raise InvalidDataException(f"Couldn't convert {value} to {sdtp_type}")
+        raise InvalidDataException(f"Couldn't convert {value} to {sdml_type}")
+    
+    raise InvalidDataException(f"Don't recognize {sdml_type}")
         
-def convert_list_to_type(sdtp_type, value_list):
+def convert_list_to_type(sdml_type, value_list):
     '''
-    Convert value_list to sdtp_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
+    Convert value_list to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
     Returns a default value if value can't be converted
     Note that it's the responsibility of the object which provides the rows to always provide the correct types,
     so this really should always just return a new copy of value_list
     Arguments:
-        sdtp_type: type to convert to
+        sdml_type: type to convert to
         value_list: list of values to be converted
     Returns:
         value_list with each element cast to the correct type
     '''
     try:
-        return  [convert_to_type(sdtp_type, elem) for elem in value_list]
+        return  [convert_to_type(sdml_type, elem) for elem in value_list]
         
         # result = []
-        # for i in range(len(value_list)): result.append(convert_to_type(sdtp_type, value_list[i]))
+        # for i in range(len(value_list)): result.append(convert_to_type(sdml_type, value_list[i]))
         # return result
     except Exception as exc:
-        raise InvalidDataException(f'Failed to convert {value_list} to {sdtp_type}')
+        raise InvalidDataException(f'Failed to convert {value_list} to {sdml_type}')
     
-def convert_row_to_type_list(sdtp_type_list, row):
+def convert_row_to_type_list(sdml_type_list, row):
     # called from convert_rows_to_type_list, which should error check
-    # to make sure that the row is the same length as sdtp_type_list
-    return [convert_to_type(sdtp_type_list[i], row[i]) for i in range(len(row))]
+    # to make sure that the row is the same length as sdml_type_list
+    return [convert_to_type(sdml_type_list[i], row[i]) for i in range(len(row))]
 
 
-def convert_rows_to_type_list(sdtp_type_list, rows):
+def convert_rows_to_type_list(sdml_type_list, rows):
     '''
     Convert the list of rows to the 
     '''
-    length = len(sdtp_type_list)
+    length = len(sdml_type_list)
     for row in rows:
         if len(row) != length:
             raise InvalidDataException(f'Length mismatch: required number of columns {length}, length {row} = {len(row)}')
-    return  [convert_row_to_type_list(sdtp_type_list, row) for row in rows]
+    return  [convert_row_to_type_list(sdml_type_list, row) for row in rows]
     
-def convert_dict_to_type(sdtp_type, value_dict):
+def convert_dict_to_type(sdml_type, value_dict):
     '''
-    Convert value_dict to sdtp_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
+    Convert value_dict to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
 
     Returns a default value if value can't be converted
     Note that it's the responsibility of the object which provides the rows to always provide the correct types,
     so this really should always just return a new copy of value_list
     Arguments:
-        sdtp_type: type to convert to
+        sdml_type: type to convert to
         value_dict: dictionary of values to be converted
     Returns:
         value_dict with each value in the dictionary cast to the correct type
@@ -284,7 +290,7 @@ def convert_dict_to_type(sdtp_type, value_dict):
     result = {}
     try:
         for (key, value) in value_dict.items():
-            result[key] = convert_to_type(sdtp_type, value)
+            result[key] = convert_to_type(sdml_type, value)
         return result
     except Exception as exc:
-        raise InvalidDataException(f'Failed to convert {value_dict} to {sdtp_type}')
+        raise InvalidDataException(f'Failed to convert {value_dict} to {sdml_type}')
