@@ -5,7 +5,6 @@ README.rst
 pyproject.toml
 setup.cfg
 src/sdtp/__init__.py
-src/sdtp/app.py
 src/sdtp/sdtp_filter.py
 src/sdtp/sdtp_server.py
 src/sdtp/sdtp_table.py

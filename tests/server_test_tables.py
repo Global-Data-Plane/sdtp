@@ -30,10 +30,13 @@
 import sys
 sys.path.append('../src')
 sys.path.append('./src')
-from sdtp import Table, RowTable
-protected_table = RowTable([
-  {"name": "column1", "type": "string"},
-  {"name": "column2", "type": "number"}
+from sdtp import RowTable
+from sdtp import SDML_STRING, SDML_NUMBER, SDML_DATE, SDML_TIME_OF_DAY, SDML_DATETIME, SDML_BOOLEAN
+
+# Tables used in test_table_server
+test1 = RowTable([
+  {"name": "column1", "type": SDML_STRING},
+  {"name": "column2", "type": SDML_NUMBER}
 ], [
   ["Tom", 23],
   ["Misha", 37],
@@ -42,11 +45,11 @@ protected_table = RowTable([
   ["Alexandra", 25],
   ["Hitomi", 45]
 ])
-protected = Table(protected_table, {"foo": "bar"})
 
-unprotected_table = RowTable([
-  {"name": "column1", "type": "string"},
-  {"name": "column2", "type": "number"}
+
+test2 = RowTable([
+  {"name": "column1", "type": SDML_STRING},
+  {"name": "column2", "type": SDML_NUMBER}
 ], [
   ["Tammy", 48],
   ["Sujata", 36],
@@ -55,15 +58,15 @@ unprotected_table = RowTable([
   ["Alexandra", 25],
   ["Hitomi", 45]
 ])
-unprotected = Table(unprotected_table, None)
 
-test1_table = RowTable([
-  { "name": "name", "type": "string" },
-  { "name": "age", "type": "number" },
-  { "name": "date", "type": "date" }, 
-  { "name": "time", "type": "timeofday" },
-  { "name": "datetime", "type": "datetime" },
-  { "name": "boolean", "type": "boolean" }
+
+test3 = RowTable([
+  { "name": "name", "type": SDML_STRING },
+  { "name": "age", "type": SDML_NUMBER },
+  { "name": "date", "type": SDML_DATE }, 
+  { "name": "time", "type": SDML_TIME_OF_DAY },
+  { "name": "datetime", "type": SDML_DATETIME },
+  { "name": "boolean", "type": SDML_BOOLEAN }
 ], [
   [ "Pearla", 64, "2020-09-24", "11:24:55", "2020-09-24T11:24:55", True ],
   [ "Karleen", 78, "2011-12-09", "13:40:27", "2011-12-09T13:40:27", True ],
@@ -167,10 +170,9 @@ test1_table = RowTable([
   [ "Allegra", 55, "2013-10-03", "00:50:14", "2013-10-03T00:50:14", False ]
 ])
 
-test1 = Table(test1_table)
 
 test_tables = [
   {"name": "test1", "table": test1},
-  {"name": "protected", "table": protected},
-  {"name": "unprotected", "table": unprotected}
+  {"name": "test2", "table": test2},
+  {"name": "test3", "table": test3}
 ]

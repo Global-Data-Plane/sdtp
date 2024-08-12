@@ -59,9 +59,7 @@ from sdtp import SDML_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, json
 from sdtp import InvalidDataException, convert_row_to_type_list
 from sdtp import RowTable
 from sdtp import check_valid_spec
-from sdtp import TableServer, TableNotFoundException, TableNotAuthorizedException, \
-    ColumnNotFoundException, Table
-
+from sdtp import TableServer, TableNotFoundException, ColumnNotFoundException
 
 class SDTPServer(Blueprint):
     '''
@@ -72,7 +70,7 @@ class SDTPServer(Blueprint):
         super(SDTPServer, self).__init__(name, __name__)
         self.table_server = TableServer()
         self.ROUTES = [
-            {"url": "/get_tables", "method": "GET", "headers": "<i>as required for authentication</i>",
+            {"url": "/get_tables", "method": "GET", "headers": "<i>None</i>",
                 "description": 'Dumps a JSONIfied dictionary of the form:{table_name: <table_schema>}, where <table_schema> is a dictionary{"name": name, "type": type}'},
             {"url": "/get_filtered_rows?table_name <i>string, required</i>", "method": "POST",
                 "body": {"table": "<i> required, the name of the table to get the rows from<i/>",
@@ -81,11 +79,11 @@ class SDTPServer(Blueprint):
                 "headers": "<i> as required for authentication</i>",
                 "description": "Get the rows from table Table-Name (and, optionally, Dashboard-Name) which match filter Filter-Spec"},
             {"url": "/get_range_spec?column_name <i>string, required</i>&table_name <i>string, required</i>", "method": "GET",
-                "headers": "<i>as required for authentication</i>",
+                "headers": "<i>None</i>",
                 "description": "Get the  minimum, and maximum values for column <i>column_name</i> in table <i>table_name</i>, returned as a dictionary {min_val, max_val}."},
             {"url": "/get_all_values?column_name <i>string, required</i>&table_name <i>string, required</i>", "method": "GET",
-                "headers": "<i>as required for authentication</i>",
-                "description": "Get all the distinct values for column <i>column_name</i> in table <i>table_name</i>, returned as a sorted list.  Authentication variables should be in headers."},
+                "headers": "<i>None</i>",
+                "description": "Get all the distinct values for column <i>column_name</i> in table <i>table_name</i>, returned as a sorted list."},
             {"url": "/get_table_spec", "method": "GET",
                 "description": "Return the dictionary of table names and authorization variables"},
             
@@ -121,9 +119,6 @@ def _table_server_if_authorized(request_api, table_name):
     except TableNotFoundException:
         msg = f'No handler defined for table {table_name} for request {request_api}'
         code = 400
-    except TableNotAuthorizedException:
-        msg = msg = f'Table {table_name} requires authentication, authentication missing.  Request is {request_api}'
-        code = 403
     _log_and_abort(msg, code)
 
 
@@ -173,7 +168,7 @@ def _column_types(table, columns):
     return [column["type"] for column in table.schema if column["name"] in columns]
 
 
-def create_server_from_csv(table_name, path_to_csv_file, table_server, headers=None):
+def create_server_from_csv(table_name, path_to_csv_file, table_server):
     '''
     Create a server from a CSV file.The file must meet the format for a RowTable:
     1. Each row must contain the same number of columns;
@@ -186,11 +181,7 @@ def create_server_from_csv(table_name, path_to_csv_file, table_server, headers=N
          table_name: the name of the table to add
          path_to_csv_file: the path to the csv file to read
          table_server: the server to add the table to (an instance of table_server.TableServer)
-         headers: any authorization headers (default {})
-
     '''
-    if headers is None:
-        headers = {}
     try:
         with open(path_to_csv_file, 'r') as f:
             r = csv.reader(f)
@@ -208,9 +199,8 @@ def create_server_from_csv(table_name, path_to_csv_file, table_server, headers=N
     column_type_list = [{"type": sdtp_type} for sdtp_type in types]
     try:
         final_rows = [convert_row_to_type_list(column_type_list, row) for row in rows[2:]]
-        sdtp_table = RowTable(schema, final_rows)
-        data_server_table = Table(sdtp_table, headers)
-        table_server.add_sdtp_table({"name": table_name, "table": data_server_table})
+        sdml_table = RowTable(schema, final_rows)
+        table_server.add_sdtp_table({"name": table_name, "table": sdml_table})
 
     except ValueError as error:
         raise InvalidDataException(f'{error} raised during type conversion')
@@ -323,6 +313,8 @@ def _check_required_parameters(route, required_parameters):
         msg = 'Missing ' + parameter_string + f'for route {route}'
         _log_and_abort(msg, 400)
 
+# lots of common code in the next two methods -- factor these out in
+# a later rev
 
 @sdtp_server_blueprint.route('/get_range_spec')
 def get_range_spec():
@@ -337,16 +329,16 @@ def get_range_spec():
     _check_required_parameters('/get_range_spec', ['table_name', 'column_name'])
     column_name = request.args.get('column_name')
     table_name = request.args.get('table_name')
+    sdml_type = _column_type(table_name, column_name)
     try:
         result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name, request.headers)
-        sdtp_type = _column_type(table_name, column_name)
+        
         jsonifiable_result = {
-            "max_val": jsonifiable_value(result["max_val"], sdtp_type ),
-            "min_val": jsonifiable_value(result["min_val"], sdtp_type ),
+            "max_val": jsonifiable_value(result["max_val"], sdml_type ),
+            "min_val": jsonifiable_value(result["min_val"], sdml_type ),
         }
         return jsonify(jsonifiable_result)
-    except TableNotAuthorizedException:
-        _log_and_abort(f'Access to table {table_name} not authorized, request /get_range_spec', 403)
+   
     except TableNotFoundException:
         _log_and_abort(f'No  table {table_name} present, request /get_range_spec', 400)
     except ColumnNotFoundException:
@@ -371,8 +363,6 @@ def get_all_values():
         sdtp_type  = _column_type(table_name, column_name)
         jsonifiable_result = jsonifiable_column(result, sdtp_type)
         return jsonify(jsonifiable_result)
-    except TableNotAuthorizedException:
-        _log_and_abort(f'Access to table {table_name} not authorized, request /get_all_values', 403)
     except TableNotFoundException:
         _log_and_abort(f'No  table {table_name} present, request /get_all_values', 400)
     except ColumnNotFoundException:

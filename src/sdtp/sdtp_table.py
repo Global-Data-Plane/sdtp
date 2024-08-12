@@ -91,8 +91,8 @@ def get_errors(entry):
 
 class SDMLTable:
     '''
-    An SDMLTable.  This is the abstract superclass for all Simple Data Transfer Protocol tables, and 
-    implements the schema methods of every SDTP class.  The data methods are implemented
+    An SDMLTable.  This is the abstract superclass for all Simple Data Markup Language tables, and 
+    implements the schema methods of every SDML class.  The data methods are implemented
     by the concrete classes.  Any new SDMLTable class should:
     1. Subclass SDMLTable
     2. Have a constructor with the argument schema
@@ -125,7 +125,7 @@ class SDMLTable:
             raise InvalidDataException(f"Errors in schema {schema}: {error_entries}")
            
         self.schema = schema
-        self.is_sdtp_table = True
+        # self.is_sdtp_table = True
 
     def column_names(self):
         '''
@@ -248,14 +248,14 @@ class SDMLTableFactory:
     '''
     def __init__(self, table_type):
         self.table_type = table_type
+
+    def valid_factory(self):
+        return isinstance(self.table_type, str)
     
     def build_table(self, table_spec):
         if (table_spec["type"] != self.table_type):
             raise InvalidDataException(f'Bad table type {table_spec["type"]} to build_table: expecting {self.table_type}')
         return None
-        
-
-       
 
 class SDMLFixedTable(SDMLTable):
     '''
@@ -578,7 +578,9 @@ class RemoteSDMLTable(SDMLTable):
         else:
             return convert_list_to_type(column_type, result)
 
-        
+    
+    # change this to return a list.  Also will need to change table_server and
+    # sdtp_server
 
     def range_spec(self, column_name: str, jsonify_results = False):
         '''

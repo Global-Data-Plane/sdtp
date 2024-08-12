@@ -49,20 +49,11 @@ from json import load
 import pandas as pd
 
 from sdtp import InvalidDataException
-from sdtp import RowTableFactory, RemoteSDMLTableFactory
+from sdtp import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory
 
 class TableNotFoundException(Exception):
     '''
     An exception that is thrown when a table is not found in the TableServer
-    '''
-
-    def __init__(self, message):
-        super().__init__(message)
-
-
-class TableNotAuthorizedException(Exception):
-    '''
-    An exception that is thrown when ab attempt is made to access a table without authorization
     '''
 
     def __init__(self, message):
@@ -77,106 +68,35 @@ class ColumnNotFoundException(Exception):
     def __init__(self, message):
         super().__init__(message)
 
-
-def _check_headers(headers):
-    '''
-    Each header should be a dictionary of the form variable:  value,
-    both of which must <string>, which
-    are the authorization tokens required to access this table.  Doesn't return  a value: raises an error if a header isn't compliant
-    '''
-    assert isinstance(headers, dict), f'Headers must be a dictionary, not {type(headers)}'
-    for header in headers.items():
-        assert isinstance(header[0], str), f'Header key must be a string, not {type(header[0])}'
-        assert type(header[1]) in {int, str,
-                                   bool}, f'Header value must be a string, int, or boolean,  not {type(header[1])}'
-
-
-class Table:
-    '''
-    A SDMLTable with authorization information.  This is what is
-    stored in the TableServer; conceptually, it is a pair, (table, headers) where table is a SDMLTable and headers is a dictionary
-    of variables and values used to access the data.  raises an InvalidDataException if:
-    (1) The table is not a SDMLTable
-    (2) header_dict is not a dictionary
-    (3) A key in header-dict is not a string
-    (4) A value in header-dict is not one of <int, str, bool>
-    Arguments:
-         table: the table to be stored
-         header_dict: a dictionary of the form {variable: value} used to access the table
-    '''
-
-    def __init__(self, table, header_dict={}):
-        invalid_error = InvalidDataException('The table parameter to Table must be a SDMLTable')
-        try:
-            if not table.is_sdtp_table:
-                raise invalid_error
-        except AttributeError:
-            raise invalid_error
-        if header_dict is None: header_dict = {}
-        try:
-            _check_headers(header_dict)
-        except AssertionError as err:
-            raise InvalidDataException(err)
-
-        self.table = table
-        self.header_dict = header_dict
-
-    def authorized(self, headers={}):
-        '''
-        Return True iff the provided dictionary of headers contains the
-        right variables and values to access this table
-        Arguments:
-            headers: A dictionary of the form {variable: value} containing the provided headers
-        '''
-        # Make sure we don't have None passed in
-        if headers is None: headers = {}
-        # Just check for each value.  use get() rather than direct
-        # reference to avoid KeyError, and note that if the item isn't
-        # there None won't be equal to item[1]
-        for item in self.header_dict.items():
-            provided_value = headers.get(item[0])
-            if provided_value != item[1]: return False
-        # Everything matched!
-        return True
-
-    def auth_variables(self):
-        '''
-        Return the list of variables required for authorization, but
-        not their values
-        Returns:
-        list of variable names required for authorization,
-        '''
-        return list(self.header_dict.keys())
-
-
-    
-
-def _check_type(value, type, message_prefix):
-    assert isinstance(value, type), f'{message_prefix} {type(value)}'
+def _check_type(value, python_type, message_prefix):
+    # A utility that checks that value is of the correct type, which should be a Python type.
+    # Doesn't return: instead, throws an Assertion Failure with a message when the type doesn't check
+    assert isinstance(value, python_type), f'{message_prefix} {type(value)}'
 
 def _check_dict_and_keys(dictionary, keys, dict_message, dict_name):
+    # A utility that checks that dictionary is a dict, and that the keys keys are all present.  
+    # Doesn't return: instead, throws an Assertion Failure with a message when the type doesn't check
     _check_type(dictionary, dict, dict_message)
-    missing_keys = keys - dictionary.keys()
+    missing_keys = keys - dictionary.keys() if keys is not None else {}
     assert len(missing_keys) == 0, f'{dict_name} is missing keys {missing_keys}'
-
-
 
 def _check_table_spec(table_spec):
     # Make sure a table_spec is a dictionary with two entries, a name and a table,
     # and the type of name is a string and the type of table is a Table
     _check_dict_and_keys(table_spec, {'name', 'table'}, 'table_spec must be a dictionary not', 'table_spec')
     _check_type(table_spec["name"], str, 'The name in table_spec must be a string, not')
-    _check_type(table_spec["table"], Table, 'The table in table_spec must be a Table, not')
+    # the table in table_spec must 
+
+    _check_type(table_spec["table"], SDMLTable, 'The table in table_spec must be a Table, not')
 
 def _check_valid_form(table_form):
     # Make sure a table_form is a dictionary with two entries, a name and a table,
     # and the type of name is a string, the type of table is a dictionary, and the 
     # table dictionary contains fields schema and type
+    # Doesn't return: instead, throws an Assertion Failure with a message when the type doesn't check
     _check_dict_and_keys(table_form, {'name', 'table'}, 'table_form must be a dictionary not', 'table_form')
     _check_type(table_form["name"], str, 'The name in table_form must be a string, not')
     _check_dict_and_keys(table_form['table'], {'type', 'schema'}, 'table_form["table"] must be a dictionary not', 'table_form')
-
-
 
 class TableServer:
     '''
@@ -189,60 +109,24 @@ class TableServer:
         self.servers = {}
         self.factories = {}
         # factories which are part of the standard  distribution
-        self.add_table_factory('RowTable', RowTableFactory())
-        self.add_table_factory('RemoteSDMLTable', RemoteSDMLTableFactory())
+        self.add_table_factory(RowTableFactory())
+        self.add_table_factory(RemoteSDMLTableFactory())
 
 
-    def add_table_factory(self, table_type, table_factory):
+    def add_table_factory(self, table_factory):
         '''
         Add a TableFactory for table type table_type.  When 
         self.add_table_from_dictionary(table_spec) is called, the appropriate 
         factory is called to build it
         Arguments:
-           table_type: a string indicating the table type
            table_factory: an instance of a subclass of TableFactory which actually builds the table
         '''
+        # Check the table factory extends SDMLTableFactory
+        _check_type(table_factory, SDMLTableFactory, 'table_factory must be an instance of SDMLTableFactory, not')
+        table_type = table_factory.table_type
+       
+        _check_type(table_type, str, 'table_type must be a string, not')
         self.factories[table_type] = table_factory
-
-    def get_table_dictionary(self, headers={}):
-        '''
-        Get the schemas tables authorized with headers as a dictionary
-        {table_name: table}
-
-        Returns:
-            a dictionary of the schemata the authorized tables by name
-        '''
-        result = {}
-        if headers is None: headers = {}
-
-        for items in self.servers.items():
-            if items[1].authorized(headers):
-                result[items[0]] = items[1].table.schema
-        return result
-
-    def get_auth_spec(self):
-        '''
-        Return a dictionary of the names of the tables and the authorization variables required for head
-        Returns:
-        a Dictionary with key table_name and values the names of the variables required for that table
-        '''
-        result = {}
-        for items in self.servers.items():
-            result[items[0]] = items[1].auth_variables()
-        return result
-
-    def get_all_tables(self, headers={}):
-        '''
-        Get all the tables.  This
-        is to support a request for a numeric_spec or all_values for a column name when the
-        table_name is not specified. In this case, all tables will be searched for this column name.
-        Arguments: the dictionary of headers
-
-        Returns:
-            a list of all tables which are authorized by the headers
-        '''
-        servers = self.servers.values()
-        return [server.table for server in servers if server.authorized(headers)]
 
     def add_sdtp_table(self, table_spec):
         '''
@@ -255,7 +139,6 @@ class TableServer:
         '''
         _check_table_spec(table_spec)
         self.servers[table_spec["name"]] = table_spec["table"]
-
 
     def add_sdtp_table_from_dictionary(self, table_dictionary):
         '''
@@ -277,75 +160,85 @@ class TableServer:
         table_type = table_dict['type']
         if table_type in self.factories.keys():
             table = self.factories[table_type].build_table(table_dict)
-            self.add_sdtp_table({"name": name, "table": Table(table)})
+            self.add_sdtp_table({"name": name, "table": table})
         else:
             raise InvalidDataException(f'No factory registered for {table_type}')
 
-    def get_table(self, table_name, headers={}):
+
+
+
+    def get_all_tables(self):
+        '''
+        Get all the tables.  This
+        is to support a request for a numeric_spec or all_values for a column name when the
+        table_name is not specified. In this case, all tables will be searched for this column name.
+        
+
+        Returns:
+            a list of all tables
+        '''
+        tables = self.servers.values()
+        return tables
+
+    
+    def get_table(self, table_name):
         '''
         Get the table with name table_name, first checking to see
         if  table access is authorized by the passed headers.
         Arguments:
             table_name: name of the table to search for
-            headers: dictionary of header variables and values
+            
         Returns:
-            The SDTP table corresponding to the request
+            The SDML table corresponding to the request
         Raises:
             TableNotFoundException if the table is not found
-            TableNotAuthorizedException if access to the table is not authorized
+            
         '''
         try:
-            server = self.servers[table_name]
-            if server.authorized(headers):
-                return server.table
-            else:
-                raise TableNotAuthorizedException(f'Access to table {table_name} not authorized')
+            return self.servers[table_name]
+           
         except KeyError:
             raise TableNotFoundException(f'Table {table_name} not found')
 
-    def get_all_values(self, table_name, column_name, headers={}):
+   
+    def get_all_values(self, table_name, column_name):
         '''
         Get all of the distinct values for column column_name for table
         table_name.  Returns the list of distinct values for the columns
         Arguments:
             table_name: table to be searched
             column_name: name of the column
-            headers: headers to check for authorization
+           
         Returns:
             Returns the list of distinct values for the columns
         Raises:
             TableNotFoundException if the table is not found
-            TableNotAuthorizedException if access to the table is not authorized
             ColumnNotFoundException if the column can't be found
         '''
 
         _check_type(column_name, str, 'Column name must be a string, not')
-        table = self.get_table(table_name,
-                               headers)  # Note this will throw the TableNotFound and TableNotAuthorizedException
+        table = self.get_table(table_name)  # Note this will throw the TableNotFoundException
 
         try:
             return table.all_values(column_name)
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
 
-    def get_range_spec(self, table_name, column_name, headers={}):
+    def get_range_spec(self, table_name, column_name):
         '''
         Get the range specification for column column_name for table
         table_name.  Returns  a dictionary with keys{max_val, min_val}
         Arguments:
             table_name: table to be searched
             column_name: name of the column
-            headers: headers to check for authorization
         Returns:
             Returns  a dictionary with keys{max_val, min_val}
         Raises:
             TableNotFoundException if the table is not found
-            TableNotAuthorizedException if access to the table is not authorized
             ColumnNotFoundException if the column can't be found
         '''
         _check_type(column_name, str, 'Column name must be a string, not')
-        table = self.get_table(table_name,
-                               headers)  # Note this will throw the TableNotFound and TableNotAuthorizedException
+        table = self.get_table(table_name)  # Note this will throw the TableNotFoundException
         try:
             return table.range_spec(column_name)
         except InvalidDataException:
