@@ -46,11 +46,11 @@ After that, requests for the named table will be served by the created data serv
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
-import os
+
 from json import JSONDecodeError, loads, load
 
 
-import csv
+import datetime
 
 from flask import Blueprint, abort, jsonify, request
 
@@ -69,6 +69,7 @@ class SDTPServer(Blueprint):
     def __init__(self, name, __name__):
         super(SDTPServer, self).__init__(name, __name__)
         self.table_server = TableServer()
+        self.logger = None
         self.ROUTES = [
             {"url": "/get_tables", "method": "GET", "headers": "<i>None</i>",
                 "description": 'Dumps a JSONIfied dictionary of the form:{table_name: <table_schema>}, where <table_schema> is a dictionary{"name": name, "type": type}'},
@@ -89,9 +90,16 @@ class SDTPServer(Blueprint):
             
         ]
 
+    def init_logging(self, __name__, logfile = None):
+        if logfile is None:
+            logfile = f'/tmp/sdtp_server_{datetime.datetime.now().isoformat()}.log'
+        logging.basicConfig(filename = logfile, level = logging.INFO)
+        self.logger = logging.getLogger(__name__)
 
 sdtp_server_blueprint = SDTPServer('sdtp_server', __name__)
 
+
+# utilities
 
 def _log_and_abort(message, code=400):
     '''
@@ -100,11 +108,12 @@ def _log_and_abort(message, code=400):
     Arguments:
         message: string with the message to be logged/sent
     '''
-    logging.error(message)
+    if sdtp_server_blueprint.logger is not None:
+        sdtp_server_blueprint.logger.error(message)
     abort(code, message)
 
 
-def _table_server_if_authorized(request_api, table_name):
+def _table_server(request_api, table_name):
     '''
     Utility for _get_table_server and _get_table_servers.  Get the server for  table_name and return it.
     Aborts the request with a 400 if the table isn't found.  Aborts with a 403 if the
@@ -115,24 +124,13 @@ def _table_server_if_authorized(request_api, table_name):
         table_name: the table to get
     '''
     try:
-        return sdtp_server_blueprint.table_server.get_table(table_name, request.headers)
+        return sdtp_server_blueprint.table_server.get_table(table_name)
     except TableNotFoundException:
-        msg = f'No handler defined for table {table_name} for request {request_api}'
-        code = 400
+        msg = f'Table {table_name} not found for request {request_api}'
+        code = 404
     _log_and_abort(msg, code)
 
 
-def _get_table(request_api):
-    '''
-    Internal use.  Get the server for a specific table_name and return it.
-    Aborts the request with a 400 if the table isn't found.  Aborts with a 403 if the
-    table isn't authorized
-
-    Arguments:
-        request_api: api  of the request
-    '''
-    table_name = request.args.get('table_name')
-    return _table_server_if_authorized(request_api, table_name)
 
 def _column_type(table_name, column):
     '''
@@ -147,7 +145,7 @@ def _column_type(table_name, column):
         The type of the column
 
     '''
-    table = sdtp_server_blueprint.table_server.get_table(table_name, request.headers)
+    table = sdtp_server_blueprint.table_server.get_table(table_name)
     return table.get_column_type(column)
 
 
@@ -167,45 +165,8 @@ def _column_types(table, columns):
         return table.column_types()
     return [column["type"] for column in table.schema if column["name"] in columns]
 
-
-def create_server_from_csv(table_name, path_to_csv_file, table_server):
-    '''
-    Create a server from a CSV file.The file must meet the format for a RowTable:
-    1. Each row must contain the same number of columns;
-    2. The first row (row 0) are the names of the columns
-    3. The second row (row 1)  has the types of the columns
-    4. The type of each entry in rows 2-n must match the declared type of the column
-    Note that it is expected that the csv file will have been appropriately conditioned; all
-    of the elements in each numeric column are numbers, and dates, times, and datetimes are in isoformat
-    Arguments:
-         table_name: the name of the table to add
-         path_to_csv_file: the path to the csv file to read
-         table_server: the server to add the table to (an instance of table_server.TableServer)
-    '''
-    try:
-        with open(path_to_csv_file, 'r') as f:
-            r = csv.reader(f)
-            rows = [row for row in r]
-        assert len(rows) > 2
-        num_columns = len(rows[0])
-        columns = [entry.strip() for entry in rows[0]]
-        for row in rows[1:]: assert len(row) == num_columns
-        types = [entry.strip() for entry in rows[1]]
-        for entry in types: assert entry in SDML_SCHEMA_TYPES
-    except Exception as error:
-        raise InvalidDataException(error)
-
-    schema = [{"name": columns[i], "type": types[i]} for i in range(num_columns)]
-    column_type_list = [{"type": sdtp_type} for sdtp_type in types]
-    try:
-        final_rows = [convert_row_to_type_list(column_type_list, row) for row in rows[2:]]
-        sdml_table = RowTable(schema, final_rows)
-        table_server.add_sdtp_table({"name": table_name, "table": sdml_table})
-
-    except ValueError as error:
-        raise InvalidDataException(f'{error} raised during type conversion')
     
-def get_json_body_from_post_request_data(request):
+def _get_json_body_from_post_request_data(request):
     '''
     Get the json body (if any) from the data field of a  request.  The JSON
     body might be as a dict or as a string; if the latter, decode it
@@ -222,7 +183,7 @@ def get_json_body_from_post_request_data(request):
     except JSONDecodeError:
         return None
 
-def get_post_argument(key, form_data, data, get_multi = False):
+def _get_post_argument(key, form_data, data, get_multi = False):
     '''
     Get the value of the POST argument key from a request.  These can be either in the
     form (which is a MultiDict) or in the data body.
@@ -249,6 +210,139 @@ def get_post_argument(key, form_data, data, get_multi = False):
     return None
 
 
+def _check_required_parameters(route, required_parameters):
+    '''
+    Internal use only.  Check that the required parameters are present.
+    If they aren't, aborts with a 400 and an error message
+    Arguments:
+        route: the route of the call, for an error message
+        required_parameters: the parameters that are supposed to be present
+    '''
+    missing = [parameter for parameter in required_parameters if request.args.get(parameter) is None]
+    if len(missing) > 0:
+        parameter_string = f'parameters {set(missing)} ' if len(missing) > 1 else f'parameter {missing[0]} '
+        msg = 'Missing ' + parameter_string + f'for route {route}'
+        _log_and_abort(msg, 400)
+
+#------------------------ROUTES-------------------------------------------------
+
+# A global route to return all of the routes
+@sdtp_server_blueprint.route('/')
+@sdtp_server_blueprint.route('/routes')
+def routes():
+    return jsonify(sdtp_server_blueprint.ROUTES)
+
+# Table routes
+
+@sdtp_server_blueprint.route('/get_table_names')
+def get_table_names():
+    '''
+    Target for the /get_table_names route.  Returns the list of names of tables hosted by this server, as a simple list of strings.
+    Parameters: none
+    Errors: none
+    '''
+    return jsonify(list(sdtp_server_blueprint.table_server.servers.keys()))
+
+@sdtp_server_blueprint.route('/get_tables')
+def get_tables():
+    '''
+    Target for the /get_tables route.  Dumps a JSONIfied dictionary of the form:
+    {table_name: <table_schema>}, where <table_schema> is a dictionary
+    {"name": name, "type": type}
+
+    Arguments:
+            None
+    '''
+    items = sdtp_server_blueprint.table_server.servers.items()
+    result = {}
+    for (name, table) in items:
+        result[name] = table.schema
+
+    return jsonify(result)
+
+@sdtp_server_blueprint.route('/get_table_schema')
+def get_table_schema():
+    '''
+    Target for the /get_table_schema.  Returns the schema of the table as a list
+    of objects.  Each object must contain the fields "name" and "type", where "type"
+    is an SDML type.
+    Returns 400 if the table is not found.
+    Arguments:
+            table_name: the name of the table
+    '''
+    _check_required_parameters('/get_table_schema', ['table_name'])
+    
+    table = _table_server('/get_table_schema', request.args.get('table_name'))
+    return jsonify(table.schema)
+
+
+# Column routes
+# lots of common code in the next two methods -- factor these out in
+# a later rev
+
+@sdtp_server_blueprint.route('/get_range_spec')
+def get_range_spec():
+    '''
+    Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+    range  spec {"min_val", "max_val","} as a JSONified dictionary. Aborts with a 400
+    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
+
+    Arrguments:
+            None
+    '''
+    _check_required_parameters('/get_range_spec', ['table_name', 'column_name'])
+    column_name = request.args.get('column_name')
+    table_name = request.args.get('table_name')
+    
+    try:
+        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name)
+        sdml_type = _column_type(table_name, column_name)
+        jsonifiable_result = {
+            "max_val": jsonifiable_value(result["max_val"], sdml_type ),
+            "min_val": jsonifiable_value(result["min_val"], sdml_type )
+        }
+        return jsonify(jsonifiable_result)
+   
+    except TableNotFoundException:
+        _log_and_abort(f'No  table {table_name} present, request /get_range_spec', 404)
+    except ColumnNotFoundException:
+        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_range_spec', 404)
+
+
+
+@sdtp_server_blueprint.route('/get_all_values')
+def get_all_values():
+    '''
+    Target for the /get_all_values route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+    sorted list of all distinct values in the column.    Aborts with a 400
+    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
+
+    Arguments:
+            None
+    '''
+    _check_required_parameters('/get_all_values', ['table_name', 'column_name'])
+    column_name = request.args.get('column_name')
+    table_name = request.args.get('table_name')
+    try:
+        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name)
+        sdml_type  = _column_type(table_name, column_name)
+        jsonifiable_result = jsonifiable_column(result, sdml_type)
+        return jsonify(jsonifiable_result)
+    except TableNotFoundException:
+        _log_and_abort(f'No  table {table_name} present, request /get_all_values', 404)
+    except ColumnNotFoundException:
+        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_all_values', 404)
+
+# A route solely intended for debugging/diagnostics -- just echo back the 
+# POST form data
+
+@sdtp_server_blueprint.route('/_echo_json_post', methods = ['POST'])
+def _echo_json_post():
+    json_data = _get_json_body_from_post_request_data(request)
+    return jsonify(json_data)
+
+
+# Sole row route: get_filtered_rows
 
 @sdtp_server_blueprint.route('/get_filtered_rows', methods=['POST'])
 def get_filtered_rows():
@@ -265,16 +359,16 @@ def get_filtered_rows():
     '''
     try:
         # print(request.data)
-        json_data = get_json_body_from_post_request_data(request)
-        filter_spec = get_post_argument('filter', request.form, json_data)
-        columns = get_post_argument('columns', request.form, json_data)
-        table_name = get_post_argument('table', request.form, json_data)
+        json_data = _get_json_body_from_post_request_data(request)
+        filter_spec = _get_post_argument('filter', request.form, json_data)
+        columns = _get_post_argument('columns', request.form, json_data)
+        table_name = _get_post_argument('table', request.form, json_data)
         if table_name is None:
             _log_and_abort('table is a required parameter to get filtererd rows', 400)
 
     except JSONDecodeError as error:
         _log_and_abort(f'Bad arguments to /get_filtered_rows.  Error {error.msg}')
-    table = _table_server_if_authorized('/get_filtered_rows', table_name)
+    table = _table_server('/get_filtered_rows', table_name)
     if columns is None: columns = []
     if not isinstance(columns, list):
         _log_and_abort(f'Columns to /get_filtered_rows must be a list of strings, not {columns}, 400')
@@ -297,102 +391,3 @@ def get_filtered_rows():
     jsonifiable_result = jsonifiable_rows(result, types)
 
     return jsonify(jsonifiable_result)
-
-
-def _check_required_parameters(route, required_parameters):
-    '''
-    Internal use only.  Check that the required parameters are present.
-    If they aren't, aborts with a 400 and an error message
-    Arguments:
-        route: the route of the call, for an error message
-        required_parameters: the parameters that are supposed to be present
-    '''
-    missing = [parameter for parameter in required_parameters if request.args.get(parameter) is None]
-    if len(missing) > 0:
-        parameter_string = f'parameters {set(missing)} ' if len(missing) > 1 else f'parameter {missing[0]} '
-        msg = 'Missing ' + parameter_string + f'for route {route}'
-        _log_and_abort(msg, 400)
-
-# lots of common code in the next two methods -- factor these out in
-# a later rev
-
-@sdtp_server_blueprint.route('/get_range_spec')
-def get_range_spec():
-    '''
-    Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the
-    range  spec {"min_val", "max_val","} as a JSONified dictionary. Aborts with a 400
-    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
-
-    Arrguments:
-            None
-    '''
-    _check_required_parameters('/get_range_spec', ['table_name', 'column_name'])
-    column_name = request.args.get('column_name')
-    table_name = request.args.get('table_name')
-    sdml_type = _column_type(table_name, column_name)
-    try:
-        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name, request.headers)
-        
-        jsonifiable_result = {
-            "max_val": jsonifiable_value(result["max_val"], sdml_type ),
-            "min_val": jsonifiable_value(result["min_val"], sdml_type ),
-        }
-        return jsonify(jsonifiable_result)
-   
-    except TableNotFoundException:
-        _log_and_abort(f'No  table {table_name} present, request /get_range_spec', 400)
-    except ColumnNotFoundException:
-        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_range_spec', 400)
-
-
-@sdtp_server_blueprint.route('/get_all_values')
-def get_all_values():
-    '''
-    Target for the /get_all_values route.  Makes sure that column_name and table_name are  specified in the call, then returns the
-    sorted list of all distinct values in the column.    Aborts with a 400
-    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
-
-    Arrguments:
-            None
-    '''
-    _check_required_parameters('/get_all_values', ['table_name', 'column_name'])
-    column_name = request.args.get('column_name')
-    table_name = request.args.get('table_name')
-    try:
-        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name, request.headers)
-        sdtp_type  = _column_type(table_name, column_name)
-        jsonifiable_result = jsonifiable_column(result, sdtp_type)
-        return jsonify(jsonifiable_result)
-    except TableNotFoundException:
-        _log_and_abort(f'No  table {table_name} present, request /get_all_values', 400)
-    except ColumnNotFoundException:
-        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_all_values', 400)
-
-
-@sdtp_server_blueprint.route('/get_tables')
-def get_tables():
-    '''
-    Target for the /get_tables route.  Dumps a JSONIfied dictionary of the form:
-    {table_name: <table_schema>}, where <table_schema> is a dictionary
-    {"name": name, "type": type}
-
-    Arguments:
-            None
-    '''
-    items = sdtp_server_blueprint.table_server.get_table_dictionary(request.headers)
-
-    return jsonify(items)
-
-
-@sdtp_server_blueprint.route('/get_table_spec')
-def get_table_spec():
-    '''
-    Target for the /get_table_spec route.  Returns a dictionary of the
-    form {table_name: list of required authorization variables}
-
-    Returns:
-         A dictionary of the form {table_name: list of required authorization variables}
-
-    '''
-    return jsonify(sdtp_server_blueprint.table_server.get_auth_spec())
-

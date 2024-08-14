@@ -165,8 +165,6 @@ class TableServer:
             raise InvalidDataException(f'No factory registered for {table_type}')
 
 
-
-
     def get_all_tables(self):
         '''
         Get all the tables.  This
