@@ -47,7 +47,7 @@ from sdtp import SDMLFixedTable, RowTable, SDMLDataFrameTable, RemoteSDMLTable
 from pytest_httpserver import HTTPServer
 
 table_test_1 = {
-    "rows": [["Ted", 21], ["Alice", 24]],
+    "rows": [["Ted", 21], ["Alice", 24], ['Mary', 24]],
     "schema": [
         {"name": "name", "type": SDML_STRING},
         {"name": "age", "type": SDML_NUMBER}
@@ -76,8 +76,9 @@ def test_all_values_and_range_spec():
     Test getting all the values and the numeric specification from columns
     '''
     table = _makeTable()
-    assert table.all_values('name') == ['Alice', 'Ted']
+    assert table.all_values('name') == ['Alice', 'Mary', 'Ted']
     assert table.all_values('age') == [21, 24]
+    
     with pytest.raises(InvalidDataException) as e:
         table.all_values(None)
         # assert e.message == 'None is not a column of this table'
@@ -92,8 +93,14 @@ def test_all_values_and_range_spec():
         # assert e.message == 'Foo is not a column of this table'
     assert table.range_spec('name') == ["Alice", "Ted"] # {'max_val': "Ted", "min_val": "Alice"}
     assert table.range_spec('age') == [21, 24] # {'max_val': 24, "min_val": 21}
+    assert table.get_column('name') == ['Ted', 'Alice', 'Mary']
+    assert table.get_column('age') == [21, 24, 24]
+
     table.get_rows = lambda: [['Ted', 21], ['Alice', 24], ['Jane', 20]]
     assert table.range_spec('age') == [20, 24] # {'max_val': 24, "min_val": 20}
+    assert table.all_values('name') == [ 'Alice', 'Jane', 'Ted']
+    assert table.get_column('name') == ['Ted', 'Alice', 'Jane']
+    assert table.range_spec('name') == [ 'Alice', 'Ted']
 
 
 # Test to build a RowTable
@@ -203,32 +210,42 @@ def test_bad_schema():
     assert('Schema mismatch' in repr(exception))
     httpserver.stop()
 
-def test_all_values_and_range_spec():
+# Test the remote column operations.  The RemoteSDML table will issue requests to the httpserver, who will repond with the JSONIfied version.  The 
+# Remote table will then translate that into a data structure.  So:
+# 1. Pull the json  responses from the server table and get the server to respond with that
+# 2. Translate each json response into a data structure
+# 3. Pull the response from the RemoteTable and compare.
+def test_remote_column_operations():
     httpserver = HTTPServer(port=3000)
     server_table = RowTable(schema, rows)
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     all_values_responses = {}
+    range_spec_responses = {}
+    get_column_responses = {}
 
     for column in schema:
-        response = server_table.all_values(column["name"])
+        response = server_table.all_values(column["name"], False)
         json_response = jsonifiable_column(response, column["type"])
         httpserver.expect_request("/get_all_values", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         all_values_responses[column["name"]] = response
     range_spec_responses = {}
     for column in schema:
-        response = server_table.range_spec(column["name"])
+        response = server_table.range_spec(column["name"], False)
         json_response = jsonifiable_column(response, column["type"])
-        # json_response = {
-        #     "max_val": jsonifiable_value(response["max_val"], column["type"]),
-        #     "min_val": jsonifiable_value(response["min_val"], column["type"]),
-        # }
         httpserver.expect_request("/get_range_spec", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         range_spec_responses[column["name"]] = response
+    for column in schema:
+        response = server_table.get_column(column["name"], False)
+        json_response = jsonifiable_column(response, column["type"])
+        httpserver.expect_request("/get_column", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
+        get_column_responses[column["name"]] = response
     httpserver.start()
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     column_names = [column["name"] for column in schema]
     remote_all_values_results = {}
     remote_range_spec_responses = {}
+    remote_get_column_responses = {}
+
     for name in column_names:
         try:
             remote_all_values_results[name] = remote_table.all_values(name)
@@ -240,9 +257,15 @@ def test_all_values_and_range_spec():
         except Exception:
             httpserver.stop()
             assert False
+        try:
+            remote_get_column_responses[name] = remote_table.get_column(name)
+        except Exception:
+            httpserver.stop()
+            assert False
     httpserver.stop()
     assert remote_all_values_results == all_values_responses
     assert remote_range_spec_responses == range_spec_responses
+    assert remote_get_column_responses == get_column_responses
 
 
 

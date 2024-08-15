@@ -151,6 +151,18 @@ def test_get_all_values():
             expected_result = jsonifiable_column(table_result, column["type"])
             assert(response.json == expected_result)
 
+
+def test_get_column():
+    column_errors('/get_column')
+    for entry in test_tables:
+        table = entry["table"]
+        for column in table.schema:
+            response = client.get(f'/get_column?table_name={entry["name"]}&column_name={column["name"]}')
+            assert(response.status_code == 200)
+            table_result = table.get_column(column["name"])
+            expected_result = jsonifiable_column(table_result, column["type"])
+            assert(response.json == expected_result)
+
 # Test get_filtered_rows. Once again, we've thoroughly tested this in test_sdtp_table_and_filter
 # and test_table_server, so all we need to do here is check error conditions and
 # check that the filter_spec gets through OK and the result is what we expect -- IOW,

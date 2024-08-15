@@ -276,9 +276,27 @@ def get_table_schema():
     return jsonify(table.schema)
 
 
-# Column routes
-# lots of common code in the next two methods -- factor these out in
-# a later rev
+
+
+def _execute_column_operation(route):
+    # A utility for all of the column routes: they are all identical except for the TableServer method name, which 
+    # even takes the same arguments
+    _check_required_parameters(route, ['table_name', 'column_name'])
+    column_name = request.args.get('column_name')
+    table_name = request.args.get('table_name')
+    methods = {
+        '/get_range_spec': sdtp_server_blueprint.table_server.get_range_spec,
+        '/get_all_values': sdtp_server_blueprint.table_server.get_all_values,
+        '/get_column': sdtp_server_blueprint.table_server.get_column
+    }
+    method = methods[route]
+    
+    try:
+        return method(table_name, column_name, True)
+    except TableNotFoundException:
+        _log_and_abort(f'No  table {table_name} present, request {route}', 404)
+    except ColumnNotFoundException:
+        _log_and_abort(f'No column {column_name} in table {table_name}, request {route}', 404)
 
 @sdtp_server_blueprint.route('/get_range_spec')
 def get_range_spec():
@@ -290,16 +308,14 @@ def get_range_spec():
     Arrguments:
             None
     '''
+    return _execute_column_operation('/get_range_spec')
     _check_required_parameters('/get_range_spec', ['table_name', 'column_name'])
     column_name = request.args.get('column_name')
     table_name = request.args.get('table_name')
     
     try:
-        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name)
-        sdml_type = _column_type(table_name, column_name)
-        jsonifiable_result = jsonifiable_column(result, sdml_type)
-        return jsonify(jsonifiable_result)
-   
+        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name, True)
+        return result
     except TableNotFoundException:
         _log_and_abort(f'No  table {table_name} present, request /get_range_spec', 404)
     except ColumnNotFoundException:
@@ -317,18 +333,39 @@ def get_all_values():
     Arguments:
             None
     '''
+    return _execute_column_operation('/get_all_values')
     _check_required_parameters('/get_all_values', ['table_name', 'column_name'])
     column_name = request.args.get('column_name')
     table_name = request.args.get('table_name')
     try:
-        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name)
-        sdml_type  = _column_type(table_name, column_name)
-        jsonifiable_result = jsonifiable_column(result, sdml_type)
-        return jsonify(jsonifiable_result)
+        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name, True)
+        return result
     except TableNotFoundException:
         _log_and_abort(f'No  table {table_name} present, request /get_all_values', 404)
     except ColumnNotFoundException:
         _log_and_abort(f'No column {column_name} in table {table_name}, request /get_all_values', 404)
+
+@sdtp_server_blueprint.route('/get_column')
+def get_column():
+    '''
+    Target for the /get_column route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+    sorted list of all distinct values in the column.    Aborts with a 400
+    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
+
+    Arguments:
+            None
+    '''
+    return _execute_column_operation('/get_column')
+    _check_required_parameters('/get_column', ['table_name', 'column_name'])
+    column_name = request.args.get('column_name')
+    table_name = request.args.get('table_name')
+    try:
+        result = sdtp_server_blueprint.table_server.get_column(table_name, column_name, True)
+        return result
+    except TableNotFoundException:
+        _log_and_abort(f'No  table {table_name} present, request /get_column', 404)
+    except ColumnNotFoundException:
+        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_column', 404)
 
 # A route solely intended for debugging/diagnostics -- just echo back the 
 # POST form data

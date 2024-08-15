@@ -199,13 +199,14 @@ class TableServer:
             raise TableNotFoundException(f'Table {table_name} not found')
 
    
-    def get_all_values(self, table_name, column_name):
+    def get_all_values(self, table_name, column_name, jsonify = False):
         '''
         Get all of the distinct values for column column_name for table
         table_name.  Returns the list of distinct values for the columns
         Arguments:
             table_name: table to be searched
             column_name: name of the column
+            jsonify: jsonify, or not, the result
            
         Returns:
             Returns the list of distinct values for the columns
@@ -218,17 +219,18 @@ class TableServer:
         table = self.get_table(table_name)  # Note this will throw the TableNotFoundException
 
         try:
-            return table.all_values(column_name)
+            return table.all_values(column_name, jsonify)
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
 
-    def get_range_spec(self, table_name, column_name):
+    def get_range_spec(self, table_name, column_name, jsonify = False):
         '''
         Get the range specification for column column_name for table
-        table_name.  Returns  a dictionary with keys{max_val, min_val}
+        table_name.  Returns  a two-length list [min_val, max_val]
         Arguments:
             table_name: table to be searched
             column_name: name of the column
+            jsonify: jsonify, or not, the result
         Returns:
             Returns  a dictionary with keys{max_val, min_val}
         Raises:
@@ -238,9 +240,29 @@ class TableServer:
         _check_type(column_name, str, 'Column name must be a string, not')
         table = self.get_table(table_name)  # Note this will throw the TableNotFoundException
         try:
-            return table.range_spec(column_name)
+            return table.range_spec(column_name, jsonify)
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
         
+    def get_column(self, table_name, column_name, jsonify = False):
+        '''
+        Get the column for column column_name for table
+        table_name.  Returns the column as a list
+        Arguments:
+            table_name: table to be searched
+            column_name: name of the column
+            jsonify: jsonify, or not, the result
+        Returns:
+            Returns  a dictionary with keys{max_val, min_val}
+        Raises:
+            TableNotFoundException if the table is not found
+            ColumnNotFoundException if the column can't be found
+        '''
+        _check_type(column_name, str, 'Column name must be a string, not')
+        table = self.get_table(table_name)  # Note this will throw the TableNotFoundException
+        try:
+            return table.get_column(column_name, jsonify)
+        except InvalidDataException:
+            raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
 
 

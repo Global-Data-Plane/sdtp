@@ -168,6 +168,20 @@ class SDMLTable:
         '''
         raise InvalidDataException(f'all_values has not been in {type(self)}.__name__')
     
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get the column  column_name
+        Arguments:
+            column_name: name of the column to get 
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            List of the values in the column, either in json form (if jsonify = True) or in the
+            appropriate datatyp (if jsonify = False)
+
+        '''
+        raise InvalidDataException(f'get_column has not been in {type(self)}.__name__')
     
 
     def range_spec(self, column_name: str, jsonify = False):
@@ -281,6 +295,28 @@ class SDMLFixedTable(SDMLTable):
 
     # This is used to get the names of a column from the schema
 
+    def _get_column_values_and_type(self, column_name: str):
+        '''
+        get all the column  column_name
+        Arguments:
+            column_name: name of the column to get
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            The column as a list, either in json form (if jsonify = True) or in the
+            appropriate datatype (if jsonify = False)
+
+        '''
+        try:
+            index = self.column_names().index(column_name)
+        except ValueError as original_error:
+            raise InvalidDataException(f'{column_name} is not a column of this table') from original_error
+        sdtp_type = self.schema[index]["type"]
+        rows = self.get_rows()
+        return([row[index] for row in rows], sdtp_type)
+
+
     
     def all_values(self, column_name: str, jsonify = False):
         '''
@@ -292,17 +328,28 @@ class SDMLFixedTable(SDMLTable):
 
         Returns:
             List of the values, either in json form (if jsonify = True) or in the
-            appropriate datatyp (if jsonify = False)
+            appropriate datatype (if jsonify = False)
 
         '''
-        try:
-            index = self.column_names().index(column_name)
-        except ValueError as original_error:
-            raise InvalidDataException(f'{column_name} is not a column of this table') from original_error
-        sdtp_type = self.schema[index]["type"]
-        rows = self.get_rows()
-        result = list(set([row[index] for row in rows]))
+        (values, sdtp_type) = self._get_column_values_and_type(column_name)
+        result = list(set(values))
         result.sort()
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
+    
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get all the column  column_name
+        Arguments:
+            column_name: name of the column to get
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            The column as a list, either in json form (if jsonify = True) or in the
+            appropriate datatype (if jsonify = False)
+
+        '''
+        (result, sdtp_type) = self._get_column_values_and_type(column_name)
         return jsonifiable_column(result, sdtp_type) if jsonify else result
     
     def check_column_type(self, column_name):
@@ -328,13 +375,10 @@ class SDMLFixedTable(SDMLTable):
             the minimum and  maximum of the column
 
         '''
-        entry = [column for column in self.schema if column["name"] == column_name]
-        if len(entry) == 0:
-            raise InvalidDataException(f'{column_name} is not a column of this table')
-
-        values = self.all_values(column_name, jsonify) 
-
-        return [values[0], values[-1]]
+        (values, sdtp_type) = self._get_column_values_and_type(column_name)
+        values.sort()
+        result = [values[0], values[-1]]
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
     
     def get_filtered_rows_from_filter(self, filter=None, columns=[], jsonify = False):
         '''
@@ -419,6 +463,82 @@ class SDMLDataFrameTable(SDMLFixedTable):
                 self.dataframe[column["name"]] = fixed_series
             except Exception as exc:
                 raise InvalidDataException(f'error {exc} converting {column["name"]}')
+            
+    def _get_column_and_type(self, column_name):
+        try:
+            index = self.column_names().index(column_name)
+        except ValueError as original_error:
+            raise InvalidDataException(f'{column_name} is not a column of this table') from original_error
+        return (self.schema[index]["type"], self.dataframe[column_name].to_list())
+    
+    def all_values(self, column_name: str, jsonify = False):
+        '''
+        get all the values from column_name
+        Arguments:
+            column_name: name of the column to get the values for
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            List of the values, either in json form (if jsonify = True) or in the
+            appropriate datatyp (if jsonify = False)
+
+        '''
+        (values, sdtp_type) = self._get_column_and_type(column_name)
+        result = list(set(values))
+        result.sort()
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
+    
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get the column  column_name
+        Arguments:
+            column_name: name of the column to get 
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            List of the values in the column, either in json form (if jsonify = True) or in the
+            appropriate datatyp (if jsonify = False)
+
+        '''
+        (result, sdtp_type) = self._get_column_and_type(column_name)
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
+    
+
+    def range_spec(self, column_name: str, jsonify = False):
+        '''
+        Get the dictionary {min_val, max_val} for column_name
+        Arguments:
+
+            column_name: name of the column to get the range spec for
+
+        Returns:
+            the minimum and  maximum of the column
+
+        '''
+        (values, sdtp_type) = self._get_column_and_type(column_name)
+        result = list(set(values))
+        result.sort()
+        return jsonifiable_column([result[0], result[-1]], sdtp_type) if jsonify else result
+         
+            
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get the column  column_name
+        Arguments:
+            column_name: name of the column to get
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            The column as a list, either in json form (if jsonify = True) or in the
+            appropriate datatype (if jsonify = False)
+
+        '''
+        (result, sdtp_type) = self._get_column_and_type(column_name)
+        return jsonifiable_column(result, sdtp_type) if jsonify else result
+
 
     def _get_rows(self):
         '''
@@ -556,6 +676,19 @@ class RemoteSDMLTable(SDMLTable):
         except Exception as exc:
             raise InvalidDataException(f'Exception {repr(exc)} ocurred in {request}')
         
+    def _execute_column_route(self, column_name, jsonify_results, route):
+        # The code for all_values, get_column, and range_spec are identical except for the route, 
+        # so this method does both of them with the route passed in as an extra parameter
+        # use _do_request to execute the request, then, if jsonify_results 
+        # parameters are ['table_name', 'column_name']
+        column_type = self._check_column_and_get_type(column_name)
+        request = f'{self.url}/{route}?table_name={self.table_name}&column_name={column_name}'
+        result = self._do_request(request)
+        if jsonify_results:
+            return result
+        else:
+            return convert_list_to_type(column_type, result)
+        
     def all_values(self, column_name: str, jsonify_results = False):
         '''
         get all the values from column_name
@@ -568,19 +701,23 @@ class RemoteSDMLTable(SDMLTable):
             otherwise in the appropriate json format
 
         '''
-        # use _do_request to execute the request, then, if jsonify_results 
-        # parameters are ['table_name', 'column_name']
-        column_type = self._check_column_and_get_type(column_name)
-        request = f'{self.url}/get_all_values?table_name={self.table_name}&column_name={column_name}'
-        result = self._do_request(request)
-        if jsonify_results:
-            return result
-        else:
-            return convert_list_to_type(column_type, result)
+        return self._execute_column_route(column_name, jsonify_results, 'get_all_values')
+        
+        
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get the column  column_name
+        Arguments:
+            column_name: name of the column to get
+            jsonify: if true, return the result in a form that can be turned
+                into json 
 
-    
-    # change this to return a list.  Also will need to change table_server and
-    # sdtp_server
+        Returns:
+            The column as a list, either in json form (if jsonify = True) or in the
+            appropriate datatype (if jsonify = False)
+        '''
+        return self._execute_column_route(column_name, jsonify, 'get_column')
+
 
     def range_spec(self, column_name: str, jsonify_results = False):
         '''
@@ -593,13 +730,7 @@ class RemoteSDMLTable(SDMLTable):
             the minimum and  maximum of the column
 
         '''
-        column_type = self._check_column_and_get_type(column_name)
-        request = f'{self.url}/get_range_spec?table_name={self.table_name}&column_name={column_name}'
-        result = self._do_request(request)
-        if jsonify_results:
-            return result
-        else:
-            return convert_list_to_type(column_type, result)
+        return self._execute_column_route(column_name, jsonify_results, 'get_range_spec')
         
 
     def get_filtered_rows_from_filter(self, filter=None, columns=[], jsonify = False):

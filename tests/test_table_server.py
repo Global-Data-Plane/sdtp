@@ -267,12 +267,13 @@ def test_get_table():
         table_server.add_sdtp_table(entry)
         found = table_server.get_table(entry['name'])
         assert(found == entry['table'])
-        
+    
+table_server = TableServer()
 
-def test_get_all_values():
-    table_server = TableServer()
-    # Test getting tables, including all corner cases
-    # Table -- None and bad key
+def test_table_and_column_not_found_errors():
+    # check that it appropriately handles missing tables, and checks for these in the get_all_values
+    # route.  The same error-checking code is used in range_spec and get_column, so checking once 
+    # is plenty.  As a side effect adds the test_tables to the server for subsequent tests
     with pytest.raises(TableNotFoundException) as err:
         table_server.get_all_values(None, 'foo')
     with pytest.raises(TableNotFoundException) as err:
@@ -288,31 +289,32 @@ def test_get_all_values():
         with pytest.raises(ColumnNotFoundException) as err:
             table_server.get_all_values(entry['name'], 'foo')
         # for each good table, good column pair get_all_values should match table.all_values
+
+       
+
+def test_get_all_values():
+    # Error cases were checked above, so just make sure it handles the case where the column an dtable are valid
+    for entry in test_tables:
+        
         table = entry['table']
         for column in table.schema:
             assert(table_server.get_all_values(entry['name'], column['name']) == table.all_values(column['name']))
+            assert(table_server.get_all_values(entry['name'], column['name'], True) == table.all_values(column['name'], True))
         
 
 def test_get_range_spec():
-    table_server = TableServer()
-    # Test getting tables, including all corner cases
-    # Table -- None and bad key
-    with pytest.raises(TableNotFoundException) as err:
-        table_server.get_range_spec(None, 'foo')
-    with pytest.raises(TableNotFoundException) as err:
-        table_server.get_range_spec('foo', 'foo')
+    # Error cases were checked above, so just make sure it handles the case where the column an dtable are valid
     for entry in test_tables:
-        with pytest.raises(TableNotFoundException) as err:
-            table_server.get_range_spec(entry['name'], 'foo')
-        table_server.add_sdtp_table(entry)
-        # test bad column
-        with pytest.raises(AssertionError) as err:
-            table_server.get_range_spec(entry['name'], None)
-            # 'foo' is a name that we never use as a column name
-        with pytest.raises(ColumnNotFoundException) as err:
-            table_server.get_range_spec(entry['name'], 'foo')
-        # for each good table, good column pair get_range_spec should match table.range_sapec
         table = entry['table']
         for column in table.schema:
             assert(table_server.get_range_spec(entry['name'], column['name']) == table.range_spec(column['name']))
+            assert(table_server.get_range_spec(entry['name'], column['name'], True) == table.range_spec(column['name'], True))
+
+def test_get_column():
+    # Error cases were checked above, so just make sure it handles the case where the column an dtable are valid
+    for entry in test_tables:
+        table = entry['table']
+        for column in table.schema:
+            assert(table_server.get_column(entry['name'], column['name']) == table.get_column(column['name']))
+            assert(table_server.get_column(entry['name'], column['name'], True) == table.get_column(column['name'], True))
         
