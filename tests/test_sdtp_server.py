@@ -137,11 +137,7 @@ def test_get_range_spec():
             response = client.get(f'/get_range_spec?table_name={entry["name"]}&column_name={column["name"]}')
             assert(response.status_code == 200)
             table_result = table.range_spec(column["name"])
-  
-            expected_result = {
-                "max_val": jsonifiable_value(table_result["max_val"], column["type"] ),
-                "min_val": jsonifiable_value(table_result["min_val"], column["type"] )
-            }
+            expected_result = jsonifiable_column(table_result, column["type"])
             assert(response.json == expected_result)
 
 def test_get_all_values():

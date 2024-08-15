@@ -297,10 +297,7 @@ def get_range_spec():
     try:
         result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name)
         sdml_type = _column_type(table_name, column_name)
-        jsonifiable_result = {
-            "max_val": jsonifiable_value(result["max_val"], sdml_type ),
-            "min_val": jsonifiable_value(result["min_val"], sdml_type )
-        }
+        jsonifiable_result = jsonifiable_column(result, sdml_type)
         return jsonify(jsonifiable_result)
    
     except TableNotFoundException:

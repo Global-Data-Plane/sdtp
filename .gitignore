@@ -4,3 +4,4 @@ data_plane_server/__pycache__/__init__.cpython-310.pyc
 local/*
 local/.*
 src/app.py
+*.swp

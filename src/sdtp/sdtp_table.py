@@ -107,7 +107,7 @@ class SDMLTable:
         ii. if jsonify = True, return the results as a JSON string, otherwise just as the 
             appropriate structure
             iia. list from all_values
-            iib. dict "max_val", "min_val" from range_spec
+            iib. list of length 2, ordered low to high for get_range_spec
             iic. list of lists from get_filtered_rows_from_filter)
         iii. filter is a an instance of SDQLFilter
         iv. if columns is not None for get_filtered_rows, only return entries from those columns
@@ -334,7 +334,7 @@ class SDMLFixedTable(SDMLTable):
 
         values = self.all_values(column_name, jsonify) 
 
-        return {"max_val": values[-1], "min_val": values[0]}
+        return [values[0], values[-1]]
     
     def get_filtered_rows_from_filter(self, filter=None, columns=[], jsonify = False):
         '''
@@ -599,7 +599,7 @@ class RemoteSDMLTable(SDMLTable):
         if jsonify_results:
             return result
         else:
-            return convert_dict_to_type(column_type, result)
+            return convert_list_to_type(column_type, result)
         
 
     def get_filtered_rows_from_filter(self, filter=None, columns=[], jsonify = False):

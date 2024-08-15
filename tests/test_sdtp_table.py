@@ -37,6 +37,9 @@ from json import dumps
 
 import pandas as pd
 import pytest
+import sys
+sys.path.append('./src')
+sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
@@ -87,10 +90,10 @@ def test_all_values_and_range_spec():
     with pytest.raises(InvalidDataException) as e:
         table.range_spec('Foo')
         # assert e.message == 'Foo is not a column of this table'
-    assert table.range_spec('name') == {'max_val': "Ted", "min_val": "Alice"}
-    assert table.range_spec('age') == {'max_val': 24, "min_val": 21}
+    assert table.range_spec('name') == ["Alice", "Ted"] # {'max_val': "Ted", "min_val": "Alice"}
+    assert table.range_spec('age') == [21, 24] # {'max_val': 24, "min_val": 21}
     table.get_rows = lambda: [['Ted', 21], ['Alice', 24], ['Jane', 20]]
-    assert table.range_spec('age') == {'max_val': 24, "min_val": 20}
+    assert table.range_spec('age') == [20, 24] # {'max_val': 24, "min_val": 20}
 
 
 # Test to build a RowTable
@@ -150,7 +153,7 @@ def test_no_connect():
         remote_table.connect_with_server()
     assert(f'Error connecting with {remote_table.url}/get_tables' in repr(exception))
     assert(not remote_table.ok )
-    
+
 def test_bad_connect():
     httpserver = HTTPServer(port=8888)
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
@@ -162,6 +165,7 @@ def test_bad_connect():
     assert(f'Bad connection with {remote_table.url}' in repr(exception))
     assert(not remote_table.ok)   
     httpserver.stop()
+
 
 def test_bad_table():
     httpserver = HTTPServer(port=8888)
@@ -200,9 +204,8 @@ def test_bad_schema():
     httpserver.stop()
 
 def test_all_values_and_range_spec():
-    httpserver = HTTPServer(port=8888)
+    httpserver = HTTPServer(port=3000)
     server_table = RowTable(schema, rows)
-    
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     all_values_responses = {}
 
@@ -214,16 +217,34 @@ def test_all_values_and_range_spec():
     range_spec_responses = {}
     for column in schema:
         response = server_table.range_spec(column["name"])
-        json_response = {
-            "max_val": jsonifiable_value(response["max_val"], column["type"]),
-            "min_val": jsonifiable_value(response["min_val"], column["type"]),
-        }
+        json_response = jsonifiable_column(response, column["type"])
+        # json_response = {
+        #     "max_val": jsonifiable_value(response["max_val"], column["type"]),
+        #     "min_val": jsonifiable_value(response["min_val"], column["type"]),
+        # }
         httpserver.expect_request("/get_range_spec", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         range_spec_responses[column["name"]] = response
     httpserver.start()
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
-    for column in schema:
-        assert(remote_table.all_values(column["name"]) == all_values_responses[column["name"]])
-        assert(remote_table.range_spec(column["name"]) == range_spec_responses[column["name"]])
+    column_names = [column["name"] for column in schema]
+    remote_all_values_results = {}
+    remote_range_spec_responses = {}
+    for name in column_names:
+        try:
+            remote_all_values_results[name] = remote_table.all_values(name)
+        except Exception:
+            httpserver.stop()
+            assert False
+        try:
+            remote_range_spec_responses[name] = remote_table.range_spec(name)
+        except Exception:
+            httpserver.stop()
+            assert False
     httpserver.stop()
+    assert remote_all_values_results == all_values_responses
+    assert remote_range_spec_responses == range_spec_responses
+
+
+
+
 
