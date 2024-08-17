@@ -71,20 +71,20 @@ class SDTPServer(Blueprint):
         self.table_server = TableServer()
         self.logger = None
         self.ROUTES = [
-            {"url": "/get_tables", "method": "GET", "headers": "<i>None</i>",
+            {"url": "/get_tables", "method": "GET", "headers": "None",
                 "description": 'Dumps a JSONIfied dictionary of the form:{table_name: <table_schema>}, where <table_schema> is a dictionary{"name": name, "type": type}'},
-            {"url": "/get_filtered_rows?table_name <i>string, required</i>", "method": "POST",
-                "body": {"table": "<i> required, the name of the table to get the rows from<i/>",
-                        "columns": "<i> If  present, a list of the names of the columns to fetch</i>",
-                        "filter": "<i> optional, a filter_spec in the SDTP filter language"},
-                "headers": "<i> as required for authentication</i>",
+            {"url": "/get_filtered_rows?table_name string, required", "method": "POST",
+                "body": {"table": " required, the name of the table to get the rows from<i/>",
+                        "columns": " If  present, a list of the names of the columns to fetch",
+                        "filter": " optional, a filter_spec in the SDTP filter language"},
+                "headers": " as required for authentication",
                 "description": "Get the rows from table Table-Name (and, optionally, Dashboard-Name) which match filter Filter-Spec"},
-            {"url": "/get_range_spec?column_name <i>string, required</i>&table_name <i>string, required</i>", "method": "GET",
-                "headers": "<i>None</i>",
-                "description": "Get the  minimum, and maximum values for column <i>column_name</i> in table <i>table_name</i>, returned as a dictionary {min_val, max_val}."},
-            {"url": "/get_all_values?column_name <i>string, required</i>&table_name <i>string, required</i>", "method": "GET",
-                "headers": "<i>None</i>",
-                "description": "Get all the distinct values for column <i>column_name</i> in table <i>table_name</i>, returned as a sorted list."},
+            {"url": "/get_range_spec?column_name string, required&table_name string, required", "method": "GET",
+                "headers": "None",
+                "description": "Get the  minimum, and maximum values for column column_name in table table_name, returned as a dictionary {min_val, max_val}."},
+            {"url": "/get_all_values?column_name string, required&table_name string, required", "method": "GET",
+                "headers": "None",
+                "description": "Get all the distinct values for column column_name in table table_name, returned as a sorted list."},
             {"url": "/get_table_spec", "method": "GET",
                 "description": "Return the dictionary of table names and authorization variables"},
             
@@ -334,16 +334,7 @@ def get_all_values():
             None
     '''
     return _execute_column_operation('/get_all_values')
-    _check_required_parameters('/get_all_values', ['table_name', 'column_name'])
-    column_name = request.args.get('column_name')
-    table_name = request.args.get('table_name')
-    try:
-        result = sdtp_server_blueprint.table_server.get_all_values(table_name, column_name, True)
-        return result
-    except TableNotFoundException:
-        _log_and_abort(f'No  table {table_name} present, request /get_all_values', 404)
-    except ColumnNotFoundException:
-        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_all_values', 404)
+    
 
 @sdtp_server_blueprint.route('/get_column')
 def get_column():
@@ -356,16 +347,7 @@ def get_column():
             None
     '''
     return _execute_column_operation('/get_column')
-    _check_required_parameters('/get_column', ['table_name', 'column_name'])
-    column_name = request.args.get('column_name')
-    table_name = request.args.get('table_name')
-    try:
-        result = sdtp_server_blueprint.table_server.get_column(table_name, column_name, True)
-        return result
-    except TableNotFoundException:
-        _log_and_abort(f'No  table {table_name} present, request /get_column', 404)
-    except ColumnNotFoundException:
-        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_column', 404)
+ 
 
 # A route solely intended for debugging/diagnostics -- just echo back the 
 # POST form data
