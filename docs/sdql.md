@@ -28,7 +28,7 @@ SDQL Row queries are designed to filter rows of the table; the result of an SDQL
 
 - `{"operator": "IN_LIST", "column": <column>, "values": <list of values>}`.  Returns the list of rows where the entry in column `<column>` is any of the values specified in the list.
 
-- `{"operator": "REGEX_MATCH", "column": <column>, "expression": <SQL LIKE expressionm >}`.  _Columns of type *STRING* only_. Returns the list of rows where the entry in column `<column>` matches the REEGEX_MATCH expression `<expression>`.  The syntax of the regular expression `<expression>` is in the standard Python regular expression syntax.
+- `{"operator": "REGEX_MATCH", "column": <column>, "expression": <re match expression>}`.  _Columns of type *STRING* only_. Returns the list of rows where the entry in column `<column>` matches the REEGEX_MATCH expression `<expression>`.  The syntax of the regular expression `<expression>` is in the standard Python regular expression syntax.
 
 - `{"operator": "ALL", "arguments": <list of SDQL Query Operations>}`.  Returns the list of rows where _every_ query in the list of `arguments` matches.  This is equivalent to a Boolean `AND` on the query list
 

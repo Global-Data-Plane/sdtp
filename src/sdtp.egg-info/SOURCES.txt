@@ -4,6 +4,8 @@ README.md
 README.rst
 pyproject.toml
 setup.cfg
+src/app.py
+src/server_test_tables.py
 src/sdtp/__init__.py
 src/sdtp/sdtp_filter.py
 src/sdtp/sdtp_server.py

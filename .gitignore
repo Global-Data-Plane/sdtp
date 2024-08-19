@@ -5,3 +5,10 @@ local/*
 local/.*
 src/app.py
 *.swp
+dist/sdtp-0.2.1-py2.py3-none-any.whl
+dist/sdtp-0.2.1-py2.py3-none-any.whl
+dist/sdtp-0.2.1.tar.gz
+dist/sdtp-0.2.1-py2.py3-none-any.whl
+src/sdtp.egg-info/PKG-INFO
+src/sdtp.egg-info/SOURCES.txt
+src/sdtp.egg-info/top_level.txt
