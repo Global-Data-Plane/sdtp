@@ -98,7 +98,7 @@ def check_valid_spec(filter_spec):
     # Step 1: check to make sure there is an operator field, and that it's an operator we recognize
     if 'operator' in filter_spec:
         operator = filter_spec['operator']
-        valid_operators = ['ALL', 'ANY', 'NONE', 'IN_LIST', 'IN_RANGE', 'REGEX_MATCH']
+        valid_operators = ['ALL', 'ANY', 'NONE', 'IN_LIST', 'IN_RANGE', 'LIKE']
         if not type(operator) == str:
             raise InvalidDataException(f'operator {operator} is not a string')
         if not operator in valid_operators:
@@ -138,7 +138,7 @@ def check_valid_spec(filter_spec):
         # check to make sure the expression argument is a valid regex
         try:
             re.compile(filter_spec['expression'])
-        except TypeError:
+        except Exception:
             msg = f'Expression {filter_spec["expression"]} is not a valid regular expression'
             raise InvalidDataException(msg)
 

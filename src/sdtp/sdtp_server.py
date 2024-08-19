@@ -71,22 +71,27 @@ class SDTPServer(Blueprint):
         self.table_server = TableServer()
         self.logger = None
         self.ROUTES = [
+            {"url": "/get_table_names", "method": "GET", "headers": "None",
+                "description": "Return the list of table names"},
+            {"url": "/get_table_schema?table_name string, required", "method": "GET", "headers": "None",
+                "description": 'Returns the schema of the table as a list of objects.  Each object will  contain the fields "name" and "type", where "type"is an SDML type.'},
             {"url": "/get_tables", "method": "GET", "headers": "None",
                 "description": 'Dumps a JSONIfied dictionary of the form:{table_name: <table_schema>}, where <table_schema> is a dictionary{"name": name, "type": type}'},
-            {"url": "/get_filtered_rows?table_name string, required", "method": "POST",
-                "body": {"table": " required, the name of the table to get the rows from<i/>",
+            {"url": "/get_filtered_rows", "method": "POST",
+                "body": {"table": " required, the name of the table to get the rows from",
                         "columns": " If  present, a list of the names of the columns to fetch",
                         "filter": " optional, a filter_spec in the SDTP filter language"},
-                "headers": " as required for authentication",
-                "description": "Get the rows from table Table-Name (and, optionally, Dashboard-Name) which match filter Filter-Spec"},
+                
+                "description": "Get the rows from table table which match filter filter.  If columns is present, return only those columns.  Returns a simple list of lists of columns"},
             {"url": "/get_range_spec?column_name string, required&table_name string, required", "method": "GET",
                 "headers": "None",
-                "description": "Get the  minimum, and maximum values for column column_name in table table_name, returned as a dictionary {min_val, max_val}."},
+                "description": "Get the  minimum and maximum values for column column_name in table table_name, returned as a list [min_val, max_val]."},
             {"url": "/get_all_values?column_name string, required&table_name string, required", "method": "GET",
                 "headers": "None",
                 "description": "Get all the distinct values for column column_name in table table_name, returned as a sorted list."},
-            {"url": "/get_table_spec", "method": "GET",
-                "description": "Return the dictionary of table names and authorization variables"},
+            {"url": "/get_column?column_name string, required&table_name string, required", "method": "GET",
+                "headers": "None",
+                "description": "Return the column <column_name> in table <table_name> as a list.  The behavior is undefined when the table is infinite"},
             
         ]
 
@@ -264,7 +269,7 @@ def get_tables():
 def get_table_schema():
     '''
     Target for the /get_table_schema.  Returns the schema of the table as a list
-    of objects.  Each object must contain the fields "name" and "type", where "type"
+    of objects.  Each object will contain the fields "name" and "type", where "type"
     is an SDML type.
     Returns 400 if the table is not found.
     Arguments:
@@ -302,7 +307,7 @@ def _execute_column_operation(route):
 def get_range_spec():
     '''
     Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the
-    range  spec {"min_val", "max_val","} as a JSONified dictionary. Aborts with a 400
+    range  spec [min_val, max_val] as a list. Aborts with a 400
     for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
 
     Arrguments:
