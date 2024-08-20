@@ -407,8 +407,9 @@ def get_filtered_rows():
             check_valid_spec(filter_spec)
         except InvalidDataException as invalid_error:
             _log_and_abort(invalid_error)
-    result = table.get_filtered_rows(filter_spec=filter_spec, columns=columns)
-    types = _column_types(table, columns)
-    jsonifiable_result = jsonifiable_rows(result, types)
+    result = table.get_filtered_rows(filter_spec=filter_spec, columns=columns, jsonify = True)
+    return result
+    # types = _column_types(table, columns)
+    # jsonifiable_result = jsonifiable_rows(result, types)
 
-    return jsonify(jsonifiable_result)
+    # return jsonify(jsonifiable_result)

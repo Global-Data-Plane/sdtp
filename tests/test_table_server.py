@@ -154,21 +154,21 @@ def test_table_server_creation():
     for factory in server.factories.values():
         assert isinstance(factory, SDMLTableFactory)
 
-class TestTableFactory(SDMLTableFactory):
+class SDMLTestTableFactory(SDMLTableFactory):
     '''
     A simple SDMLTableFactory to test add_table_factory
     '''
     def __init__(self):
-        super(TestTableFactory, self).__init__('TestTable')
+        super(SDMLTestTableFactory, self).__init__('TestTable')
     
     def build_table(self, table_spec):
         # Since this is just a test, don't do anything different 
         # than a RowTableFactory and take the same spec
-        super(TestTableFactory, self).build_table(table_spec)
+        super(SDMLTestTableFactory, self).build_table(table_spec)
         return RowTable(table_spec["schema"], table_spec["rows"])
 
 def test_add_table_factory():
-    table_factory = TestTableFactory()
+    table_factory = SDMLTestTableFactory()
     server = TableServer()
     # test for None
     with pytest.raises(AssertionError):
@@ -213,14 +213,14 @@ def test_add_sdtp_table_from_dictionary():
     # as with test_add_sdtp_table, we only need to test one bad case
     with pytest.raises(AssertionError):
         server.add_sdtp_table_from_dictionary({'table': test_table_spec_row}) # missing name
-    # test for a non-existent factory.  Haven't added TestTableFactory yet
+    # test for a non-existent factory.  Haven't added SDMLTestTableFactory yet
     with pytest.raises(InvalidDataException):
         server.add_sdtp_table_from_dictionary({'name': 'test_table', 'table': test_table_spec_test})
     # test for a valid factory (make sure it's added)
     server.add_sdtp_table_from_dictionary({'name': 'row_table', 'table': test_table_spec_row})
     assert('row_table' in server.servers.keys())
     # add a new factory, then table, make sure it works
-    server.add_table_factory(TestTableFactory())
+    server.add_table_factory(SDMLTestTableFactory())
     server.add_sdtp_table_from_dictionary({'name': 'test_table', 'table': test_table_spec_test})
     assert('row_table' in server.servers.keys())
     assert('test_table' in server.servers.keys())
