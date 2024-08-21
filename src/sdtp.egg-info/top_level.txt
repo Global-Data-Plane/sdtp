@@ -1,3 +1,2 @@
 app
 sdtp
-server_test_tables
