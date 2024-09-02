@@ -37,5 +37,5 @@ dependencies = [
 keywords = ['Data access', 'Data analytics']
 
 [project.urls]
-homepage = 'https://github.com/engageLively/sdtp'
-issues = 'https://github.com/engageLively/sdtp/issues'
+homepage = 'https://github.com/rickmcgeer/sdtp'
+issues = 'https://github.com/rickmcgeer/sdtp/issues'
