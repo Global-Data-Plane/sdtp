@@ -1,10 +1,10 @@
 Metadata-Version: 2.1
 Name: sdtp
-Version: 0.2.3
+Version: 0.2.4
 Summary: A Python implementation of the Simple Data Transfer Protocol data structures, function, and server
 Author-email: Rick McGeer <rick@mcgeer.com>
-Project-URL: homepage, https://github.com/engageLively/sdtp
-Project-URL: issues, https://github.com/engageLively/sdtp/issues
+Project-URL: homepage, https://github.com/rickmcgeer/sdtp
+Project-URL: issues, https://github.com/rickmcgeer/sdtp/issues
 Keywords: Data access,Data analytics
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Science/Research
