@@ -41,7 +41,7 @@ sys.path.append('./src')
 sys.path.append('../src')
 
 
-from sdtp import sdtp_server_blueprint, jsonifiable_value, jsonifiable_column
+from sdtp import sdtp_server_blueprint, jsonifiable_column
 app = Flask(__name__)
 app.register_blueprint(sdtp_server_blueprint)
 
@@ -49,32 +49,16 @@ sdtp_server_blueprint.init_logging(__name__)
 
 from tests.server_test_tables import test_tables
 for table_spec in test_tables:
-    sdtp_server_blueprint.table_server.add_sdtp_table(table_spec)
+    sdtp_server_blueprint.table_server.add_sdtp_table(table_spec['name'], table_spec['table'])
 
 
-from sdtp.sdtp_server import _column_type, _column_types
 
-def test_column_type():
-    # don't bother checking for errors, this call is always guarded
-    for table_spec in test_tables:
-        for entry in table_spec['table'].schema:
-            assert(_column_type(table_spec["name"], entry["name"]) == entry["type"])
 
 def _subsets(aList):
     if len(aList) == 0: return [[]]
     partial = _subsets(aList[:-1])
     full = [l + [aList[-1]] for l in partial]
     return full + partial
-        
-def test_column_types():
-    # don't bother checking for errors, this call is always guarded
-    for table_spec in test_tables:
-        entry_subsets = _subsets(table_spec['table'].schema)
-        schema = [entry["type"] for entry in table_spec["table"].schema]
-        for subset in entry_subsets:
-            schema_types = [entry["type"] for entry in subset] if len(subset) > 0 else schema
-            column_names = [entry["name"] for entry in subset]
-            assert(_column_types(table_spec["table"], column_names) == schema_types)
 
 
 client = app.test_client()

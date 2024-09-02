@@ -80,23 +80,6 @@ def _check_dict_and_keys(dictionary, keys, dict_message, dict_name):
     missing_keys = keys - dictionary.keys() if keys is not None else {}
     assert len(missing_keys) == 0, f'{dict_name} is missing keys {missing_keys}'
 
-def _check_table_spec(table_spec):
-    # Make sure a table_spec is a dictionary with two entries, a name and a table,
-    # and the type of name is a string and the type of table is a Table
-    _check_dict_and_keys(table_spec, {'name', 'table'}, 'table_spec must be a dictionary not', 'table_spec')
-    _check_type(table_spec["name"], str, 'The name in table_spec must be a string, not')
-    # the table in table_spec must 
-
-    _check_type(table_spec["table"], SDMLTable, 'The table in table_spec must be a Table, not')
-
-def _check_valid_form(table_form):
-    # Make sure a table_form is a dictionary with two entries, a name and a table,
-    # and the type of name is a string, the type of table is a dictionary, and the 
-    # table dictionary contains fields schema and type
-    # Doesn't return: instead, throws an Assertion Failure with a message when the type doesn't check
-    _check_dict_and_keys(table_form, {'name', 'table'}, 'table_form must be a dictionary not', 'table_form')
-    _check_type(table_form["name"], str, 'The name in table_form must be a string, not')
-    _check_dict_and_keys(table_form['table'], {'type', 'schema'}, 'table_form["table"] must be a dictionary not', 'table_form')
 
 class TableServer:
     '''
@@ -128,7 +111,7 @@ class TableServer:
         _check_type(table_type, str, 'table_type must be a string, not')
         self.factories[table_type] = table_factory
 
-    def add_sdtp_table(self, table_spec):
+    def add_sdtp_table(self, table_name, sdtp_table):
         '''
         Register a SDMLTable to serve data for a specific table name.
         Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDMLTable.
@@ -137,30 +120,29 @@ class TableServer:
             table_spec: dictionary of the form {"name", "table"}, where table is a Table (see above)
 
         '''
-        _check_table_spec(table_spec)
-        self.servers[table_spec["name"]] = table_spec["table"]
+        _check_type(sdtp_table, SDMLTable, 'The sdtp_table argument to add_sdtp_table must be a Table, not')
+        self.servers[table_name] = sdtp_table
 
-    def add_sdtp_table_from_dictionary(self, table_dictionary):
+    def add_sdtp_table_from_dictionary(self, name, table_dictionary):
         '''
-        Add an  SDMLTable from a dictionary (intermediate on-disk form).  The intermediate form has
-        a name and a table dictionary.  The table dictionary has fields schema and type, and then type-
-        specific fields.  Calls self.factories[table_dictionary["table"]["type"]] to build the table,
+        Add an  SDMLTable from a dictionary (intermediate on-disk form).   The table dictionary has fields schema and type, and then type-
+        specific fields.  Calls self.factories[table_dictionary["type"]] to build the table,
         then calls self.add_sdtp_table to add the table.
-        Raises an InvalidDataException if self.add_table_spec raises it or if the factory 
+        Raises an InvalidDataException if self.add_sdtp_table raises it or if the factory 
         is not present, or if the factory raises an exception
 
         Arguments:
+            name: the name of the table
             table_dictionary: dictionary of the form {"name", "table"}, where table is a table specification: a dictionary
                              with the fields type and schema
 
         '''
-        _check_valid_form(table_dictionary)
-        name = table_dictionary['name']
-        table_dict = table_dictionary['table']
-        table_type = table_dict['type']
+
+        _check_dict_and_keys(table_dictionary, {'type', 'schema'}, 'table_dictionary must be a dictionary not', 'table_dictionary')
+        table_type = table_dictionary['type']
         if table_type in self.factories.keys():
-            table = self.factories[table_type].build_table(table_dict)
-            self.add_sdtp_table({"name": name, "table": table})
+            table = self.factories[table_type].build_table(table_dictionary)
+            self.add_sdtp_table(name,  table)
         else:
             raise InvalidDataException(f'No factory registered for {table_type}')
 

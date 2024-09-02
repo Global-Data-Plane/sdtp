@@ -18,39 +18,36 @@ A table is a (potentially infinite) list of fixed-length records.  Each record i
 The following example shows the key features of SDML.  This table is taken from Florence' Nightingale's famous 1854-1855 dataset investigating the causes of death in the Crimean War
 ```
 {
-  "name": "nightingale",
-  "table": {
-    "type": "RowTable",
-    "schema": [
-      {"name": "Month_number", "type": "number"},
-      {"name": "Date", "type": "date"},
-      {"name": "Year", "type": "number"},
-      {"name": "Month", "type": "string"},
-      {"name": "Army", "type": "number"},
-      {"name": "Disease", "type": "number"},
-      {"name": "Wounds", "type": "number"},
-      {"name": "Other", "type": "number"},
-      {"name": "Disease.rate", "type": "number"},
-      {"name": "Wounds.rate", "type": "number"},
-      {"name": "Other.rate", "type": "number"}
-    ],
-    "rows": [
-      [1, "1854-04-01", 1854, "Apr", 8571, 1, 0, 5, 1.4, 7]
-      ...
-    ]
-  }
+  "type": "RowTable",
+  "schema": [
+    {"name": "Month_number", "type": "number"},
+    {"name": "Date", "type": "date"},
+    {"name": "Year", "type": "number"},
+    {"name": "Month", "type": "string"},
+    {"name": "Army", "type": "number"},
+    {"name": "Disease", "type": "number"},
+    {"name": "Wounds", "type": "number"},
+    {"name": "Other", "type": "number"},
+    {"name": "Disease.rate", "type": "number"},
+    {"name": "Wounds.rate", "type": "number"},
+    {"name": "Other.rate", "type": "number"}
+  ],
+  "rows": [
+    [1, "1854-04-01", 1854, "Apr", 8571, 1, 0, 5, 1.4, 7]
+    ...
+  ]
 }
 ```
-This file describes a table named `nightingale` with 11 columns and one row per month.   Each row in `row` section of the table has exactly 11 entries, and the type of the kth column lines up with the type of the kth row.
+This file describes a tablewith 11 columns and one row per month.   Each row in `row` section of the table has exactly 11 entries, and the type of the kth column lines up with the type of the kth row.
 
 ## SDML Table Structure
-Each SDML table has two required top-level fields: `name`, the table name, and `table`, which describes the table.  `name` is an arbitrary string; `table` is a dictionary, with the following fields:
+Each SDML table  is a dictionary, with the following fields:
 - `schema`: this is a list of objects, each of which _must_ have two fields:
     - `name`: a string with the name of the column
     - `type`: the type of the column, which is one of the supported SDML types (see below)
 - `type`: this is a string, which describes the _type_ of the table.  The type is the source of the table rows; see the list of supported table types below.  The type of the table determines the remaining fields in the table dictionary.
 
-Note that the top level, `table` field and `schema` entries all admit the possibility of non-required fields, which are open to convention for specific purposes.  One common purpose is metadata of various sorts: the units for a specific column; column relationships (e.g., one column is an error bar for another); collection method or purpose of a table; etc.  While it is assumed that these additional fields will in general be strings, there is no requirement that they be strings.
+Note that the top level, ` `schema` entries all admit the possibility of non-required fields, which are open to convention for specific purposes.  One common purpose is metadata of various sorts: the units for a specific column; column relationships (e.g., one column is an error bar for another); collection method or purpose of a table; etc.  While it is assumed that these additional fields will in general be strings, there is no requirement that they be strings.
  
  ### Table Types
  A table type describes  the source of the rows of the table.  The goal of SDML is to capture the ways that data today is represented.  These include:
@@ -64,22 +61,23 @@ Further, SDML not only supports local SDML files, but also remote files at the r
 A _RowTable_ is the simplest form of SDML Table; it is given by a single dictionary entry `rows`, which gives a list of lists of SDML values (see below).  In a RowTable, the rows of the table are directly represented in the SDML file.
 
 #### RemoteTable
-A _RemoteTable_  is an SDML Table hosted on a remote Simple Data Transfer Protocol server and is directly queried from there.  It has two dictionary items:
+A _RemoteTable_  is an SDML Table hosted on a remote Simple Data Transfer Protocol server and is directly queried from there.  It has three dictionary items beyond the "type" and "schema" fields required of all tables:
+- _name_, required: the name of the table on the remote server
 - _url_, required: the URL of the remote SDTP server
 - _headers_, optional: a dictionary of header variables and values that accompanies an SDTP request on this table.  This is typically used for authentication information.  An example remote table is given here:
 ```
 {
-  "name": "electoral_college",
-  "table": {
-    "type": "RemoteTable",
-    "schema": [
-      {"name":"Year","type":"number"},
-      {"name":"Democratic","type":"number"},
-      {"name":"Republican","type":"number"},{"name":"Other","type":"number"}
-    ],
-    "url": "https://sdtp-data-wiki-new-lrbsxicfna-uw.a.run.app"
-  }
+  "type": "RemoteTable",
+  "schema": [
+    {"name":"Year","type":"number"},
+    {"name":"Democratic","type":"number"},
+    {"name":"Republican","type":"number"},
+    {"name":"Other","type":"number"}
+  ],
+  "name": "electoral_college"
+  "url": "https://sdtp-data-wiki-new-lrbsxicfna-uw.a.run.app"
 }
+
 ```
 
 A `RemoteCSVTable` type is under consideration.

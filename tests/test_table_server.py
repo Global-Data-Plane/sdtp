@@ -33,7 +33,6 @@ and the data plane server
 '''
 import pytest
 import sys
-import requests
 
 sys.path.append('src')
 sys.path.append('tests')
@@ -46,8 +45,7 @@ from json import load
 
 TEST_URL_DIR = 'https://raw.githubusercontent.com/engageLively/sdtp/main/tests/tables/'
 
-from sdtp.table_server import _check_dict_and_keys, _check_type, _check_table_spec, _check_valid_form
-
+from sdtp.table_server import _check_dict_and_keys, _check_type
 def test_check_type():
     _check_type(3, int, 'Int type check test')
     _check_type('foo', str, 'String type check test')
@@ -79,72 +77,6 @@ def test_check_dict_and_keys():
         _check_dict_and_keys(test_dict, {'a', 'c'}, ' dictionary test 7', 'test_dict')
     
 
-def test_check_table_spec():
-    test_table = RowTable([{"name": "a", "type": SDML_STRING}], [['foo']])
-    with pytest.raises(AssertionError):
-        _check_table_spec(None)
-    with pytest.raises(AssertionError):
-        _check_table_spec({'foo': 3})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 'foo'})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'table': test_table})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 2, 'table': test_table})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 'foo', 'table': 'bar'})
-    _check_table_spec({'name': 'foo', 'table': test_table})
-
-def test_check_table_spec():
-    test_table = RowTable([{"name": "a", "type": SDML_STRING}], [['foo']])
-    # test for None
-    with pytest.raises(AssertionError):
-        _check_table_spec(None)
-    # test for missing keys
-    with pytest.raises(AssertionError):
-        _check_table_spec({'foo': 3})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 'foo'})
-    with pytest.raises(AssertionError):
-        _check_table_spec({'table': test_table})
-    # test for bad name
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 2, 'table': test_table})
-    # test for None table
-    with pytest.raises(AssertionError):
-        _check_table_spec({'name': 'foo', 'table': 'bar'})
-    # test for a good table
-    _check_table_spec({'name': 'foo', 'table': test_table})
-
-def test_check_valid_form():
-    schema = [{"name": "a", "type": SDML_STRING}]
-    rows = [['Alice']]
-    test_table_spec_good = {'type': 'RowTable', 'schema': schema, 'rows': rows}
-    test_table_spec_no_type = {'schema': schema, 'rows': rows}
-    test_table_spec_no_schema = {'type': 'RowTable',  'rows': rows}
-    # test for None
-    with pytest.raises(AssertionError):
-        _check_valid_form(None)
-    # test for missing keys
-    with pytest.raises(AssertionError):
-        _check_valid_form({'foo': 3})
-    with pytest.raises(AssertionError):
-         _check_valid_form({'name': 'foo'})
-    with pytest.raises(AssertionError):
-         _check_valid_form({'table': test_table_spec_good})
-    # test for bad name
-    with pytest.raises(AssertionError):
-         _check_valid_form({'name': 2, 'table': test_table_spec_good})
-    # test for None table
-    with pytest.raises(AssertionError):
-         _check_valid_form({'name': 'foo', 'table': None})
-    # test for missing keys in table
-    with pytest.raises(AssertionError):
-         _check_valid_form({'name': 'foo', 'table': test_table_spec_no_schema})
-    with pytest.raises(AssertionError):
-         _check_valid_form({'name': 'foo', 'table': test_table_spec_no_type})
-    # test for a good table
-    _check_valid_form({'name': 'foo', 'table': test_table_spec_good})
 
 
 def test_table_server_creation():
@@ -190,16 +122,13 @@ def _check_table_key_present(server, key, table):
 def test_add_table():
     test_table = RowTable([{"name": "a", "type": SDML_STRING}], [['foo']])
     server = TableServer()
-    # test for a bad spec.  We've already ensured that bad table specs get 
-    # caught, so one bad table spec is enough
-    with pytest.raises(AssertionError):
-        server.add_sdtp_table({'name': 'foo', 'table': 'bar'})
+    
     # add a table and make sure it's in the list
-    server.add_sdtp_table({'name': 'foo', 'table': test_table})
+    server.add_sdtp_table('foo', test_table)
     _check_table_key_present(server, 'foo', test_table)
     test_table_1 = RowTable([{"name": "b", "type": SDML_STRING}], [['foo']])
     # check to make sure add_table replaces an existing table if the key is the same
-    server.add_sdtp_table({'name': 'foo', 'table': test_table_1})
+    server.add_sdtp_table('foo', test_table_1)
     _check_table_key_present(server, 'foo', test_table_1)
 
 
@@ -209,19 +138,16 @@ def test_add_sdtp_table_from_dictionary():
     test_table_spec_row = {'type': 'RowTable', 'schema': schema, 'rows': rows}
     test_table_spec_test = {'type': 'TestTable', 'schema': schema, 'rows': rows}
     server = TableServer()
-    # test for a bad spec
-    # as with test_add_sdtp_table, we only need to test one bad case
-    with pytest.raises(AssertionError):
-        server.add_sdtp_table_from_dictionary({'table': test_table_spec_row}) # missing name
+    
     # test for a non-existent factory.  Haven't added SDMLTestTableFactory yet
     with pytest.raises(InvalidDataException):
-        server.add_sdtp_table_from_dictionary({'name': 'test_table', 'table': test_table_spec_test})
+        server.add_sdtp_table_from_dictionary('test_table', test_table_spec_test)
     # test for a valid factory (make sure it's added)
-    server.add_sdtp_table_from_dictionary({'name': 'row_table', 'table': test_table_spec_row})
+    server.add_sdtp_table_from_dictionary('row_table',  test_table_spec_row)
     assert('row_table' in server.servers.keys())
     # add a new factory, then table, make sure it works
     server.add_table_factory(SDMLTestTableFactory())
-    server.add_sdtp_table_from_dictionary({'name': 'test_table', 'table': test_table_spec_test})
+    server.add_sdtp_table_from_dictionary('test_table', test_table_spec_test)
     assert('row_table' in server.servers.keys())
     assert('test_table' in server.servers.keys())
 
@@ -235,13 +161,13 @@ def test_get_all_tables():
     table = RowTable(schema, rows)
     table1 = RowTable(schema, rows2)
     # check getting a table works
-    server.add_sdtp_table({'name': 'table1', 'table': table})
+    server.add_sdtp_table('table1',  table)
     assert(list(server.get_all_tables()) == [table])
     # check making sure adding a table with the same name overwrites, doesn't add
-    server.add_sdtp_table({'name': 'table1', 'table': table1})
+    server.add_sdtp_table('table1', table1)
     assert(list(server.get_all_tables()) == [table1])
     # check adding a table
-    server.add_sdtp_table({'name': 'table', 'table': table})
+    server.add_sdtp_table('table', table)
     table_list = server.get_all_tables()
     assert(len(table_list) == 2)
     assert(table in table_list)
@@ -264,7 +190,7 @@ def test_get_table():
     for entry in test_tables:
         with pytest.raises(TableNotFoundException) as err:
             table_server.get_table(entry['name'])
-        table_server.add_sdtp_table(entry)
+        table_server.add_sdtp_table(entry['name'], entry['table'])
         found = table_server.get_table(entry['name'])
         assert(found == entry['table'])
     
@@ -281,7 +207,7 @@ def test_table_and_column_not_found_errors():
     for entry in test_tables:
         with pytest.raises(TableNotFoundException) as err:
             table_server.get_all_values(entry['name'], 'foo')
-        table_server.add_sdtp_table(entry)
+        table_server.add_sdtp_table(entry['name'], entry['table'])
         # test bad column
         with pytest.raises(AssertionError) as err:
             table_server.get_all_values(entry['name'], None)

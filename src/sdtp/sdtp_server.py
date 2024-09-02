@@ -46,18 +46,10 @@ After that, requests for the named table will be served by the created data serv
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
-
-from json import JSONDecodeError, loads, load
-
-
+from json import JSONDecodeError, loads
 import datetime
-
 from flask import Blueprint, abort, jsonify, request
-
-from sdtp import SDML_SCHEMA_TYPES,  jsonifiable_column,  jsonifiable_rows, jsonifiable_value
-
-from sdtp import InvalidDataException, convert_row_to_type_list
-from sdtp import RowTable
+from sdtp import InvalidDataException
 from sdtp import check_valid_spec
 from sdtp import TableServer, TableNotFoundException, ColumnNotFoundException
 
@@ -134,41 +126,6 @@ def _table_server(request_api, table_name):
         msg = f'Table {table_name} not found for request {request_api}'
         code = 404
     _log_and_abort(msg, code)
-
-
-
-def _column_type(table_name, column):
-    '''
-    An internal method to get the type of column column in the table of name table_name.
-    This is called from get_all_values and get_range_spec, and those routines have already checked
-    that the table exists and is authorized, and that column is the name of a column of the table.
-    Hence no error-checking here.
-    Arguments:
-        table_name: the name of the table
-        column: the name of the column to get the type for
-    Returns:
-        The type of the column
-
-    '''
-    table = sdtp_server_blueprint.table_server.get_table(table_name)
-    return table.get_column_type(column)
-
-
-def _column_types(table, columns):
-    '''
-    An internal method to get the list  of column types for the named columns in the table.
-    Gets all of the column types if columns is [], since this indicates no columns specfied.
-    Used by get_filtered_rows to get the column types to JSONIFY.
-    Arguments:
-        table: the table with the columns
-        columns: the names of the columns to get the types for
-    Returns:
-        The types of the named columns, or the types of call columns if columns = []
-
-    '''
-    if columns == []:
-        return table.column_types()
-    return [column["type"] for column in table.schema if column["name"] in columns]
 
     
 def _get_json_body_from_post_request_data(request):
@@ -314,18 +271,7 @@ def get_range_spec():
             None
     '''
     return _execute_column_operation('/get_range_spec')
-    _check_required_parameters('/get_range_spec', ['table_name', 'column_name'])
-    column_name = request.args.get('column_name')
-    table_name = request.args.get('table_name')
     
-    try:
-        result = sdtp_server_blueprint.table_server.get_range_spec(table_name, column_name, True)
-        return result
-    except TableNotFoundException:
-        _log_and_abort(f'No  table {table_name} present, request /get_range_spec', 404)
-    except ColumnNotFoundException:
-        _log_and_abort(f'No column {column_name} in table {table_name}, request /get_range_spec', 404)
-
 
 
 @sdtp_server_blueprint.route('/get_all_values')
