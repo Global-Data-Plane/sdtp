@@ -82,7 +82,7 @@ def test_check_dict_and_keys():
 def test_table_server_creation():
     server = TableServer()
     # check the factories were initialized
-    assert(server.factories.keys() == {'RowTable', 'RemoteSDMLTable'})
+    assert(server.factories.keys() == {'RowTable', 'RemoteSDMLTable', 'FileTable', 'GCSTable', 'HTTPTable'})
     for factory in server.factories.values():
         assert isinstance(factory, SDMLTableFactory)
 

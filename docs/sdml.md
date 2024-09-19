@@ -79,6 +79,32 @@ A _RemoteTable_  is an SDML Table hosted on a remote Simple Data Transfer Protoc
 }
 
 ```
+#### FileTable
+It's often desirable to store the schema from a table separately from the table's data.  This is particularly the case when the server stores a lot of tables, and/or the table's data is particularly large.    A FileTable is simply a link to an 
+SDMLTable which resides in a  separate file.  It has one dictionary item beyond
+the type and schema fields:
+- _path_, required: a path to the SDML file table.
+Note the file must be an SDML file, such as a file containing a _RowTable_
+
+#### GCSTable
+A GCSTable is a table stored as a blob  in Google Cloud Storage.  It has two dictionary item beyond
+the type and schema fields:
+- _bucket_, required: the GCS bucket that the blob is stored in
+- _blob_, required: the name of the blob.
+Note the blob must be an SDML file, such as a file containing a _RowTable_
+Loading of GCS Tables 
+_NB_: The GCS Table constructor allocates a client from Google Cloud Storage's Client library.  This will use the `GOOGLE_APPLICATION_CREDENTIALS` environment variable for authorization.  Users of the GCSTable should provide appropriate credentials to read the bucket of interest.
+
+#### HTTPTable
+An HTTPTable is a table stored as a JSON file at an URL.  It has one  dictionary item beyond
+the type and schema fields:
+- _url_, required: the URL holding the table
+Note the file must be an SDML file, such as a file containing a _RowTable_
+Loading of GCS Tables 
+
+
+#### S3
+Under Construction
 
 A `RemoteCSVTable` type is under consideration.
 

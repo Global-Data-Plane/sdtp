@@ -1,0 +1,7 @@
+{
+  "type": "HTTPTable",
+  "schema": [
+    { "name": "Month_number", "type": "number" }, { "name": "Date", "type": "date" }, { "name": "Month", "type": "string" }, { "name": "Year", "type": "number" }, { "name": "Army", "type": "number" }, { "name": "Disease", "type": "number" }, { "name": "Wounds", "type": "number" }, { "name": "Other", "type": "number" }, { "name": "Disease_rate", "type": "number" }, { "name": "Wounds_rate", "type": "number" }, { "name": "Other_rate", "type": "number" }
+  ],
+  "url": "https://raw.githubusercontent.com/rickmcgeer/sdtp-examples/refs/heads/main/simple-table-example/tables/nightingale.sdml"
+}

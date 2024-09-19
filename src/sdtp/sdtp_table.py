@@ -31,19 +31,17 @@ the tables automatically using the instantiated SDMLTable.
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from functools import reduce
-from math import nan, isnan
-import re
+
 import pandas as pd
-import datetime
+
 import requests
 import json
+from google.cloud import storage
 
-from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
-    SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
+from sdtp import SDML_SCHEMA_TYPES
 from sdtp import InvalidDataException
-from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value, type_check
-from sdtp import convert_list_to_type, convert_dict_to_type, convert_rows_to_type_list
+from sdtp import jsonifiable_column, jsonifiable_rows,  type_check
+from sdtp import convert_list_to_type, convert_rows_to_type_list
 from sdtp import SDQLFilter
 
         
@@ -568,8 +566,6 @@ class RowTable(SDMLFixedTable):
         return [row for row in self.rows]
     
                
-
-
 def _column_names(schema):
     return [entry["name"] for entry in schema]
         
@@ -799,3 +795,280 @@ class RemoteSDMLTableFactory(SDMLTableFactory):
         super(RemoteSDMLTableFactory, self).build_table(table_spec)
         header_dict = table_spec['header_dict'] if header_dict in table_spec.keys() else None
         return RemoteSDMLTable(table_spec['table_name'], table_spec['schema'], table_spec['url'], header_dict)  
+    
+class ReloadableTable(SDMLTable):
+    '''
+    An abstract superclass for SDMLTbales which can be loaded, flushed, then reloaded.
+    Concrete examples are FileTable and GCSTable.  The basic idea is that the 
+    surface table is a schema with a pointer to an inner table with the data, and that
+    table can be loaded and flushed when needed.  This is, obviously, to ensure that
+    we don't have the contents of an arbitrary number of tables in memory.
+    The inner_table is built by the table_factory passed in the constructor,
+    and the implementing class implements a get_spec method which returns the
+    specification which is turned into the table
+    Parameters:
+        schema: the schema, as usual
+        table_factory: a TableFactory which will implement the inner table from a spec.
+
+    '''
+    def __init__(self, schema, table_factory):
+        super(ReloadableTable, self).__init__(schema)
+        self.inner_table = None
+        self.table_factory = table_factory
+
+    def load(self):
+        '''
+        Load the inner table using table factory, first calling self.get_spec() to 
+        get the table specification, then build this.inner_table.  Returns nothing
+        but throws an InvalidDataException if the table factory fails to build the 
+        table from the spec.  self.get_spec() may also throw an InvalidDataException 
+        If it fails to find the spec.
+        '''
+        # Note that either method can raise an InvalidDataException
+        table_spec = self.get_spec()
+        self.inner_table =  self.table_factory.build_table(table_spec)
+    
+    def get_spec(self):
+        '''
+        This *must* be implemented
+        by each implementing subclass (and is in fact one of the two  methods that must be
+        implemented by each implementing subclass; the other is to_dicitionary).  See FileTable and GCSTable 
+        for concrete implementations
+        Parameters: None
+        Returns: a table specification that self.table_factory.build_table() can use to build a table
+        '''
+        raise InvalidDataException(f'get_spec has not been  implemented in {type(self)}.__name__')
+    
+    def flush(self):
+        '''
+        Flush the inner table, typically to free up memory
+        Parameters: None
+        Returns: None
+        Side Effects: frees the inner table
+        '''
+        self.inner_table = None
+
+    
+    def all_values(self, column_name: str, jsonify = False):
+        '''
+        get all the values from column_name
+        Arguments:
+            column_name: name of the column to get the values for
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            List of the values, either in json form (if jsonify = True) or in the
+            appropriate datatyp (if jsonify = False)
+
+        '''
+        if self.inner_table is None: self.load()
+        return self.inner_table.all_values(column_name, jsonify)
+    
+    def get_column(self, column_name: str, jsonify = False):
+        '''
+        get the column  column_name
+        Arguments:
+            column_name: name of the column to get 
+            jsonify: if true, return the result in a form that can be turned
+                into json 
+
+        Returns:
+            List of the values in the column, either in json form (if jsonify = True) or in the
+            appropriate datatyp (if jsonify = False)
+
+        '''
+        if self.inner_table is None: self.load()
+        return self.inner_table.get_column(column_name, jsonify)
+    
+
+    def range_spec(self, column_name: str, jsonify = False):
+        '''
+        Get the dictionary {min_val, max_val} for column_name
+        Arguments:
+
+            column_name: name of the column to get the range spec for
+
+        Returns:
+            the minimum and  maximum of the column
+
+        '''
+        if self.inner_table is None: self.load()
+        return self.inner_table.range_spec(column_name, jsonify)
+    
+    def get_filtered_rows_from_filter(self, filter=None, columns=[], jsonify = False):
+        '''
+        Returns the rows for which the  filter returns True.  Returns as 
+        a json list if jsonify is True, as a list of the appropriate types otherwise
+
+        Arguments:
+            filter: A SDQLFilter 
+            columns: the names of the columns to return.  Returns all columns if absent
+            jsonify: if True, returns a JSON list
+        Returns:
+            The subset of self.get_rows() which pass the filter as a JSON list if
+            jsonify is True or as a list if jsonify is False
+        '''
+        if self.inner_table is None: self.load()
+        return self.inner_table.get_filtered_rows_from_filter(filter, columns, jsonify)
+
+    
+    
+
+class FileTable(ReloadableTable):
+    '''
+    A FileTable.  This table doesn't have row data in it directly; rather, it supports a RowTable stored in a separate SDML file at location path
+    Parameters:
+        schema -- the schema, as usual
+        path -- path to the table spec
+    '''
+    def __init__(self, schema, path):
+        super(FileTable, self).__init__(schema, RowTableFactory())
+        self.path = path
+    
+    def get_spec(self):
+        '''
+        Get the table specification as a JSON dictionary and return it,
+        throwing an InvalidDataException if anything goes wrong
+        '''
+        try:
+            with open(self.path) as spec_file:
+                return json.load(spec_file)
+        except Exception as e:
+            raise InvalidDataException(f'Exception {repr(e)} getting the specification for file {self.path}')
+        
+    def to_dictionary(self):
+        '''
+        Return the dictionary form of a FileTable
+        '''
+        return {
+            "schema": self.schema,
+            "type": 'FileTable',
+            "path": self.path
+        }
+    
+class FileTableFactory(SDMLTableFactory):
+    '''
+    A factory to build FileTables.  build_table is very simple, just instantiating
+    a FileTable on the path and schema of the specification
+    '''
+    def __init__(self):
+        super(FileTableFactory, self).__init__('FileTable')
+    
+    def build_table(self, table_spec):
+        super(FileTableFactory, self).build_table(table_spec)
+        
+        return FileTable(table_spec['schema'], table_spec['path']) 
+        
+
+class GCSTable(ReloadableTable):
+    '''
+    A GCSTable.  This table doesn't have row data in it directly; rather, it supports a RowTable stored in a separate SDML blob in Google Cloud Storage bucket <bucket> and blob <blob>
+    Parameters:
+        schema -- the schema, as usual
+        bucket -- the name of the GCS bucket
+        blob -- name of the blob with the RowTable
+    '''
+    def __init__(self, schema, bucket, blob):
+        super(GCSTable, self).__init__(schema, RowTableFactory())
+        self.bucket_name = bucket
+        self.blob_name = blob
+        client = storage.Client()
+        try:
+            self.bucket = client.bucket(bucket)
+        except Exception as e:
+            raise InvalidDataException(f'Exception {repr(e)} encountered attempting to access {bucket}')
+    
+    def get_spec(self):
+        '''
+        Get the table specification as a JSON dictionary and return it,
+        throwing an InvalidDataException if anything goes wrong
+        '''
+        try:
+            blob = self.bucket.blob(self.blob_name)
+            json_form = blob.download_as_string()
+        except Exception as e:
+            raise InvalidDataException(f'Exception {repr(e)} reading blob {self.blob_name} from {self.bucket_name}')
+        try:
+            result  = json.loads(json_form)
+            return result
+        except Exception as e:
+            raise InvalidDataException(f'Exception {repr(e)} interpreting JSON string from  blob {self.blob_name} from {self.bucket_name}')
+
+        
+    def to_dictionary(self):
+        '''
+        Return the dictionary form of a FileTable
+        '''
+        return {
+            "schema": self.schema,
+            "type": 'GCSTable',
+            "bucket": self.bucket_name,
+            "blob": self.blob_name
+        }
+    
+class GCSTableFactory(SDMLTableFactory):
+    '''
+    A factory to build GCSTables.  build_table is very simple, just instantiating
+    a GCSTable on the bucket, blob name, and schema of the specification
+    '''
+    def __init__(self):
+        super(GCSTableFactory, self).__init__('GCSTable')
+    
+    def build_table(self, table_spec):
+        super(GCSTableFactory, self).build_table(table_spec)
+        
+        return GCSTable(table_spec['schema'], table_spec['bucket'], table_spec['blob']) 
+    
+class HTTPTable(ReloadableTable):
+    '''
+    An SDML Table hosted as an SDML file accessed not by filepath but by URL.  
+    Essentially identical to a FileTable, but with an URL instead of a path.
+    This permits any web server (or, for example, a github repo) to host
+    SDML Tables without implementing the SDTP protocol
+    Parameters:
+        schema -- the schema, as usual
+        url -- url of the SDML file
+    '''
+    # Note -- this assumes that the table is publicly available.  How should
+    # secrets be passed in?  Env variables?
+    def __init__(self, schema, url):
+        super(HTTPTable, self).__init__(schema, RowTableFactory())
+        self.url = url
+    
+    def get_spec(self):
+        '''
+        Get the table specification as a JSON dictionary and return it,
+        throwing an InvalidDataException if anything goes wrong
+        '''
+        try:
+            response = requests.get(self.url)
+            if response.status_code >= 400: # error return
+                raise InvalidDataException(f'Error {response.status_code} in opening {self.url}m, reason {response.reason}')
+            return response.json()
+        except Exception as e:
+            raise InvalidDataException(f'Exception {repr(e)} reading url {self.url} from {self.bucket_name}')
+        
+        
+    def to_dictionary(self):
+        '''
+        Return the dictionary form of a FileTable
+        '''
+        return {
+            "schema": self.schema,
+            "type": 'HTTPTable',
+            "url": self.url
+        }
+    
+class HTTPTableFactory(SDMLTableFactory):
+    '''
+    A factory to build HTTPTables.  build_table is very simple, just instantiating
+    an HTTPTable on the url and schema of the specification
+    '''
+    def __init__(self):
+        super(HTTPTableFactory, self).__init__('HTTPTable')
+    
+    def build_table(self, table_spec):
+        super(HTTPTableFactory, self).build_table(table_spec)
+        
+        return HTTPTable(table_spec['schema'], table_spec['url'])

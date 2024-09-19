@@ -1,0 +1,5 @@
+{
+  "type": "FileTable",
+  "schema" : [{ "name": "name", "type": "string" }, { "name": "age", "type": "number" }, { "name": "date", "type": "date" }, { "name": "time", "type": "timeofday"}, { "name": "datetime", "type": "datetime" }, { "name": "boolean", "type": "boolean"} ],
+  "path": "tests/tables/test1.sdml"
+}

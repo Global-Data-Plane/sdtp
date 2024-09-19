@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdtp"
-version = "0.2.4"
+version = "0.2.5"
 authors = [
   { name = "Rick McGeer", email='rick@mcgeer.com' }
 ]
@@ -31,7 +31,9 @@ dependencies = [
   'numpy',
   'pandas',
   'requests',
-  'Werkzeug'
+  'Werkzeug',
+  'google-cloud-storage',
+  'google-cloud-core'
 ]
 
 keywords = ['Data access', 'Data analytics']

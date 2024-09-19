@@ -43,8 +43,9 @@ sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import SDMLFixedTable, RowTable, SDMLDataFrameTable, RemoteSDMLTable
+from sdtp import SDMLFixedTable, RowTable, FileTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
 from pytest_httpserver import HTTPServer
+import json
 
 table_test_1 = {
     "rows": [["Ted", 21], ["Alice", 24], ['Mary', 24]],
@@ -267,7 +268,95 @@ def test_remote_column_operations():
     assert remote_range_spec_responses == range_spec_responses
     assert remote_get_column_responses == get_column_responses
 
+# Test that the data in two tables are equivalent
 
 
+def _data_equivalent(table1, table2):
+    rows1 = table1.get_filtered_rows()
+    rows2 = table2.get_filtered_rows()
+    assert len(rows1) == len(rows2)
+    for i in range(len(rows1)):
+        assert rows1[i] == rows2[i]
+
+# test that two tables are equivalent: the types and schemas 
+# have to be the same, and the data has to be the same
+
+def _tables_equivalent(table1, table2):
+    assert type(table1) == type(table2)
+    assert table1.schema == table2.schema
+    _data_equivalent(table1, table2)
+
+# Test a reloadable table.  The reloadable table should be a reloadable form
+# of equivalent_table (the non-reloadable form of the same table)
+# tests:
+#   1. Make sure the reloadable_table starts off with no inner table and
+#      the schema is the same as the equivalent table
+#   2. Test load.  The inner_table should have the same schema as the 
+#      the reloadable table.
+#   3. Test that after load, the inner table and the equivalent table are equivalent
+#   4. Test flush, ensuring that the inner_table is None after flush
+#   5. Test that a get_filtered_rows request forces a load and the results of the
+#      get_filtered_rows query are the same on the reloadable_table and the
+#      equivalent table.  This is done by testing that the data is equivalent on
+#      a flushed reloadable table and the equivalent table -- the get_filtered_rows()
+#      call loads thg table and then calls get_filtered_rows() on the inner table
+#   6. Retest flushing the table
+
+def _test_reloadable_table(reloadable_table, equivalent_table):
+    assert reloadable_table.inner_table is None
+    assert reloadable_table.schema == equivalent_table.schema
+    reloadable_table.load()
+    assert reloadable_table.inner_table is not  None
+    assert reloadable_table.schema == reloadable_table.inner_table.schema
+    _tables_equivalent(reloadable_table.inner_table, equivalent_table)
+    reloadable_table.flush()
+    assert reloadable_table.inner_table is None
+    _data_equivalent(reloadable_table, equivalent_table)
+    reloadable_table.flush()
+    assert reloadable_table.inner_table is None
+    reloadable_table.flush()
+    assert reloadable_table.inner_table is None
+    for column in reloadable_table.schema:
+        assert reloadable_table.all_values(column["name"]) == equivalent_table.all_values(column["name"])
+        assert reloadable_table.get_column(column["name"]) == equivalent_table.get_column(column["name"])
+        assert reloadable_table.range_spec(column["name"]) == equivalent_table.range_spec(column["name"])
+    reloadable_table.flush()
+    assert reloadable_table.inner_table is None
 
 
+#
+# test the file table using _test_reloadable_tables
+# 
+
+def test_file_table():
+    r1 = RowTableFactory()
+    f1 = FileTableFactory()
+    # build and 
+    with open('tests/tables/test1.sdml', 'r') as f:
+        row_table_spec = json.load(f)
+        row_table = r1.build_table(row_table_spec)
+        assert isinstance(row_table, RowTable)
+    with open('tests/tables/file_table.sdml', 'r') as f:
+        file_table_spec = json.load(f)
+        file_table = f1.build_table(file_table_spec)
+        assert isinstance(file_table, FileTable)
+        # check to make sure that file_table.inner_table is initially None
+        assert file_table.inner_table is None
+    _test_reloadable_table(file_table, row_table)
+
+#
+# test the http  table using _test_reloadable_tables
+# 
+def test_http_table():
+    r1 = RowTableFactory()
+    h1 = HTTPTableFactory()
+    response = requests.get('https://raw.githubusercontent.com/rickmcgeer/sdtp-examples/refs/heads/main/simple-table-example/tables/nightingale.sdml')
+    assert response.status_code < 400
+    row_table_spec = response.json()
+    row_table = r1.build_table(row_table_spec)
+    assert isinstance(row_table, RowTable)
+    with open('tests/tables/nightingale-http.sdml', 'r') as f:
+        http_table_spec = json.load(f)
+        http_table = h1.build_table(http_table_spec)
+        assert isinstance(http_table, HTTPTable)
+    _test_reloadable_table(http_table, row_table)
