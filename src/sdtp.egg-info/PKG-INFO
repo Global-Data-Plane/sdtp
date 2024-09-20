@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: sdtp
-Version: 0.2.4
+Version: 0.2.5
 Summary: A Python implementation of the Simple Data Transfer Protocol data structures, function, and server
 Author-email: Rick McGeer <rick@mcgeer.com>
 Project-URL: homepage, https://github.com/rickmcgeer/sdtp
@@ -27,6 +27,8 @@ Requires-Dist: numpy
 Requires-Dist: pandas
 Requires-Dist: requests
 Requires-Dist: Werkzeug
+Requires-Dist: google-cloud-storage
+Requires-Dist: google-cloud-core
 
 #  The Simple Data Transfer Protcol
 
