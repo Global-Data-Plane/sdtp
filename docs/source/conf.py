@@ -20,6 +20,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../../src'))
 
 import sdtp
 
@@ -31,7 +32,7 @@ import sdtp
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'myst_parser', 'sphinx_copybutton']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -47,7 +48,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Simple Data Transfer Protocol'
-copyright = "2023, Rick McGeer"
+copyright = "2024, UC Regents"
 author = "Rick McGeer"
 
 # The version info for the project you're documenting, acts as replacement
@@ -64,7 +65,7 @@ release = sdtp.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.

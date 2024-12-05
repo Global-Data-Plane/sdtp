@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>The Simple Data Transfer Protocol &#8212; Simple Data Transfer Protocol 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="The Simple Data Markup Language" href="sdml.html" />
+    <link rel="prev" title="Usage" href="usage.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="the-simple-data-transfer-protocol">
+<h1>The Simple Data Transfer Protocol<a class="headerlink" href="#the-simple-data-transfer-protocol" title="Link to this heading">¶</a></h1>
+<p>The third component of the Global Data Plane is the Simple Data Transfer Protocol (SDTP) which permits the execution of Simple Data Query Languaage (SDQL) queries on Simple Data Markup Language (SDML) queries over the network.  It is the simplest of the three components of the Global Data Plane; it is simply a mechanism for sending SDQL queries and receiving the results over an HTTP/S connection.  It is a set of three routes which can be implemented by any HTTP/S server; a reference implementation on a Flask server is available.</p>
+<p>The primary design goal of SDTP is <em>ease of adoption</em>.  It should be easy to implement SDTP in any existing web server.  SDTP is designed to require <em>no</em> specialized software on either the client or the server side.  STDP queries are standard HTTP/S POST/GET, and the return values are JSON dictionaries and lists.</p>
+<p>This design goal led to a very spare, simple protocol.  The design mantra was “When in doubt, leave it out”.  Useful protocols and standards add required features in response to user needs over time; simplicity in initial design permits the maximum flexibility in adding these features when and as they are needed, with specific use cases in mind.   It also permits the use of generic HTTP/S features for features and use cases. Finally, it permits implementers maximum freedom in enhancing the protocol for specific situations.</p>
+<p>SDTP is not designed or intended to be a complete data hosting solution.  A number of features that are desirable or required in a hosting solution are absent from the basic SDTP protocol.  Search is one example.  It can be anticipated that a single SDTP server can host a large number of SDML tables, either physically or, through the SDML RemoteTable mechanism, virtually, or both.  data.gov, for example, has about 300,000 datasets, and almost all of these are easily convertible to SDML.  <em>Finding</em> the right datasets for a problem is desirable; it’s also a feature with a large number of existing implementations, and SDTP sites are free to implement the search mechanism appropriate for their domain – or none at all.</p>
+<p>Similar reasoning applies to a lack of security in the protocol.  Early versions of the SDTP anticipated per-table access control based on header variables.  This was dropped, because there are a plethora of HTTP/S access control mechanisms that are adapted for specific purposes.  At the end of the day, access to tabular data is no different from API access to document or image data, and access issues are well solved in HTTP/S.</p>
+<p>In sum, SDTP is not designed as a standalone protocol.  It is a set of standard routes that must be implemented by a general HTTP/S server.</p>
+<section id="sdtp-routes">
+<h2>SDTP Routes<a class="headerlink" href="#sdtp-routes" title="Link to this heading">¶</a></h2>
+<p>There are three classes of route in the SDTP protocol: one for getting the names and schemas of the tables the server hosts, another for executing column queries on a specific table, and a third for executing row queries.  The first and third are single-route classes; the second is essentially a single-route class, but has additional routes for convenience of the user.</p>
+<p>A major design goal of the Global Data Plane is that no specific client libraries or software beyond a standard HTTP/S request library (<code class="docutils literal notranslate"><span class="pre">fetch</span></code> in JavaScript, <code class="docutils literal notranslate"><span class="pre">requests</span></code> or the various <code class="docutils literal notranslate"><span class="pre">urrlib</span></code>s in Python, <code class="docutils literal notranslate"><span class="pre">curl</span></code> or <code class="docutils literal notranslate"><span class="pre">wget</span></code> from the command line) are required.  Requests are standard HTTP/S <code class="docutils literal notranslate"><span class="pre">GET</span></code> requests with parameters or <code class="docutils literal notranslate"><span class="pre">POST</span></code> requests with a JSON body.  Returns are <em>always</em> JSON objects or lists, and, when there is a tradeoff between contextual information and ease of parsing, the latter consideration dominates.  For example, in early versions of the protocol, a <code class="docutils literal notranslate"><span class="pre">get_range</span></code> request returned a JSON dictionary with two fields, <code class="docutils literal notranslate"><span class="pre">max_val</span></code> and <code class="docutils literal notranslate"><span class="pre">min_val</span></code>.  This was dropped in favor of returning a two-element ordered list: <code class="docutils literal notranslate"><span class="pre">{&quot;min_val:</span> <span class="pre">&lt;v1&gt;,</span> <span class="pre">&quot;max_val&quot;:</span> <span class="pre">&lt;v2&gt;}</span></code> became <code class="docutils literal notranslate"><span class="pre">[v1,</span> <span class="pre">v2]</span></code>, because every client has the ability to parse a JSON list in a single API call.  This is a very simple and trivial example, but it illustrates the design philosophy.</p>
+<p>Similarly, SDTP uses standard HTTP/S error codes.</p>
+<section id="get-tables">
+<h3>Get Tables<a class="headerlink" href="#get-tables" title="Link to this heading">¶</a></h3>
+<p>This class consists of three  routes, <code class="docutils literal notranslate"><span class="pre">get_table_names</span></code>, <code class="docutils literal notranslate"><span class="pre">get_table_schema?table=&lt;table_name&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">get_tables</span></code>.</p>
+<section id="get-table-names">
+<h4><code class="docutils literal notranslate"><span class="pre">get_table_names</span></code><a class="headerlink" href="#get-table-names" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> Returns the list of names of tables hosted by this server, as a simple list of strings.
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: None
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> A JSON list of the names of the tables hosted by this server
+<em>Errors:</em> None
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_table_names</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[&quot;ec_table&quot;,</span> <span class="pre">&quot;electoral_college&quot;,</span> <span class="pre">&quot;nationwide_vote&quot;,</span> <span class="pre">&quot;presidential_margins&quot;,</span> <span class="pre">&quot;presidential_vote&quot;,</span> <span class="pre">&quot;presidential_vote_history&quot;]</span></code></p>
+</section>
+<section id="get-table-schema-table-table-name">
+<h4><code class="docutils literal notranslate"><span class="pre">get_table_schema?table=&lt;table_name&gt;</span></code><a class="headerlink" href="#get-table-schema-table-table-name" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> Gets the schema of table <code class="docutils literal notranslate"><span class="pre">&lt;table_name&gt;</span></code> as a list of JSON objects.  Each object contains the fields <code class="docutils literal notranslate"><span class="pre">name</span></code>, the name of the column, and <code class="docutils literal notranslate"><span class="pre">type</span></code>, which is a  Global Data Plane data type.  See <a class="reference internal" href="sdml.html"><span class="std std-doc">SDML</span></a> for the list of types.  Note that a schema object <em>may</em> contain other fields, e.g., <code class="docutils literal notranslate"><span class="pre">units</span></code> for numeric data or, more generally, strings or JSON objects used for metadata purposes.
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: <code class="docutils literal notranslate"><span class="pre">&lt;table_name&gt;</span></code>, a string, required. name of the table
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> The schema of the table as a list of  JSON objects
+<em>Errors:</em> 400: <code class="docutils literal notranslate"><span class="pre">Missing</span> <span class="pre">parameter</span> <span class="pre">table</span></code> if the table is missing, or 400: <code class="docutils literal notranslate"><span class="pre">Table</span> <span class="pre">&lt;table_name&gt;</span> <span class="pre">not</span> <span class="pre">found</span> <span class="pre">if</span> <span class="pre">the</span> <span class="pre">table</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">present</span> <span class="pre">on</span> <span class="pre">this</span> <span class="pre">server.</span> <span class="pre">*Example:*</span> </code>/get_table_schema?table=nationwide_vote`
+<em>Example Return:</em></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span>
+  <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+  <span class="p">},</span>
+  <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Party&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+  <span class="p">},</span>
+  <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Percentage&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+  <span class="p">}</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="id1">
+<h4><code class="docutils literal notranslate"><span class="pre">get_tables</span></code><a class="headerlink" href="#id1" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> Returns the schema of <em>all</em> of the tables as a JSON list of obj, indexed by table name.  Note that each element of the list is identical to the response to the appropriate <code class="docutils literal notranslate"><span class="pre">get_table_schema</span></code> request.  Also note that, if the server hosts many tables, that this can be a very large response.
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: None
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> A JSON list of the names of the tables hosted by this server
+<em>Errors:</em> None
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_tables</span></code>
+<em>Example Return:</em></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+  <span class="s2">&quot;ec_table&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Democratic&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Republican&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Other&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;electoral_college&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Democratic&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Republican&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Other&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;nationwide_vote&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Party&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Percentage&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;presidential_margins&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Margin&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;presidential_vote&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Name&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Party&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Votes&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Percentage&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">],</span>
+  <span class="s2">&quot;presidential_vote_history&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Year&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Democratic&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Republican&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Progressive&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Socialist&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Reform&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Other&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;number&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="column-operations">
+<h3>Column Operations<a class="headerlink" href="#column-operations" title="Link to this heading">¶</a></h3>
+<p>The column operations of SDTP mirror the column queries of <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a>.  There is one essential column operation: <code class="docutils literal notranslate"><span class="pre">/execute_column_query</span></code>, which is a <code class="docutils literal notranslate"><span class="pre">POST</span></code> request with an SDQL query body.  There are also convenience methods for the existing three SDQL column queries.</p>
+<section id="execute-column-query">
+<h4><code class="docutils literal notranslate"><span class="pre">/execute_column_query</span></code><a class="headerlink" href="#execute-column-query" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> Returns the result of executing the SDQL column query in the request body, which will always be a JSON list of values.
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">POST</span></code>
+*Parameters: None
+<em>Body:</em> A JSON SDQL Column query.  See <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a>
+<em>Headers:</em> ‘Content-type: application/json’
+<em>Returns:</em> A JSON list of the result of the SDQL request
+<em>Errors:</em> 400 if either the table or column is missing, or if the operation is malformed
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/execute/column/query</span></code> with body <code class="docutils literal notranslate"><span class="pre">{&quot;table&quot;:</span> <span class="pre">&quot;nightingale&quot;,</span> <span class="pre">&quot;query&quot;:</span> <span class="pre">{&quot;column&quot;:</span> <span class="pre">&quot;Month_number&quot;,</span> <span class="pre">&quot;operator&quot;:</span> <span class="pre">&quot;GET_RANGE&quot;}}</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">24]</span></code></p>
+</section>
+<section id="get-range-table-table-name-column-column-name">
+<h4><code class="docutils literal notranslate"><span class="pre">/get_range?table=&lt;table_name&gt;&amp;column=&lt;column_name&gt;</span></code><a class="headerlink" href="#get-range-table-table-name-column-column-name" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> A convenience <code class="docutils literal notranslate"><span class="pre">GET</span></code> method equivalent to the <code class="docutils literal notranslate"><span class="pre">/execute_column_query</span></code> request with body <code class="docutils literal notranslate"><span class="pre">{&quot;table&quot;:</span> <span class="pre">&lt;table_name&gt;,</span> <span class="pre">&quot;query&quot;:</span> <span class="pre">{&quot;column&quot;:</span> <span class="pre">&lt;column_name&gt;,</span> <span class="pre">&quot;operator&quot;:</span> <span class="pre">&quot;GET_RANGE&quot;}}</span></code>
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: <code class="docutils literal notranslate"><span class="pre">table</span></code>, the name of the table to check, and <code class="docutils literal notranslate"><span class="pre">column</span></code>, the name of the column to get the range for.
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> A JSON list of the result of the SDQL request
+<em>Errors:</em>  400 if either the table or column is missing
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_range?table=nightingale&amp;column=Month_number</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">24]</span></code></p>
+</section>
+<section id="get-all-values-table-table-name-column-column-name">
+<h4><code class="docutils literal notranslate"><span class="pre">/get_all_values?table=&lt;table_name&gt;&amp;column=&lt;column_name&gt;</span></code><a class="headerlink" href="#get-all-values-table-table-name-column-column-name" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> A convenience <code class="docutils literal notranslate"><span class="pre">GET</span></code> method equivalent to the <code class="docutils literal notranslate"><span class="pre">/execute_column_query</span></code> request with body <code class="docutils literal notranslate"><span class="pre">{&quot;table&quot;:</span> <span class="pre">&lt;table_name&gt;,</span> <span class="pre">&quot;query&quot;:</span> <span class="pre">{&quot;column&quot;:</span> <span class="pre">&lt;column_name&gt;,</span> <span class="pre">&quot;operator&quot;:</span> <span class="pre">&quot;GET_ALL_VALUES&quot;}}</span></code>
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: <code class="docutils literal notranslate"><span class="pre">table</span></code>, the name of the table to check, and <code class="docutils literal notranslate"><span class="pre">column</span></code>, the name of the column to get the distinct values for.
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> A JSON list of the result of the SDQL request
+<em>Errors:</em>  400 if either the table or column is missing
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_all_values?table=nightingale&amp;column=Month</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[&quot;Apr&quot;,</span> <span class="pre">&quot;Aug&quot;,</span> <span class="pre">&quot;Dec&quot;,</span> <span class="pre">&quot;Feb&quot;,</span> <span class="pre">&quot;Jan&quot;,</span> <span class="pre">&quot;Jul&quot;,</span> <span class="pre">&quot;Jun&quot;,</span> <span class="pre">&quot;Mar&quot;,</span> <span class="pre">&quot;May&quot;,</span> <span class="pre">&quot;Nov&quot;,</span> <span class="pre">&quot;Oct&quot;,</span> <span class="pre">&quot;Sep&quot;]</span></code></p>
+</section>
+<section id="get-column-table-table-name-column-column-name">
+<h4><code class="docutils literal notranslate"><span class="pre">/get_column?table=&lt;table_name&gt;&amp;column=&lt;column_name&gt;</span></code><a class="headerlink" href="#get-column-table-table-name-column-column-name" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> A convenience <code class="docutils literal notranslate"><span class="pre">GET</span></code> method equivalent to the <code class="docutils literal notranslate"><span class="pre">/execute_column_query</span></code> request with body <code class="docutils literal notranslate"><span class="pre">{&quot;table&quot;:</span> <span class="pre">&lt;table_name&gt;,</span> <span class="pre">&quot;query&quot;:</span> <span class="pre">{&quot;column&quot;:</span> <span class="pre">&lt;column_name&gt;,</span> <span class="pre">&quot;operator&quot;:</span> <span class="pre">&quot;GET_COLUMN&quot;}}</span></code>
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">GET</span></code>
+*Parameters: <code class="docutils literal notranslate"><span class="pre">table</span></code>, the name of the table to check, and <code class="docutils literal notranslate"><span class="pre">column</span></code>, the name of the column to get the distinct values for.
+<em>Body:</em> None
+<em>Headers:</em> None
+<em>Returns:</em> A JSON list of the result of the SDQL request
+<em>Errors:</em>  400 if either the table or column is missing
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_column?table=nightingale&amp;column=Month_Number</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">3,</span> <span class="pre">4,</span> <span class="pre">5,</span> <span class="pre">6,</span> <span class="pre">7,</span> <span class="pre">8,</span> <span class="pre">9,</span> <span class="pre">10,</span> <span class="pre">11,</span> <span class="pre">12,</span> <span class="pre">13,</span> <span class="pre">14,</span> <span class="pre">15,</span> <span class="pre">16,</span> <span class="pre">17,</span> <span class="pre">18,</span> <span class="pre">19,</span> <span class="pre">20,</span> <span class="pre">21,</span> <span class="pre">22,</span> <span class="pre">23,</span> <span class="pre">24]</span></code></p>
+</section>
+<section id="note-on-unbounded-columns">
+<h4>Note on Unbounded Columns<a class="headerlink" href="#note-on-unbounded-columns" title="Link to this heading">¶</a></h4>
+<p>As noted in <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a> columns are potentially of unbounded size.  The results of column queries on columns of unbounded size are the choice of the implementing server, and unspecified by the protocol</p>
+</section>
+</section>
+<section id="sdtp-row-operations">
+<h3>SDTP Row Operations<a class="headerlink" href="#sdtp-row-operations" title="Link to this heading">¶</a></h3>
+<p>There is only a single row route in the Simple Data Transfer Protocol, and it is a thin overlay on <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a> row queries.  The single route is <code class="docutils literal notranslate"><span class="pre">get_filtered_rows</span></code>, a <code class="docutils literal notranslate"><span class="pre">POST</span></code> method whose JSON body is an SDQL row query.</p>
+<section id="get-filtered-rows">
+<h4><code class="docutils literal notranslate"><span class="pre">/get_filtered_rows</span></code><a class="headerlink" href="#get-filtered-rows" title="Link to this heading">¶</a></h4>
+<p><em>Description:</em> Returns the result of executing the SDQL row query in the request body, which will always be a JSON list of JSON lists of values.  See the return values of row operations in <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a> for details and examples
+<em>Methods:</em> <code class="docutils literal notranslate"><span class="pre">POST</span></code>
+*Parameters: None
+<em>Body:</em> A JSON SDQL Row query.  See <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a>
+<em>Headers:</em> ‘Content-type: application/json’
+<em>Returns:</em> The result of the SDQL request, which will be a list of lists in JSON form
+<em>Errors:</em> 400 if either the table  is missing, or if the operation is malformed
+<em>Example:</em> <code class="docutils literal notranslate"><span class="pre">/get_filtered_rows</span></code>.  The bodies are the SDQL queries in <a class="reference internal" href="sdql.html"><span class="std std-doc">SDQL</span></a>.  One example body is <code class="docutils literal notranslate"><span class="pre">{&quot;table&quot;:</span> <span class="pre">&quot;nightingale&quot;,</span>&#160; <span class="pre">&quot;query&quot;:</span> <span class="pre">{&quot;operator&quot;:</span> <span class="pre">&quot;IN_RANGE&quot;,</span> <span class="pre">&quot;column&quot;:</span> <span class="pre">&quot;Date&quot;,</span> <span class="pre">&quot;min_val&quot;:</span> <span class="pre">&quot;1854-3-1&quot;,</span> <span class="pre">&quot;max_val&quot;:</span> <span class="pre">&quot;1854-6-30&quot;}}</span></code>
+<em>Example Return:</em> <code class="docutils literal notranslate"><span class="pre">[[1,</span> <span class="pre">&quot;1854-04-01&quot;,</span> <span class="pre">1854,</span> <span class="pre">&quot;Apr&quot;,</span> <span class="pre">8571,</span> <span class="pre">1,</span> <span class="pre">0,</span> <span class="pre">5,</span> <span class="pre">1.4,</span> <span class="pre">7],[2,</span> <span class="pre">&quot;1854-05-01&quot;,</span> <span class="pre">&quot;May&quot;,</span> <span class="pre">1854,</span> <span class="pre">23333,</span> <span class="pre">12,</span> <span class="pre">0,</span> <span class="pre">9,</span> <span class="pre">6.2,</span> <span class="pre">0,</span> <span class="pre">4.6],[3,</span>&#160; <span class="pre">&quot;1854-06-01&quot;,</span> <span class="pre">&quot;Jun&quot;,</span> <span class="pre">1854,</span> <span class="pre">28333,</span> <span class="pre">11,</span> <span class="pre">0,</span> <span class="pre">6,</span> <span class="pre">4.7,</span> <span class="pre">0,</span> <span class="pre">2.5]]</span></code></p>
+</section>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Simple Data Transfer Protocol</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">The Simple Data Transfer Protocol</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp-routes">SDTP Routes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sdml.html">The Simple Data Markup Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sdql.html">The Simple Data Query Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sdql.html#examples">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="authors.html">Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="history.html">History</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="usage.html" title="previous chapter">Usage</a></li>
+      <li>Next: <a href="sdml.html" title="next chapter">The Simple Data Markup Language</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, UC Regents.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/sdtp.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

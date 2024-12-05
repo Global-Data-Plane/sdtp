@@ -8,6 +8,9 @@ Welcome to Data Plane's documentation!
    readme
    installation
    usage
+   sdtp
+   sdml
+   sdql
    modules
    contributing
    authors
