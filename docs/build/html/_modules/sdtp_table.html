@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sdtp_table &#8212; Simple Data Transfer Protocol 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sdtp_table</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">A SDMLTable class and associated utilities.  The SDMLTable class is initialized</span>
+<span class="sd">with the table&#39;s schema,  single function,get_rows(), which returns the rows of the table.  To</span>
+<span class="sd">use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.</span>
+<span class="sd">The SDMLTable instance can then be passed to a SDTPServer with a call to</span>
+<span class="sd">galyleo_server_framework.add_table_server, and the server will then be able to serve</span>
+<span class="sd">the tables automatically using the instantiated SDMLTable.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="c1"># BSD 3-Clause License</span>
+<span class="c1"># Copyright (c) 2024, The Regents of the University of California (Regents)</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1"># Redistribution and use in source and binary forms, with or without</span>
+<span class="c1"># modification, are permitted provided that the following conditions are met:</span>
+<span class="c1"># 1. Redistributions of source code must retain the above copyright notice, this</span>
+<span class="c1">#    list of conditions and the following disclaimer.</span>
+<span class="c1"># 2. Redistributions in binary form must reproduce the above copyright notice,</span>
+<span class="c1">#    this list of conditions and the following disclaimer in the documentation</span>
+<span class="c1">#    and/or other materials provided with the distribution.</span>
+<span class="c1"># 3. Neither the name of the copyright holder nor the names of its</span>
+<span class="c1">#    contributors may be used to endorse or promote products derived from</span>
+<span class="c1">#    this software without specific prior written permission.</span>
+<span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;</span>
+<span class="c1"># AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE</span>
+<span class="c1"># IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE</span>
+<span class="c1"># DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE</span>
+<span class="c1"># FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL</span>
+<span class="c1"># DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR</span>
+<span class="c1"># SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER</span>
+<span class="c1"># CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,</span>
+<span class="c1"># OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE</span>
+<span class="c1"># OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
+
+
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">google.cloud</span> <span class="kn">import</span> <span class="n">storage</span>
+
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">SDML_SCHEMA_TYPES</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">InvalidDataException</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">jsonifiable_column</span><span class="p">,</span> <span class="n">jsonifiable_rows</span><span class="p">,</span>  <span class="n">type_check</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">convert_list_to_type</span><span class="p">,</span> <span class="n">convert_rows_to_type_list</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">SDQLFilter</span>
+
+        
+<span class="k">def</span> <span class="nf">_select_entries_from_row</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+    <span class="c1"># Pick the entries of row trhat are in indices, maintaining the order of the</span>
+    <span class="c1"># indices.  This is to support the column-choice operation in SDMLTable.get_filtered_rows</span>
+    <span class="c1"># Arguments:</span>
+    <span class="c1">#     row: the tow of vaslues</span>
+    <span class="c1">#     indices: the indices to pick</span>
+    <span class="c1"># Returns:</span>
+    <span class="c1">#     The subset of the row corresponding to the indices</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">))</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span>
+
+
+
+<span class="n">DEFAULT_HEADER_VARIABLES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">&quot;optional&quot;</span><span class="p">:</span> <span class="p">[]}</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">The Default for header variables for a table is both required and optional lists are empty.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="get_errors">
+<a class="viewcode-back" href="../modules.html#sdtp_table.get_errors">[docs]</a>
+<span class="k">def</span> <span class="nf">get_errors</span><span class="p">(</span><span class="n">entry</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A Utility to make sure that a schema entry is valid.  It must have a name, a type, both must be strings, </span>
+<span class="sd">    and the type is one of SDML_SCHEMA_TYPES.</span>
+<span class="sd">    Arguments:</span>
+<span class="sd">        entry: a dictionary with (at least) the keys name, type</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        A list of errors, which will be the empty list if no errors are found.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">type</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;Schema entry </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1"> must be a dictionary, not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Column </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1"> must have a name&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Name of column </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1"> must be a string&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="s1">&#39;type&#39;</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Column </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1"> must have a type&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="nb">str</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">SDML_SCHEMA_TYPES</span><span class="p">):</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Type of column </span><span class="si">{</span><span class="n">entry</span><span class="si">}</span><span class="s1"> must be one of </span><span class="si">{</span><span class="n">SDML_SCHEMA_TYPES</span><span class="si">}</span><span class="s1">&#39;</span> <span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+            
+    
+
+<div class="viewcode-block" id="SDMLTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable">[docs]</a>
+<span class="k">class</span> <span class="nc">SDMLTable</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    An SDMLTable.  This is the abstract superclass for all Simple Data Markup Language tables, and </span>
+<span class="sd">    implements the schema methods of every SDML class.  The data methods are implemented</span>
+<span class="sd">    by the concrete classes.  Any new SDMLTable class should:</span>
+<span class="sd">    1. Subclass SDMLTable</span>
+<span class="sd">    2. Have a constructor with the argument schema</span>
+<span class="sd">    3. call super(&lt;classname, self).__init__(schema) in the constructor</span>
+<span class="sd">    4. Implement the methods:</span>
+<span class="sd">        (a) all_values(self, column_name, jsonify = False)</span>
+<span class="sd">        (b) range_spec(self, column_name, jsonify = False)</span>
+<span class="sd">        (c) get_filtered_rows_from_filter(self, filter, columns = None, jsonify = False)</span>
+<span class="sd">        (d) to_json(self)</span>
+<span class="sd">    where:</span>
+<span class="sd">        i. column_name is the name of the column to get the values/range_spec from</span>
+<span class="sd">        ii. if jsonify = True, return the results as a JSON string, otherwise just as the </span>
+<span class="sd">            appropriate structure</span>
+<span class="sd">            iia. list from all_values</span>
+<span class="sd">            iib. list of length 2, ordered low to high for get_range_spec</span>
+<span class="sd">            iic. list of lists from get_filtered_rows_from_filter)</span>
+<span class="sd">        iii. filter is a an instance of SDQLFilter</span>
+<span class="sd">        iv. if columns is not None for get_filtered_rows, only return entries from those columns</span>
+<span class="sd">            in the result from get_filtered_rows</span>
+<span class="sd">    Arguments:</span>
+<span class="sd">        schema: a list of records of the form {&quot;name&quot;: &lt;column_name, &quot;type&quot;: &lt;column_type&gt;}.</span>
+<span class="sd">           The column_type must be a type from galyleo_constants.SDTP_TYPES.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;The schema must be a list of dictionaries, not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">error_entries</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_errors</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">]</span>
+        <span class="n">error_entries</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">error_entries</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">error_entries</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Errors in schema </span><span class="si">{</span><span class="n">schema</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">error_entries</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+           
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span>
+        <span class="c1"># self.is_sdtp_table = True</span>
+
+<div class="viewcode-block" id="SDMLTable.column_names">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.column_names">[docs]</a>
+    <span class="k">def</span> <span class="nf">column_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the names of the columns</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="SDMLTable.column_types">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.column_types">[docs]</a>
+    <span class="k">def</span> <span class="nf">column_types</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the types of the columns</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="SDMLTable.get_column_type">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.get_column_type">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the type of column column_name, or None if this table doesn&#39;t have a column with</span>
+<span class="sd">        name  column_name.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get the type for</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="k">if</span> <span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">column_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+    
+<div class="viewcode-block" id="SDMLTable.all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.all_values">[docs]</a>
+    <span class="k">def</span> <span class="nf">all_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the values from column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get the values for</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;all_values has not been in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="SDMLTable.get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.get_column">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get </span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values in the column, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;get_column has not been in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="SDMLTable.range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.range_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">range_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the dictionary {min_val, max_val} for column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the range spec for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            the minimum and  maximum of the column</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;range_spec has not been in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="SDMLTable.get_filtered_rows_from_filter">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.get_filtered_rows_from_filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows_from_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the rows for which the  filter returns True.  Returns as </span>
+<span class="sd">        a json list if jsonify is True, as a list of the appropriate types otherwise</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter: A SDQLFilter </span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">            jsonify: if True, returns a JSON list</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter as a JSON list if</span>
+<span class="sd">            jsonify is True or as a list if jsonify is False</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;get_filtered_rows_from_filter has not been in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="SDMLTable.get_filtered_rows">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.get_filtered_rows">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_spec</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Filter the rows according to the specification given by filter_spec.</span>
+<span class="sd">        Returns the rows for which the resulting filter returns True.Returns as </span>
+<span class="sd">        a json list if jsonify is True, as a list of the appropriate types otherwise</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter_spec: Specification of the filter, as a dictionary</span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">            jsonify: if True, returns a JSON list</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter as a JSON list if</span>
+<span class="sd">            jsonify is True or as a list if jsonify is False</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># Note that we don&#39;t check if the column names are all valid</span>
+        <span class="nb">filter</span> <span class="o">=</span> <span class="n">SDQLFilter</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span> <span class="k">if</span> <span class="n">filter_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_filtered_rows_from_filter</span><span class="p">(</span><span class="nb">filter</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">jsonify</span><span class="o">=</span><span class="n">jsonify</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="SDMLTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the dictionary  of this table, for saving on disk or transmission.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;to_dictionary has not been in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="SDMLTable.to_json">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTable.to_json">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_json</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the JSON form of this table, for saving on disk or transmission.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># Since the columns are already a dictionary, they are simply directly jsonified.  For the rows,</span>
+        <span class="c1"># just use the jsonify methods from sdtp_utils</span>
+
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">to_dictionary</span><span class="p">,</span> <span class="n">indent</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span></div>
+</div>
+
+
+<div class="viewcode-block" id="SDMLTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">SDMLTableFactory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A class which builds an SDMLTable of a specific type.  All SDMLTables have a schema, but after</span>
+<span class="sd">    that the specification varies, depending on the method the table uses to get the table rows.</span>
+<span class="sd">    Specific factories should subclass this and instantiate the class method build_table.</span>
+<span class="sd">    The tag is the table type, simply a string which indicates which class of table should be</span>
+<span class="sd">    built.</span>
+<span class="sd">    A new SDMLTableFactory class should be built for each concrete subclass of SDMLTable, and ideally</span>
+<span class="sd">    in the same file.  The SDMLTable subclass should put a &quot;type&quot; field in the intermediate form,</span>
+<span class="sd">    and the value of &quot;type&quot; should be the type built by the SDTP Table field</span>
+<span class="sd">    SDMLTableFactory is an abstract class -- each concrete subclass should call the init method on the </span>
+<span class="sd">    table_type on initialization.  build_table is the method which actually builds the table; the superclass </span>
+<span class="sd">    convenience version of the method throws an InvalidDataException if the spec has the wrong table type </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_type</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_type</span> <span class="o">=</span> <span class="n">table_type</span>
+
+    <span class="k">def</span> <span class="nf">valid_factory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_type</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Bad table type </span><span class="si">{</span><span class="n">table_spec</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> to build_table: expecting </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_type</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="SDMLFixedTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable">[docs]</a>
+<span class="k">class</span> <span class="nc">SDMLFixedTable</span><span class="p">(</span><span class="n">SDMLTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A SDMLFixedTable: This is a convenience class for subclasses which generate a fixed </span>
+<span class="sd">    number of rows locally, independent of filtering. This is instantiated with a function get_rows() which  delivers the</span>
+<span class="sd">    rows, rather than having them explicitly in the Table.  Note that get_rows() *must* return </span>
+<span class="sd">    a list of rows, each of which has the appropriate number of entries of the appropriate types.</span>
+<span class="sd">    all_values, range_spec, and get_filtered_rows_from_filter are all implemented on top of </span>
+<span class="sd">    get_rows.  Note that these methods can be overridden in a subclass if there is a</span>
+<span class="sd">    more efficient method than the obvious implementation, which is what&#39;s implemented here.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        schema: a list of records of the form {&quot;name&quot;: &lt;column_name, &quot;type&quot;: &lt;column_type&gt;}.</span>
+<span class="sd">           The column_type must be a type from galyleo_constants.SDTP_TYPES.</span>
+<span class="sd">        get_rows: a function which returns a list of list of values.  Each component list</span>
+<span class="sd">            must have the same length as schema, and the jth element must be of the</span>
+<span class="sd">            type specified in the jth element of schema</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">get_rows</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SDMLFixedTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span> <span class="o">=</span> <span class="n">get_rows</span>
+
+    <span class="c1"># This is used to get the names of a column from the schema</span>
+
+    <span class="k">def</span> <span class="nf">_get_column_values_and_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The column as a list, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatype (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">original_error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1"> is not a column of this table&#39;</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">original_error</span>
+        <span class="n">sdtp_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span><span class="p">()</span>
+        <span class="k">return</span><span class="p">([</span><span class="n">row</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">],</span> <span class="n">sdtp_type</span><span class="p">)</span>
+
+
+    
+<div class="viewcode-block" id="SDMLFixedTable.all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.all_values">[docs]</a>
+    <span class="k">def</span> <span class="nf">all_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the values from column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get the values for</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatype (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_values_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">values</span><span class="p">))</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="SDMLFixedTable.get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.get_column">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The column as a list, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatype (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_values_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="SDMLFixedTable.check_column_type">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.check_column_type">[docs]</a>
+    <span class="k">def</span> <span class="nf">check_column_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        For testing.  Makes sure that all the entries in column_name are the right type</span>
+<span class="sd">        No return, but throws an InvalidDataException if there&#39;s a bad element in the column</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">value_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_values</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">required_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_column_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">bad_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">value_list</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">type_check</span><span class="p">(</span><span class="n">required_type</span><span class="p">,</span> <span class="n">val</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bad_values</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Values </span><span class="si">{</span><span class="n">bad_values</span><span class="si">}</span><span class="s1"> could not be converted to </span><span class="si">{</span><span class="n">required_type</span><span class="si">}</span><span class="s1"> in column </span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+        
+
+<div class="viewcode-block" id="SDMLFixedTable.range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.range_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">range_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the dictionary {min_val, max_val} for column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the range spec for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            the minimum and  maximum of the column</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_values_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">values</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">values</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+    
+<div class="viewcode-block" id="SDMLFixedTable.get_filtered_rows_from_filter">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.get_filtered_rows_from_filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows_from_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the rows for which the  filter returns True.  Returns as </span>
+<span class="sd">        a json list if jsonify is True, as a list of the appropriate types otherwise</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter: A SDQLFilter </span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">            jsonify: if True, returns a JSON list</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter as a JSON list if</span>
+<span class="sd">            jsonify is True or as a list if jsonify is False</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+         <span class="c1"># Note that we don&#39;t check if the column names are all valid</span>
+        <span class="k">if</span> <span class="n">columns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">columns</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Make sure there&#39;s a value</span>
+        <span class="k">if</span> <span class="nb">filter</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="nb">filter</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">columns</span> <span class="o">==</span> <span class="p">[]:</span>
+            <span class="n">result</span> <span class="o">=</span>  <span class="n">rows</span>
+            <span class="n">column_types</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_types</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">()</span>
+            <span class="n">column_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">))</span> <span class="k">if</span> <span class="n">names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+            <span class="n">all_types</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_types</span><span class="p">()</span>
+            <span class="n">column_types</span> <span class="o">=</span> <span class="p">[</span><span class="n">all_types</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">column_indices</span><span class="p">]</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">[[</span><span class="n">row</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">column_indices</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">jsonifiable_rows</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">column_types</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="SDMLFixedTable.to_dataframe">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.to_dataframe">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dataframe</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Convert the table to a PANDAS DataFrame.  This is very straightforward; just </span>
+<span class="sd">        use get_rows to get the rows and convert the schema to the appropriate dtypes.</span>
+<span class="sd">        Note this relies on PANDAS type inference.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        
+        <span class="k">return</span>  <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span><span class="p">(),</span> <span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">())</span></div>
+
+    
+<div class="viewcode-block" id="SDMLFixedTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLFixedTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the intermediate form of this table as a dictioary</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;RowTable&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span>
+            <span class="s2">&quot;rows&quot;</span><span class="p">:</span> <span class="n">jsonifiable_rows</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_rows</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_types</span><span class="p">())</span>
+        <span class="p">}</span></div>
+</div>
+
+    
+    
+<div class="viewcode-block" id="RowTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RowTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">RowTableFactory</span><span class="p">(</span><span class="n">SDMLTableFactory</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A factory to build RowTables -- in fact, all SDMLFixedTables.  build_table is very simple, just instantiating</span>
+<span class="sd">    a RowTable on the rows and schema of the specification</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RowTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;RowTable&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RowTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">RowTable</span><span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s2">&quot;schema&quot;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s2">&quot;rows&quot;</span><span class="p">])</span>    </div>
+
+    
+
+<div class="viewcode-block" id="SDMLDataFrameTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLDataFrameTable">[docs]</a>
+<span class="k">class</span> <span class="nc">SDMLDataFrameTable</span><span class="p">(</span><span class="n">SDMLFixedTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A simple utility class to serve data from a PANDAS DataFrame.  The general idea is </span>
+<span class="sd">    that the values are in the PANDAS Dataframe, which must have the same column names</span>
+<span class="sd">    as the schema and compatible types.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SDMLDataFrameTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_rows</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span> <span class="o">=</span> <span class="n">dataframe</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="c1"># Make sure the column names and types match</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">()</span>
+         <span class="c1"># make sure that the types match</span>
+        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">:</span>
+            <span class="n">column_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">fixed_series</span> <span class="o">=</span> <span class="n">convert_list_to_type</span><span class="p">(</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">],</span> <span class="n">column_values</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">fixed_series</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;error </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s1"> converting </span><span class="si">{</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            
+    <span class="k">def</span> <span class="nf">_get_column_and_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">original_error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1"> is not a column of this table&#39;</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">original_error</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">[</span><span class="n">column_name</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+    
+<div class="viewcode-block" id="SDMLDataFrameTable.all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLDataFrameTable.all_values">[docs]</a>
+    <span class="k">def</span> <span class="nf">all_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the values from column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get the values for</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">values</span><span class="p">))</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+    
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get </span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values in the column, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span>
+    
+
+<div class="viewcode-block" id="SDMLDataFrameTable.range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLDataFrameTable.range_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">range_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the dictionary {min_val, max_val} for column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the range spec for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            the minimum and  maximum of the column</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">values</span><span class="p">))</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">([</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+         
+            
+<div class="viewcode-block" id="SDMLDataFrameTable.get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLDataFrameTable.get_column">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The column as a list, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatype (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_column_and_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">sdtp_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">jsonify</span> <span class="k">else</span> <span class="n">result</span></div>
+
+
+
+    <span class="k">def</span> <span class="nf">_get_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Very simple: just return the rows</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SDMLDataFrameTable.to_dataframe">
+<a class="viewcode-back" href="../modules.html#sdtp_table.SDMLDataFrameTable.to_dataframe">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dataframe</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="RowTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RowTable">[docs]</a>
+<span class="k">class</span> <span class="nc">RowTable</span><span class="p">(</span><span class="n">SDMLFixedTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A simple utility class to serve data from a static list of rows, which</span>
+<span class="sd">    can be constructed from a CSV file, Excel File, etc.  The idea is to</span>
+<span class="sd">    make it easy for users to create and upload simple datasets to be</span>
+<span class="sd">    served from a general-purpose server.  Note that this will need some</span>
+<span class="sd">    authentication.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">rows</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RowTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_rows</span><span class="p">)</span>
+        <span class="n">type_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_types</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">=</span> <span class="n">convert_rows_to_type_list</span><span class="p">(</span><span class="n">type_list</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">_get_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">]</span></div>
+
+    
+               
+<span class="k">def</span> <span class="nf">_column_names</span><span class="p">(</span><span class="n">schema</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">entry</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">]</span>
+        
+<div class="viewcode-block" id="RemoteSDMLTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable">[docs]</a>
+<span class="k">class</span> <span class="nc">RemoteSDMLTable</span><span class="p">(</span><span class="n">SDMLTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A SDTP Table on a remote server.  This just has a schema, an URL, and </span>
+<span class="sd">    header variables. This is the primary class for the client side of the SDTP,</span>
+<span class="sd">    and in many packages would be a separate client module.  However, the SDTP is </span>
+<span class="sd">    designed so that Remote Tables can be used to serve local tables, so this </span>
+<span class="sd">    is part of a server-side framework to.</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        table_name: name of the resmote stable</span>
+<span class="sd">        schema: schema of the remote table</span>
+<span class="sd">        url: url of the server hosting the remore table</span>
+<span class="sd">        header_dict: dictionary of variables and values required to access the table</span>
+<span class="sd">    Throws:</span>
+<span class="sd">        InvalidDataException if the table doesn&#39;t exist on the server, the </span>
+<span class="sd">        url is unreachable, the schema doesn&#39;t match the downloaded schema</span>
+
+<span class="sd">    &#39;&#39;&#39;</span> 
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">header_dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span> 
+        <span class="nb">super</span><span class="p">(</span><span class="n">RemoteSDMLTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_name</span> <span class="o">=</span> <span class="n">table_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header_dict</span> <span class="o">=</span> <span class="n">header_dict</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="RemoteSDMLTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="p">,</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;RemoteSDMLTable&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span>
+            <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span>
+            <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_dict</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_dict</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+        <span class="p">}</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_connect_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error: </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_check_entry_match</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">mismatches</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">field</span><span class="p">]</span> <span class="o">==</span> <span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">field</span><span class="p">]:</span> <span class="k">return</span>
+        <span class="n">mismatches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Mismatch in field </span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s1"> at entry </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s1">. Server value: </span><span class="si">{</span><span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">field</span><span class="p">]</span><span class="si">}</span><span class="s1">, declared value: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">field</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_check_schema_match</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Server schema </span><span class="si">{</span><span class="n">_column_names</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="si">}</span><span class="s1"> has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="si">}</span><span class="s1"> columns, declared schema </span><span class="si">{</span><span class="n">_column_names</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span><span class="si">}</span><span class="s1"> has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span><span class="si">}</span><span class="s1"> columns&#39;</span><span class="p">)</span>
+        <span class="n">mismatches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">schema</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_entry_match</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="n">mismatches</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_entry_match</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="n">mismatches</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mismatches</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">mismatch_report</span> <span class="o">=</span> <span class="s1">&#39;Schema mismatch: &#39;</span> <span class="o">+</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mismatches</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="n">mismatch_report</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="RemoteSDMLTable.connect_with_server">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.connect_with_server">[docs]</a>
+    <span class="k">def</span> <span class="nf">connect_with_server</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Connect with the server, ensuring that the server is:</span>
+<span class="sd">        a. a SDTP server</span>
+<span class="sd">        b. has self.table_name in its list of tables</span>
+<span class="sd">        c. the table there has a matching schema</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">/get_tables&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">300</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Bad connection with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">: code </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error connecting with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">/get_tables: </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">server_tables</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> reading tables from  </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">/get_tables&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_name</span> <span class="ow">in</span> <span class="n">server_tables</span><span class="p">:</span>
+            <span class="n">server_schema</span> <span class="o">=</span> <span class="n">server_tables</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_schema_match</span><span class="p">(</span><span class="n">server_schema</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect_error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Server at </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1"> does not have table </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># if we get here, everything worked:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ok</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+        
+        <span class="c1"># also check to make sure that we can authenticate to the table.  See /get_table_spec</span>
+    
+    <span class="k">def</span> <span class="nf">_check_column_and_get_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">):</span>
+         <span class="k">if</span> <span class="ow">not</span> <span class="n">column_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_names</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Column </span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1"> is not a column of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_column_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+
+        
+    <span class="k">def</span> <span class="nf">_do_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>  <span class="n">request</span><span class="p">):</span>
+        <span class="c1"># check to see if we have a connection, and then do a GET request using GET,</span>
+        <span class="c1"># supplying header variables if required. </span>
+        <span class="c1"># Note that the wire format is json, so the return from this function is json,</span>
+        <span class="c1"># and (if required) converted to the right datatype by the calling routing</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect_with_server</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">300</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">request</span><span class="si">}</span><span class="s1"> returned error code</span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="si">}</span><span class="s1"> ocurred in </span><span class="si">{</span><span class="n">request</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">_execute_column_route</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify_results</span><span class="p">,</span> <span class="n">route</span><span class="p">):</span>
+        <span class="c1"># The code for all_values, get_column, and range_spec are identical except for the route, </span>
+        <span class="c1"># so this method does both of them with the route passed in as an extra parameter</span>
+        <span class="c1"># use _do_request to execute the request, then, if jsonify_results </span>
+        <span class="c1"># parameters are [&#39;table_name&#39;, &#39;column_name&#39;]</span>
+        <span class="n">column_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_column_and_get_type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">route</span><span class="si">}</span><span class="s1">?table_name=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&amp;column_name=</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_do_request</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">jsonify_results</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">convert_list_to_type</span><span class="p">(</span><span class="n">column_type</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+        
+<div class="viewcode-block" id="RemoteSDMLTable.all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.all_values">[docs]</a>
+    <span class="k">def</span> <span class="nf">all_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify_results</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the values from column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the values for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values, in the appropriate type if jsonify_results is False,</span>
+<span class="sd">            otherwise in the appropriate json format</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_execute_column_route</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify_results</span><span class="p">,</span> <span class="s1">&#39;get_all_values&#39;</span><span class="p">)</span></div>
+
+        
+        
+<div class="viewcode-block" id="RemoteSDMLTable.get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.get_column">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The column as a list, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatype (if jsonify = False)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_execute_column_route</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="s1">&#39;get_column&#39;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="RemoteSDMLTable.range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.range_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">range_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify_results</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the dictionary {min_val, max_val} for column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the range spec for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            the minimum and  maximum of the column</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_execute_column_route</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify_results</span><span class="p">,</span> <span class="s1">&#39;get_range_spec&#39;</span><span class="p">)</span></div>
+
+        
+
+<div class="viewcode-block" id="RemoteSDMLTable.get_filtered_rows_from_filter">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.get_filtered_rows_from_filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows_from_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the rows for which the  filter returns True.  Returns as </span>
+<span class="sd">        a json list if jsonify is True, as a list of the appropriate types otherwise</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter: A SDQLFilter </span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">            jsonify: if True, returns a JSON list</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter as a JSON list if</span>
+<span class="sd">            jsonify is True or as a list if jsonify is False</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="nb">filter</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_filtered_rows</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="n">jsonify</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_filtered_rows</span><span class="p">(</span><span class="nb">filter</span><span class="o">.</span><span class="n">to_filter_spec</span><span class="p">(),</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="n">jsonify</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="RemoteSDMLTable.get_filtered_rows">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTable.get_filtered_rows">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_spec</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Filter the rows according to the specification given by filter_spec.</span>
+<span class="sd">        Returns the rows for which the resulting filter returns True.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter_spec: Specification of the filter, as a dictionary</span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect_with_server</span><span class="p">()</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">/get_filtered_rows&#39;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;table&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_name</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">filter_spec</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;filter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">filter_spec</span>
+        <span class="k">if</span> <span class="n">columns</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">columns</span>
+            <span class="n">sdtp_type_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="k">if</span> <span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="n">sdtp_type_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_types</span><span class="p">()</span> 
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">header_dict</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_dict</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">300</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;get_filtered_rows to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">: caused error response </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span> 
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error in get_filtered_rows to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">jsonify</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">convert_rows_to_type_list</span><span class="p">(</span><span class="n">sdtp_type_list</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span></div>
+</div>
+
+        
+<div class="viewcode-block" id="RemoteSDMLTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.RemoteSDMLTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">RemoteSDMLTableFactory</span><span class="p">(</span><span class="n">SDMLTableFactory</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A factory to build RemoteSDMLTables.  build_table is very simple, just instantiating</span>
+<span class="sd">    a RemoteSDMLTables on the url and schema of the specification</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RemoteSDMLTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;RemoteSDMLTable&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RemoteSDMLTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span>
+        <span class="n">header_dict</span> <span class="o">=</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;header_dict&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">header_dict</span> <span class="ow">in</span> <span class="n">table_spec</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">RemoteSDMLTable</span><span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;table_name&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;schema&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">],</span> <span class="n">header_dict</span><span class="p">)</span>  </div>
+
+    
+<div class="viewcode-block" id="ReloadableTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable">[docs]</a>
+<span class="k">class</span> <span class="nc">ReloadableTable</span><span class="p">(</span><span class="n">SDMLTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    An abstract superclass for SDMLTbales which can be loaded, flushed, then reloaded.</span>
+<span class="sd">    Concrete examples are FileTable and GCSTable.  The basic idea is that the </span>
+<span class="sd">    surface table is a schema with a pointer to an inner table with the data, and that</span>
+<span class="sd">    table can be loaded and flushed when needed.  This is, obviously, to ensure that</span>
+<span class="sd">    we don&#39;t have the contents of an arbitrary number of tables in memory.</span>
+<span class="sd">    The inner_table is built by the table_factory passed in the constructor,</span>
+<span class="sd">    and the implementing class implements a get_spec method which returns the</span>
+<span class="sd">    specification which is turned into the table</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        schema: the schema, as usual</span>
+<span class="sd">        table_factory: a TableFactory which will implement the inner table from a spec.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">table_factory</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ReloadableTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_factory</span> <span class="o">=</span> <span class="n">table_factory</span>
+
+<div class="viewcode-block" id="ReloadableTable.load">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.load">[docs]</a>
+    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Load the inner table using table factory, first calling self.get_spec() to </span>
+<span class="sd">        get the table specification, then build this.inner_table.  Returns nothing</span>
+<span class="sd">        but throws an InvalidDataException if the table factory fails to build the </span>
+<span class="sd">        table from the spec.  self.get_spec() may also throw an InvalidDataException </span>
+<span class="sd">        If it fails to find the spec.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># Note that either method can raise an InvalidDataException</span>
+        <span class="n">table_spec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_spec</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="o">=</span>  <span class="bp">self</span><span class="o">.</span><span class="n">table_factory</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="ReloadableTable.get_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.get_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        This *must* be implemented</span>
+<span class="sd">        by each implementing subclass (and is in fact one of the two  methods that must be</span>
+<span class="sd">        implemented by each implementing subclass; the other is to_dicitionary).  See FileTable and GCSTable </span>
+<span class="sd">        for concrete implementations</span>
+<span class="sd">        Parameters: None</span>
+<span class="sd">        Returns: a table specification that self.table_factory.build_table() can use to build a table</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;get_spec has not been  implemented in </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s1">.__name__&#39;</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="ReloadableTable.flush">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.flush">[docs]</a>
+    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Flush the inner table, typically to free up memory</span>
+<span class="sd">        Parameters: None</span>
+<span class="sd">        Returns: None</span>
+<span class="sd">        Side Effects: frees the inner table</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+    
+<div class="viewcode-block" id="ReloadableTable.all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.all_values">[docs]</a>
+    <span class="k">def</span> <span class="nf">all_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get all the values from column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get the values for</span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span><span class="o">.</span><span class="n">all_values</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="ReloadableTable.get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.get_column">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        get the column  column_name</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">            column_name: name of the column to get </span>
+<span class="sd">            jsonify: if true, return the result in a form that can be turned</span>
+<span class="sd">                into json </span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of the values in the column, either in json form (if jsonify = True) or in the</span>
+<span class="sd">            appropriate datatyp (if jsonify = False)</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span><span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="ReloadableTable.range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.range_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">range_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the dictionary {min_val, max_val} for column_name</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            column_name: name of the column to get the range spec for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            the minimum and  maximum of the column</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span><span class="o">.</span><span class="n">range_spec</span><span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="ReloadableTable.get_filtered_rows_from_filter">
+<a class="viewcode-back" href="../modules.html#sdtp_table.ReloadableTable.get_filtered_rows_from_filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_filtered_rows_from_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[],</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns the rows for which the  filter returns True.  Returns as </span>
+<span class="sd">        a json list if jsonify is True, as a list of the appropriate types otherwise</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            filter: A SDQLFilter </span>
+<span class="sd">            columns: the names of the columns to return.  Returns all columns if absent</span>
+<span class="sd">            jsonify: if True, returns a JSON list</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            The subset of self.get_rows() which pass the filter as a JSON list if</span>
+<span class="sd">            jsonify is True or as a list if jsonify is False</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner_table</span><span class="o">.</span><span class="n">get_filtered_rows_from_filter</span><span class="p">(</span><span class="nb">filter</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">)</span></div>
+</div>
+
+
+    
+    
+
+<div class="viewcode-block" id="FileTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.FileTable">[docs]</a>
+<span class="k">class</span> <span class="nc">FileTable</span><span class="p">(</span><span class="n">ReloadableTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A FileTable.  This table doesn&#39;t have row data in it directly; rather, it supports a RowTable stored in a separate SDML file at location path</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        schema -- the schema, as usual</span>
+<span class="sd">        path -- path to the table spec</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FileTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">RowTableFactory</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+    
+<div class="viewcode-block" id="FileTable.get_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.FileTable.get_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the table specification as a JSON dictionary and return it,</span>
+<span class="sd">        throwing an InvalidDataException if anything goes wrong</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">spec_file</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">spec_file</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> getting the specification for file </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+        
+<div class="viewcode-block" id="FileTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.FileTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the dictionary form of a FileTable</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s1">&#39;FileTable&#39;</span><span class="p">,</span>
+            <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span>
+        <span class="p">}</span></div>
+</div>
+
+    
+<div class="viewcode-block" id="FileTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.FileTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">FileTableFactory</span><span class="p">(</span><span class="n">SDMLTableFactory</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A factory to build FileTables.  build_table is very simple, just instantiating</span>
+<span class="sd">    a FileTable on the path and schema of the specification</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FileTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;FileTable&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FileTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">FileTable</span><span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;schema&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span> </div>
+
+        
+
+<div class="viewcode-block" id="GCSTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.GCSTable">[docs]</a>
+<span class="k">class</span> <span class="nc">GCSTable</span><span class="p">(</span><span class="n">ReloadableTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A GCSTable.  This table doesn&#39;t have row data in it directly; rather, it supports a RowTable stored in a separate SDML blob in Google Cloud Storage bucket &lt;bucket&gt; and blob &lt;blob&gt;</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        schema -- the schema, as usual</span>
+<span class="sd">        bucket -- the name of the GCS bucket</span>
+<span class="sd">        blob -- name of the blob with the RowTable</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="n">blob</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GCSTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">RowTableFactory</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bucket_name</span> <span class="o">=</span> <span class="n">bucket</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blob_name</span> <span class="o">=</span> <span class="n">blob</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">storage</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">bucket</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> encountered attempting to access </span><span class="si">{</span><span class="n">bucket</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="GCSTable.get_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.GCSTable.get_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the table specification as a JSON dictionary and return it,</span>
+<span class="sd">        throwing an InvalidDataException if anything goes wrong</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">blob</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bucket</span><span class="o">.</span><span class="n">blob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blob_name</span><span class="p">)</span>
+            <span class="n">json_form</span> <span class="o">=</span> <span class="n">blob</span><span class="o">.</span><span class="n">download_as_string</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> reading blob </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">blob_name</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bucket_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span>  <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">json_form</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> interpreting JSON string from  blob </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">blob_name</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bucket_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+
+        
+<div class="viewcode-block" id="GCSTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.GCSTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the dictionary form of a FileTable</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s1">&#39;GCSTable&#39;</span><span class="p">,</span>
+            <span class="s2">&quot;bucket&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bucket_name</span><span class="p">,</span>
+            <span class="s2">&quot;blob&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">blob_name</span>
+        <span class="p">}</span></div>
+</div>
+
+    
+<div class="viewcode-block" id="GCSTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.GCSTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">GCSTableFactory</span><span class="p">(</span><span class="n">SDMLTableFactory</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A factory to build GCSTables.  build_table is very simple, just instantiating</span>
+<span class="sd">    a GCSTable on the bucket, blob name, and schema of the specification</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GCSTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;GCSTable&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GCSTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">GCSTable</span><span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;schema&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;bucket&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;blob&#39;</span><span class="p">])</span> </div>
+
+    
+<div class="viewcode-block" id="HTTPTable">
+<a class="viewcode-back" href="../modules.html#sdtp_table.HTTPTable">[docs]</a>
+<span class="k">class</span> <span class="nc">HTTPTable</span><span class="p">(</span><span class="n">ReloadableTable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    An SDML Table hosted as an SDML file accessed not by filepath but by URL.  </span>
+<span class="sd">    Essentially identical to a FileTable, but with an URL instead of a path.</span>
+<span class="sd">    This permits any web server (or, for example, a github repo) to host</span>
+<span class="sd">    SDML Tables without implementing the SDTP protocol</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        schema -- the schema, as usual</span>
+<span class="sd">        url -- url of the SDML file</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Note -- this assumes that the table is publicly available.  How should</span>
+    <span class="c1"># secrets be passed in?  Env variables?</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">HTTPTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">RowTableFactory</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+    
+<div class="viewcode-block" id="HTTPTable.get_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_table.HTTPTable.get_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Get the table specification as a JSON dictionary and return it,</span>
+<span class="sd">        throwing an InvalidDataException if anything goes wrong</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">400</span><span class="p">:</span> <span class="c1"># error return</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s1"> in opening </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">m, reason </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Exception </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s1"> reading url </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1"> from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bucket_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+        
+        
+<div class="viewcode-block" id="HTTPTable.to_dictionary">
+<a class="viewcode-back" href="../modules.html#sdtp_table.HTTPTable.to_dictionary">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dictionary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the dictionary form of a FileTable</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;schema&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s1">&#39;HTTPTable&#39;</span><span class="p">,</span>
+            <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span>
+        <span class="p">}</span></div>
+</div>
+
+    
+<div class="viewcode-block" id="HTTPTableFactory">
+<a class="viewcode-back" href="../modules.html#sdtp_table.HTTPTableFactory">[docs]</a>
+<span class="k">class</span> <span class="nc">HTTPTableFactory</span><span class="p">(</span><span class="n">SDMLTableFactory</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A factory to build HTTPTables.  build_table is very simple, just instantiating</span>
+<span class="sd">    an HTTPTable on the url and schema of the specification</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">HTTPTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s1">&#39;HTTPTable&#39;</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_spec</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">HTTPTableFactory</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">build_table</span><span class="p">(</span><span class="n">table_spec</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">HTTPTable</span><span class="p">(</span><span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;schema&#39;</span><span class="p">],</span> <span class="n">table_spec</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">])</span></div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Simple Data Transfer Protocol</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdtp.html">The Simple Data Transfer Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdml.html">The Simple Data Markup Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html">The Simple Data Query Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html#examples">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../authors.html">Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../history.html">History</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, UC Regents.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

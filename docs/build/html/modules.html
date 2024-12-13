@@ -39,6 +39,1250 @@
   <section id="module-sdtp">
 <span id="api"></span><h1>API<a class="headerlink" href="#module-sdtp" title="Link to this heading">¶</a></h1>
 <p>Top-level package for The Simple Data Transfer Protocol.</p>
+<p id="module-sdtp_table">A SDMLTable class and associated utilities.  The SDMLTable class is initialized
+with the table’s schema,  single function,get_rows(), which returns the rows of the table.  To
+use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.
+The SDMLTable instance can then be passed to a SDTPServer with a call to
+galyleo_server_framework.add_table_server, and the server will then be able to serve
+the tables automatically using the instantiated SDMLTable.</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="sdtp_table.DEFAULT_HEADER_VARIABLES">
+<span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_HEADER_VARIABLES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'optional':</span> <span class="pre">[],</span> <span class="pre">'required':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#sdtp_table.DEFAULT_HEADER_VARIABLES" title="Link to this definition">¶</a></dt>
+<dd><p>The Default for header variables for a table is both required and optional lists are empty.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.FileTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">FileTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#FileTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.FileTable" title="Link to this definition">¶</a></dt>
+<dd><p>A FileTable.  This table doesn’t have row data in it directly; rather, it supports a RowTable stored in a separate SDML file at location path
+Parameters:</p>
+<blockquote>
+<div><p>schema – the schema, as usual
+path – path to the table spec</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.FileTable.get_spec">
+<span class="sig-name descname"><span class="pre">get_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#FileTable.get_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.FileTable.get_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the table specification as a JSON dictionary and return it,
+throwing an InvalidDataException if anything goes wrong</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.FileTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#FileTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.FileTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dictionary form of a FileTable</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.FileTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">FileTableFactory</span></span><a class="reference internal" href="_modules/sdtp_table.html#FileTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.FileTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A factory to build FileTables.  build_table is very simple, just instantiating
+a FileTable on the path and schema of the specification</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.GCSTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">GCSTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bucket</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blob</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#GCSTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.GCSTable" title="Link to this definition">¶</a></dt>
+<dd><p>A GCSTable.  This table doesn’t have row data in it directly; rather, it supports a RowTable stored in a separate SDML blob in Google Cloud Storage bucket &lt;bucket&gt; and blob &lt;blob&gt;
+Parameters:</p>
+<blockquote>
+<div><p>schema – the schema, as usual
+bucket – the name of the GCS bucket
+blob – name of the blob with the RowTable</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.GCSTable.get_spec">
+<span class="sig-name descname"><span class="pre">get_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#GCSTable.get_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.GCSTable.get_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the table specification as a JSON dictionary and return it,
+throwing an InvalidDataException if anything goes wrong</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.GCSTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#GCSTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.GCSTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dictionary form of a FileTable</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.GCSTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">GCSTableFactory</span></span><a class="reference internal" href="_modules/sdtp_table.html#GCSTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.GCSTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A factory to build GCSTables.  build_table is very simple, just instantiating
+a GCSTable on the bucket, blob name, and schema of the specification</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.HTTPTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">HTTPTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">url</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#HTTPTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.HTTPTable" title="Link to this definition">¶</a></dt>
+<dd><p>An SDML Table hosted as an SDML file accessed not by filepath but by URL.  
+Essentially identical to a FileTable, but with an URL instead of a path.
+This permits any web server (or, for example, a github repo) to host
+SDML Tables without implementing the SDTP protocol
+Parameters:</p>
+<blockquote>
+<div><p>schema – the schema, as usual
+url – url of the SDML file</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.HTTPTable.get_spec">
+<span class="sig-name descname"><span class="pre">get_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#HTTPTable.get_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.HTTPTable.get_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the table specification as a JSON dictionary and return it,
+throwing an InvalidDataException if anything goes wrong</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.HTTPTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#HTTPTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.HTTPTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dictionary form of a FileTable</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.HTTPTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">HTTPTableFactory</span></span><a class="reference internal" href="_modules/sdtp_table.html#HTTPTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.HTTPTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A factory to build HTTPTables.  build_table is very simple, just instantiating
+an HTTPTable on the url and schema of the specification</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">ReloadableTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">table_factory</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable" title="Link to this definition">¶</a></dt>
+<dd><p>An abstract superclass for SDMLTbales which can be loaded, flushed, then reloaded.
+Concrete examples are FileTable and GCSTable.  The basic idea is that the 
+surface table is a schema with a pointer to an inner table with the data, and that
+table can be loaded and flushed when needed.  This is, obviously, to ensure that
+we don’t have the contents of an arbitrary number of tables in memory.
+The inner_table is built by the table_factory passed in the constructor,
+and the implementing class implements a get_spec method which returns the
+specification which is turned into the table
+Parameters:</p>
+<blockquote>
+<div><p>schema: the schema, as usual
+table_factory: a TableFactory which will implement the inner table from a spec.</p>
+</div></blockquote>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.all_values">
+<span class="sig-name descname"><span class="pre">all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.all_values" title="Link to this definition">¶</a></dt>
+<dd><p>get all the values from column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the values for
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values, either in json form (if jsonify = True) or in the
+appropriate datatyp (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.flush">
+<span class="sig-name descname"><span class="pre">flush</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.flush"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.flush" title="Link to this definition">¶</a></dt>
+<dd><p>Flush the inner table, typically to free up memory
+Parameters: None
+Returns: None
+Side Effects: frees the inner table</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>get the column  column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get 
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values in the column, either in json form (if jsonify = True) or in the
+appropriate datatyp (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.get_filtered_rows_from_filter">
+<span class="sig-name descname"><span class="pre">get_filtered_rows_from_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.get_filtered_rows_from_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.get_filtered_rows_from_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the rows for which the  filter returns True.  Returns as 
+a json list if jsonify is True, as a list of the appropriate types otherwise</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter: A SDQLFilter 
+columns: the names of the columns to return.  Returns all columns if absent
+jsonify: if True, returns a JSON list</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter as a JSON list if
+jsonify is True or as a list if jsonify is False</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.get_spec">
+<span class="sig-name descname"><span class="pre">get_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.get_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.get_spec" title="Link to this definition">¶</a></dt>
+<dd><p>This <em>must</em> be implemented
+by each implementing subclass (and is in fact one of the two  methods that must be
+implemented by each implementing subclass; the other is to_dicitionary).  See FileTable and GCSTable 
+for concrete implementations
+Parameters: None
+Returns: a table specification that self.table_factory.build_table() can use to build a table</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.load">
+<span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.load" title="Link to this definition">¶</a></dt>
+<dd><p>Load the inner table using table factory, first calling self.get_spec() to 
+get the table specification, then build this.inner_table.  Returns nothing
+but throws an InvalidDataException if the table factory fails to build the 
+table from the spec.  self.get_spec() may also throw an InvalidDataException 
+If it fails to find the spec.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.ReloadableTable.range_spec">
+<span class="sig-name descname"><span class="pre">range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#ReloadableTable.range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.ReloadableTable.range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the dictionary {min_val, max_val} for column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the range spec for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>the minimum and  maximum of the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">RemoteSDMLTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">url</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">header_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable" title="Link to this definition">¶</a></dt>
+<dd><p>A SDTP Table on a remote server.  This just has a schema, an URL, and 
+header variables. This is the primary class for the client side of the SDTP,
+and in many packages would be a separate client module.  However, the SDTP is 
+designed so that Remote Tables can be used to serve local tables, so this 
+is part of a server-side framework to.
+Parameters:</p>
+<blockquote>
+<div><p>table_name: name of the resmote stable
+schema: schema of the remote table
+url: url of the server hosting the remore table
+header_dict: dictionary of variables and values required to access the table</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Throws:</dt><dd><p>InvalidDataException if the table doesn’t exist on the server, the 
+url is unreachable, the schema doesn’t match the downloaded schema</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.all_values">
+<span class="sig-name descname"><span class="pre">all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.all_values" title="Link to this definition">¶</a></dt>
+<dd><p>get all the values from column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the values for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values, in the appropriate type if jsonify_results is False,
+otherwise in the appropriate json format</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.connect_with_server">
+<span class="sig-name descname"><span class="pre">connect_with_server</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.connect_with_server"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.connect_with_server" title="Link to this definition">¶</a></dt>
+<dd><p>Connect with the server, ensuring that the server is:
+a. a SDTP server
+b. has self.table_name in its list of tables
+c. the table there has a matching schema</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>get the column  column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>The column as a list, either in json form (if jsonify = True) or in the
+appropriate datatype (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.get_filtered_rows">
+<span class="sig-name descname"><span class="pre">get_filtered_rows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter_spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.get_filtered_rows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.get_filtered_rows" title="Link to this definition">¶</a></dt>
+<dd><p>Filter the rows according to the specification given by filter_spec.
+Returns the rows for which the resulting filter returns True.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter_spec: Specification of the filter, as a dictionary
+columns: the names of the columns to return.  Returns all columns if absent</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.get_filtered_rows_from_filter">
+<span class="sig-name descname"><span class="pre">get_filtered_rows_from_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.get_filtered_rows_from_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.get_filtered_rows_from_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the rows for which the  filter returns True.  Returns as 
+a json list if jsonify is True, as a list of the appropriate types otherwise</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter: A SDQLFilter 
+columns: the names of the columns to return.  Returns all columns if absent
+jsonify: if True, returns a JSON list</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter as a JSON list if
+jsonify is True or as a list if jsonify is False</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.range_spec">
+<span class="sig-name descname"><span class="pre">range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the dictionary {min_val, max_val} for column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the range spec for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>the minimum and  maximum of the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dictionary  of this table, for saving on disk or transmission.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.RemoteSDMLTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">RemoteSDMLTableFactory</span></span><a class="reference internal" href="_modules/sdtp_table.html#RemoteSDMLTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RemoteSDMLTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A factory to build RemoteSDMLTables.  build_table is very simple, just instantiating
+a RemoteSDMLTables on the url and schema of the specification</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.RowTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">RowTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#RowTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RowTable" title="Link to this definition">¶</a></dt>
+<dd><p>A simple utility class to serve data from a static list of rows, which
+can be constructed from a CSV file, Excel File, etc.  The idea is to
+make it easy for users to create and upload simple datasets to be
+served from a general-purpose server.  Note that this will need some
+authentication.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.RowTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">RowTableFactory</span></span><a class="reference internal" href="_modules/sdtp_table.html#RowTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.RowTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A factory to build RowTables – in fact, all SDMLFixedTables.  build_table is very simple, just instantiating
+a RowTable on the rows and schema of the specification</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.SDMLDataFrameTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">SDMLDataFrameTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dataframe</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLDataFrameTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLDataFrameTable" title="Link to this definition">¶</a></dt>
+<dd><p>A simple utility class to serve data from a PANDAS DataFrame.  The general idea is 
+that the values are in the PANDAS Dataframe, which must have the same column names
+as the schema and compatible types.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLDataFrameTable.all_values">
+<span class="sig-name descname"><span class="pre">all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLDataFrameTable.all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLDataFrameTable.all_values" title="Link to this definition">¶</a></dt>
+<dd><p>get all the values from column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the values for
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values, either in json form (if jsonify = True) or in the
+appropriate datatyp (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLDataFrameTable.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLDataFrameTable.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLDataFrameTable.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>get the column  column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>The column as a list, either in json form (if jsonify = True) or in the
+appropriate datatype (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLDataFrameTable.range_spec">
+<span class="sig-name descname"><span class="pre">range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLDataFrameTable.range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLDataFrameTable.range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the dictionary {min_val, max_val} for column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the range spec for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>the minimum and  maximum of the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLDataFrameTable.to_dataframe">
+<span class="sig-name descname"><span class="pre">to_dataframe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLDataFrameTable.to_dataframe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLDataFrameTable.to_dataframe" title="Link to this definition">¶</a></dt>
+<dd><p>Convert the table to a PANDAS DataFrame.  This is very straightforward; just 
+use get_rows to get the rows and convert the schema to the appropriate dtypes.
+Note this relies on PANDAS type inference.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">SDMLFixedTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_rows</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable" title="Link to this definition">¶</a></dt>
+<dd><p>A SDMLFixedTable: This is a convenience class for subclasses which generate a fixed 
+number of rows locally, independent of filtering. This is instantiated with a function get_rows() which  delivers the
+rows, rather than having them explicitly in the Table.  Note that get_rows() <em>must</em> return 
+a list of rows, each of which has the appropriate number of entries of the appropriate types.
+all_values, range_spec, and get_filtered_rows_from_filter are all implemented on top of 
+get_rows.  Note that these methods can be overridden in a subclass if there is a
+more efficient method than the obvious implementation, which is what’s implemented here.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><dl class="simple">
+<dt>schema: a list of records of the form {“name”: &lt;column_name, “type”: &lt;column_type&gt;}.</dt><dd><p>The column_type must be a type from galyleo_constants.SDTP_TYPES.</p>
+</dd>
+<dt>get_rows: a function which returns a list of list of values.  Each component list</dt><dd><p>must have the same length as schema, and the jth element must be of the
+type specified in the jth element of schema</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.all_values">
+<span class="sig-name descname"><span class="pre">all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.all_values" title="Link to this definition">¶</a></dt>
+<dd><p>get all the values from column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the values for
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values, either in json form (if jsonify = True) or in the
+appropriate datatype (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.check_column_type">
+<span class="sig-name descname"><span class="pre">check_column_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.check_column_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.check_column_type" title="Link to this definition">¶</a></dt>
+<dd><p>For testing.  Makes sure that all the entries in column_name are the right type
+No return, but throws an InvalidDataException if there’s a bad element in the column</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>get all the column  column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>The column as a list, either in json form (if jsonify = True) or in the
+appropriate datatype (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.get_filtered_rows_from_filter">
+<span class="sig-name descname"><span class="pre">get_filtered_rows_from_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.get_filtered_rows_from_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.get_filtered_rows_from_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the rows for which the  filter returns True.  Returns as 
+a json list if jsonify is True, as a list of the appropriate types otherwise</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter: A SDQLFilter 
+columns: the names of the columns to return.  Returns all columns if absent
+jsonify: if True, returns a JSON list</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter as a JSON list if
+jsonify is True or as a list if jsonify is False</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.range_spec">
+<span class="sig-name descname"><span class="pre">range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the dictionary {min_val, max_val} for column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the range spec for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>the minimum and  maximum of the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.to_dataframe">
+<span class="sig-name descname"><span class="pre">to_dataframe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.to_dataframe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.to_dataframe" title="Link to this definition">¶</a></dt>
+<dd><p>Convert the table to a PANDAS DataFrame.  This is very straightforward; just 
+use get_rows to get the rows and convert the schema to the appropriate dtypes.
+Note this relies on PANDAS type inference.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLFixedTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLFixedTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLFixedTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the intermediate form of this table as a dictioary</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">SDMLTable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable" title="Link to this definition">¶</a></dt>
+<dd><p>An SDMLTable.  This is the abstract superclass for all Simple Data Markup Language tables, and 
+implements the schema methods of every SDML class.  The data methods are implemented
+by the concrete classes.  Any new SDMLTable class should:
+1. Subclass SDMLTable
+2. Have a constructor with the argument schema
+3. call super(&lt;classname, self).__init__(schema) in the constructor
+4. Implement the methods:</p>
+<blockquote>
+<div><ol class="loweralpha simple">
+<li><p>all_values(self, column_name, jsonify = False)</p></li>
+<li><p>range_spec(self, column_name, jsonify = False)</p></li>
+<li><p>get_filtered_rows_from_filter(self, filter, columns = None, jsonify = False)</p></li>
+<li><p>to_json(self)</p></li>
+</ol>
+</div></blockquote>
+<dl class="simple">
+<dt>where:</dt><dd><ol class="lowerroman simple">
+<li><p>column_name is the name of the column to get the values/range_spec from</p></li>
+<li><p>if jsonify = True, return the results as a JSON string, otherwise just as the 
+appropriate structure
+iia. list from all_values
+iib. list of length 2, ordered low to high for get_range_spec
+iic. list of lists from get_filtered_rows_from_filter)</p></li>
+<li><p>filter is a an instance of SDQLFilter</p></li>
+<li><p>if columns is not None for get_filtered_rows, only return entries from those columns
+in the result from get_filtered_rows</p></li>
+</ol>
+</dd>
+<dt>Arguments:</dt><dd><dl class="simple">
+<dt>schema: a list of records of the form {“name”: &lt;column_name, “type”: &lt;column_type&gt;}.</dt><dd><p>The column_type must be a type from galyleo_constants.SDTP_TYPES.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.all_values">
+<span class="sig-name descname"><span class="pre">all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.all_values" title="Link to this definition">¶</a></dt>
+<dd><p>get all the values from column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the values for
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values, either in json form (if jsonify = True) or in the
+appropriate datatyp (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.column_names">
+<span class="sig-name descname"><span class="pre">column_names</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.column_names"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.column_names" title="Link to this definition">¶</a></dt>
+<dd><p>Return the names of the columns</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.column_types">
+<span class="sig-name descname"><span class="pre">column_types</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.column_types"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.column_types" title="Link to this definition">¶</a></dt>
+<dd><p>Return the types of the columns</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>get the column  column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get 
+jsonify: if true, return the result in a form that can be turned</p>
+<blockquote>
+<div><p>into json</p>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>List of the values in the column, either in json form (if jsonify = True) or in the
+appropriate datatyp (if jsonify = False)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.get_column_type">
+<span class="sig-name descname"><span class="pre">get_column_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.get_column_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.get_column_type" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the type of column column_name, or None if this table doesn’t have a column with
+name  column_name.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>column_name: name of the column to get the type for</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.get_filtered_rows">
+<span class="sig-name descname"><span class="pre">get_filtered_rows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter_spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.get_filtered_rows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.get_filtered_rows" title="Link to this definition">¶</a></dt>
+<dd><p>Filter the rows according to the specification given by filter_spec.
+Returns the rows for which the resulting filter returns True.Returns as 
+a json list if jsonify is True, as a list of the appropriate types otherwise</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter_spec: Specification of the filter, as a dictionary
+columns: the names of the columns to return.  Returns all columns if absent
+jsonify: if True, returns a JSON list</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter as a JSON list if
+jsonify is True or as a list if jsonify is False</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.get_filtered_rows_from_filter">
+<span class="sig-name descname"><span class="pre">get_filtered_rows_from_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.get_filtered_rows_from_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.get_filtered_rows_from_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the rows for which the  filter returns True.  Returns as 
+a json list if jsonify is True, as a list of the appropriate types otherwise</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter: A SDQLFilter 
+columns: the names of the columns to return.  Returns all columns if absent
+jsonify: if True, returns a JSON list</p>
+</dd>
+<dt>Returns:</dt><dd><p>The subset of self.get_rows() which pass the filter as a JSON list if
+jsonify is True or as a list if jsonify is False</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.range_spec">
+<span class="sig-name descname"><span class="pre">range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the dictionary {min_val, max_val} for column_name
+Arguments:</p>
+<blockquote>
+<div><p>column_name: name of the column to get the range spec for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>the minimum and  maximum of the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.to_dictionary">
+<span class="sig-name descname"><span class="pre">to_dictionary</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.to_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.to_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Return the dictionary  of this table, for saving on disk or transmission.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTable.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTable.to_json"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTable.to_json" title="Link to this definition">¶</a></dt>
+<dd><p>Return the JSON form of this table, for saving on disk or transmission.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_table.SDMLTableFactory">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">SDMLTableFactory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#SDMLTableFactory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.SDMLTableFactory" title="Link to this definition">¶</a></dt>
+<dd><p>A class which builds an SDMLTable of a specific type.  All SDMLTables have a schema, but after
+that the specification varies, depending on the method the table uses to get the table rows.
+Specific factories should subclass this and instantiate the class method build_table.
+The tag is the table type, simply a string which indicates which class of table should be
+built.
+A new SDMLTableFactory class should be built for each concrete subclass of SDMLTable, and ideally
+in the same file.  The SDMLTable subclass should put a “type” field in the intermediate form,
+and the value of “type” should be the type built by the SDTP Table field
+SDMLTableFactory is an abstract class – each concrete subclass should call the init method on the 
+table_type on initialization.  build_table is the method which actually builds the table; the superclass 
+convenience version of the method throws an InvalidDataException if the spec has the wrong table type</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_table.get_errors">
+<span class="sig-prename descclassname"><span class="pre">sdtp_table.</span></span><span class="sig-name descname"><span class="pre">get_errors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">entry</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_table.html#get_errors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_table.get_errors" title="Link to this definition">¶</a></dt>
+<dd><p>A Utility to make sure that a schema entry is valid.  It must have a name, a type, both must be strings, 
+and the type is one of SDML_SCHEMA_TYPES.
+Arguments:</p>
+<blockquote>
+<div><p>entry: a dictionary with (at least) the keys name, type</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>A list of errors, which will be the empty list if no errors are found.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-sdtp_filter">A SDMLTable class and associated utilities.  The SDMLTable class is initialized
+with the table’s schema,  single function,get_rows(), which returns the rows of the table.  To
+use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.
+The SDMLTable instance can then be passed to a SDTPServer with a call to
+galyleo_server_framework.add_table_server, and the server will then be able to serve
+the tables automatically using the instantiated SDMLTable.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_filter.SDQLFilter">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_filter.</span></span><span class="sig-name descname"><span class="pre">SDQLFilter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter_spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#SDQLFilter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.SDQLFilter" title="Link to this definition">¶</a></dt>
+<dd><p>A Class which implements a Filter used  to filter rows.
+The arguments to the contstructor are a filter_spec, which is a boolean tree
+of filters and the columns which the filter is implemented over.</p>
+<p>This is designed to be instantiated from SDMLTable.get_filtered_rows()
+and in no other place – error checking, if any, should be done there.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter_spec: a Specification of the filter as a dictionary.
+columns: the columns in the form of a list {“name”, “type”}</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_filter.SDQLFilter.filter">
+<span class="sig-name descname"><span class="pre">filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rows</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#SDQLFilter.filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.SDQLFilter.filter" title="Link to this definition">¶</a></dt>
+<dd><p>Filter the rows according to the specification given to the constructor.
+Returns the rows for which the filter returns True.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>rows: list of list of values, in the same order as the columns</p>
+</dd>
+<dt>Returns:</dt><dd><p>subset of the rows, which pass the filter</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_filter.SDQLFilter.filter_index">
+<span class="sig-name descname"><span class="pre">filter_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rows</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#SDQLFilter.filter_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.SDQLFilter.filter_index" title="Link to this definition">¶</a></dt>
+<dd><p>Not designed for external call.
+Filter the rows according to the specification given to the constructor.
+Returns the INDICES of the  rows for which the filter returns True.
+Arguments:</p>
+<blockquote>
+<div><p>rows: list of list of values, in the same order as the columns</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>INDICES of the rows which pass the filter, AS A SET</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_filter.SDQLFilter.get_all_column_values_in_filter">
+<span class="sig-name descname"><span class="pre">get_all_column_values_in_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#SDQLFilter.get_all_column_values_in_filter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.SDQLFilter.get_all_column_values_in_filter" title="Link to this definition">¶</a></dt>
+<dd><p>Return the set of all values in operators for column column_name.  This is for the 
+case where a back-end process (e.g., a SQL stored procedure) takes parameter values
+for specific columns, and we want to use the values here to select at the source.
+Arguments:</p>
+<blockquote>
+<div><p>column_name: the name of the column to get all the values for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>A SET of all of the values for the column</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sdtp_filter.SDQLFilter.to_filter_spec">
+<span class="sig-name descname"><span class="pre">to_filter_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#SDQLFilter.to_filter_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.SDQLFilter.to_filter_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where
+A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
+the server for server-side filtering.  It’s also useful for testing and debugging
+Returns:</p>
+<blockquote>
+<div><p>A dictionary form of the Filter</p>
+</div></blockquote>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_filter.check_valid_spec">
+<span class="sig-prename descclassname"><span class="pre">sdtp_filter.</span></span><span class="sig-name descname"><span class="pre">check_valid_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter_spec</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#check_valid_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.check_valid_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Class method which checks to make sure that a filter spec is valid.
+Does not return, but throws an InvalidDataException with an error message
+if the filter spec is invalid</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter_spec: spec to test for validity</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_filter.check_valid_spec_return_boolean">
+<span class="sig-prename descclassname"><span class="pre">sdtp_filter.</span></span><span class="sig-name descname"><span class="pre">check_valid_spec_return_boolean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filter_spec</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_filter.html#check_valid_spec_return_boolean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_filter.check_valid_spec_return_boolean" title="Link to this definition">¶</a></dt>
+<dd><p>Class method which checks to make sure that a filter spec is valid.
+Returns True iff the filter_spec is valid.  Doesn’t give a reason 
+if it’s invalid</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>filter_spec: spec to test for validity</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-sdtp_server">A framework to easily and quickly implement a web server which serves tables according to
+the SDTP REST  protocol.  This implements the URL methods get_filtered_rows, get_all_values,
+and get_numeric_spec.  It parses the arguments, checking for errors, takes the
+table argument, looks up the appropriate SDMLTable to serve for that table, and
+then calls the method on that server to serve the request.  If no exception is thrown,
+returns a 200 with the result as a JSON structure, and if an exception is thrown, returns
+a 400 with an approrpriate error message.
+All of the methods here except for add_sdtp_table are simply route targets: none are
+designed for calls from any method other than flask.
+The way to use this is very simple:
+1. For each Table to be served, create an instance of sdtp_table.SDMLTable
+2. Call add_sdtp_table(table_name, sdtp_table)
+After that, requests for the named table will be served by the created data server.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="sdtp_server.SDTPServer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">SDTPServer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">__name__</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#SDTPServer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.SDTPServer" title="Link to this definition">¶</a></dt>
+<dd><p>An SDTP Server.  This is just an overlay on a Flask Blueprint, added so 
+we can expose initialize methods to the application</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_all_values">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_all_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_all_values" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_all_values route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+sorted list of all distinct values in the column.    Aborts with a 400
+for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_column">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_column route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+sorted list of all distinct values in the column.    Aborts with a 400
+for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_filtered_rows">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_filtered_rows</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_filtered_rows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_filtered_rows" title="Link to this definition">¶</a></dt>
+<dd><p>Get the filtered rows from a request.   Gets the filter_spec from the filter  field in the body, the table name from the table field
+in the body.  If there is a columns field in the body, returns
+onlyt the named columns.  If there is no filter_spec, returns all rows using server.get_rows().
+Aborts with a 400 if there is no table, or if check_valid_spec or get_filtered_rows throws an InvalidDataException, or if the filter_spec is not valid JSON.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>None</p>
+</dd>
+<dt>Returns:</dt><dd><p>The filtered rows as a JSONified list of lists</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_range_spec">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_range_spec</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the
+range  spec [min_val, max_val] as a list. Aborts with a 400
+for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</p>
+<dl class="simple">
+<dt>Arrguments:</dt><dd><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_table_names">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_table_names</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_table_names"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_table_names" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_table_names route.  Returns the list of names of tables hosted by this server, as a simple list of strings.
+Parameters: none
+Errors: none</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_table_schema">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_table_schema</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_table_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_table_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_table_schema.  Returns the schema of the table as a list
+of objects.  Each object will contain the fields “name” and “type”, where “type”
+is an SDML type.
+Returns 400 if the table is not found.
+Arguments:</p>
+<blockquote>
+<div><p>table_name: the name of the table</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_server.get_tables">
+<span class="sig-prename descclassname"><span class="pre">sdtp_server.</span></span><span class="sig-name descname"><span class="pre">get_tables</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_server.html#get_tables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_server.get_tables" title="Link to this definition">¶</a></dt>
+<dd><p>Target for the /get_tables route.  Dumps a JSONIfied dictionary of the form:
+{table_name: &lt;table_schema&gt;}, where &lt;table_schema&gt; is a dictionary
+{“name”: name, “type”: type}</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-sdtp_utils">Constants and utilities for the Simple Data Transfer Protocol</p>
+<dl class="py exception">
+<dt class="sig sig-object py" id="sdtp_utils.InvalidDataException">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">InvalidDataException</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#InvalidDataException"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.InvalidDataException" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>An exception thrown when a data table (list of rows) doesn’t match an accoompanying schema,</dt><dd><p>or a bad schema is specified, or a table row is the wrong length, or..</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="sdtp_utils.SDML_SCHEMA_TYPES">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">SDML_SCHEMA_TYPES</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['string',</span> <span class="pre">'number',</span> <span class="pre">'boolean',</span> <span class="pre">'date',</span> <span class="pre">'datetime',</span> <span class="pre">'timeofday']</span></em><a class="headerlink" href="#sdtp_utils.SDML_SCHEMA_TYPES" title="Link to this definition">¶</a></dt>
+<dd><p>SDTP Python Types</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.check_sdml_type_of_list">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">check_sdml_type_of_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sdml_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_of_values</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#check_sdml_type_of_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.check_sdml_type_of_list" title="Link to this definition">¶</a></dt>
+<dd><p>Check to make sure the values in list_of_values are all the right Python 
+type for operations.
+Arguments:</p>
+<blockquote>
+<div><p>sdml_type: One of SDML_SCHEMA_TYPES
+list_of_values: a Python list to be tested</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.convert_dict_to_type">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">convert_dict_to_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sdml_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#convert_dict_to_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.convert_dict_to_type" title="Link to this definition">¶</a></dt>
+<dd><p>Convert value_dict to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.</p>
+<p>Returns a default value if value can’t be converted
+Note that it’s the responsibility of the object which provides the rows to always provide the correct types,
+so this really should always just return a new copy of value_list
+Arguments:</p>
+<blockquote>
+<div><p>sdml_type: type to convert to
+value_dict: dictionary of values to be converted</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>value_dict with each value in the dictionary cast to the correct type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.convert_list_to_type">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">convert_list_to_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sdml_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#convert_list_to_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.convert_list_to_type" title="Link to this definition">¶</a></dt>
+<dd><p>Convert value_list to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
+Returns a default value if value can’t be converted
+Note that it’s the responsibility of the object which provides the rows to always provide the correct types,
+so this really should always just return a new copy of value_list
+Arguments:</p>
+<blockquote>
+<div><p>sdml_type: type to convert to
+value_list: list of values to be converted</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>value_list with each element cast to the correct type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.convert_rows_to_type_list">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">convert_rows_to_type_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sdml_type_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#convert_rows_to_type_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.convert_rows_to_type_list" title="Link to this definition">¶</a></dt>
+<dd><p>Convert the list of rows to the</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.convert_to_type">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">convert_to_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sdml_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#convert_to_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.convert_to_type" title="Link to this definition">¶</a></dt>
+<dd><p>Convert value to sdml_type, so that comparisons can be done.  This is used to convert
+the values in a filter_spec to a form that can be used in a filter.
+Throws an InvalidDataException if the type can’t be converted.
+An exception is Boolean, where “True, true, t” are all converted to True, but any
+other values are converted to False</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>sdml_type: type to convert to
+value: value to be converted</p>
+</dd>
+<dt>Returns:</dt><dd><p>value cast to the correct type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.jsonifiable_column">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">jsonifiable_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#jsonifiable_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.jsonifiable_column" title="Link to this definition">¶</a></dt>
+<dd><p>Return a jsonifiable version of the column of values, using jsonifiable_value
+to do the conversion.  We actually cheat a little, only calling _jsonifiable_value if column_type
+is one of SDML_TIME, SDML_DATE, SDML_DATETIME</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.jsonifiable_row">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">jsonifiable_row</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">row</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_types</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#jsonifiable_row"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.jsonifiable_row" title="Link to this definition">¶</a></dt>
+<dd><p>IReturn the jsonified form of the row, using jsonifiable_value for each element
+Arguments:</p>
+<blockquote>
+<div><p>row – the row to be converted
+column_types – the types of each element of the row</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns</dt><dd><p>A row of jsonifiable values</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.jsonifiable_rows">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">jsonifiable_rows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_types</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#jsonifiable_rows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.jsonifiable_rows" title="Link to this definition">¶</a></dt>
+<dd><p>Return the jsonifiable form of the list of rows, using jasonifiable_row for each row
+Arguments:</p>
+<blockquote>
+<div><p>rows – the list of rows to be converted
+column_types – the types of each element of the row</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns</dt><dd><p>A list of rows  of jsonified values</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="sdtp_utils.jsonifiable_value">
+<span class="sig-prename descclassname"><span class="pre">sdtp_utils.</span></span><span class="sig-name descname"><span class="pre">jsonifiable_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sdtp_utils.html#jsonifiable_value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sdtp_utils.jsonifiable_value" title="Link to this definition">¶</a></dt>
+<dd><p>Python doesn’t jsonify dates, datetimes, or times properly, so
+convert them to isoformat strings.  Return everything else as is
+Arguments:</p>
+<blockquote>
+<div><p>value – the value to be converted
+column_type – the SDTP type of the value</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns</dt><dd><p>A jsonifiable form of the value</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-table_server">Middleware for a server deployment.  This is designed
+to sit between the SDTP objects (in sdtp)
+and a server.  These objects provide two principal
+functions:
+1. Keep the set of tables by name
+2. Handle authentication on a table-specific basis
+3. Convert results into the wire format for transmission</p>
+<p>There are two major classes: 
+1. Table, which provides a wrapper around the SDTP Table with the table’s</p>
+<blockquote>
+<div><p>name, authentication requirememts, and result-conversion utilities</p>
+</div></blockquote>
+<ol class="arabic simple" start="2">
+<li><p>TableServer, which provides a registry and lookup service to Tables</p></li>
+</ol>
+<dl class="py exception">
+<dt class="sig sig-object py" id="table_server.ColumnNotFoundException">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">table_server.</span></span><span class="sig-name descname"><span class="pre">ColumnNotFoundException</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#ColumnNotFoundException"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.ColumnNotFoundException" title="Link to this definition">¶</a></dt>
+<dd><p>An exception that is thrown when a column is not found for a specific table</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="table_server.TableNotFoundException">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">table_server.</span></span><span class="sig-name descname"><span class="pre">TableNotFoundException</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableNotFoundException"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableNotFoundException" title="Link to this definition">¶</a></dt>
+<dd><p>An exception that is thrown when a table is not found in the TableServer</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="table_server.TableServer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">table_server.</span></span><span class="sig-name descname"><span class="pre">TableServer</span></span><a class="reference internal" href="_modules/table_server.html#TableServer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer" title="Link to this definition">¶</a></dt>
+<dd><p>The server for tables.  Its task is to maintain a correspondence
+between table names and the actual tables.  It also maintains the security information for a table (the variables and values required to access the table), and gives column information across tables</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.add_sdtp_table">
+<span class="sig-name descname"><span class="pre">add_sdtp_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sdtp_table</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.add_sdtp_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.add_sdtp_table" title="Link to this definition">¶</a></dt>
+<dd><p>Register a SDMLTable to serve data for a specific table name.
+Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDMLTable.</p>
+<dl class="simple">
+<dt>Arguments:</dt><dd><p>table_spec: dictionary of the form {“name”, “table”}, where table is a Table (see above)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.add_sdtp_table_from_dictionary">
+<span class="sig-name descname"><span class="pre">add_sdtp_table_from_dictionary</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">table_dictionary</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.add_sdtp_table_from_dictionary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.add_sdtp_table_from_dictionary" title="Link to this definition">¶</a></dt>
+<dd><p>Add an  SDMLTable from a dictionary (intermediate on-disk form).   The table dictionary has fields schema and type, and then type-
+specific fields.  Calls self.factories[table_dictionary[“type”]] to build the table,
+then calls self.add_sdtp_table to add the table.
+Raises an InvalidDataException if self.add_sdtp_table raises it or if the factory 
+is not present, or if the factory raises an exception</p>
+<dl>
+<dt>Arguments:</dt><dd><p>name: the name of the table
+table_dictionary: dictionary of the form {“name”, “table”}, where table is a table specification: a dictionary</p>
+<blockquote>
+<div><p>with the fields type and schema</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.add_table_factory">
+<span class="sig-name descname"><span class="pre">add_table_factory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_factory</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.add_table_factory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.add_table_factory" title="Link to this definition">¶</a></dt>
+<dd><p>Add a TableFactory for table type table_type.  When 
+self.add_table_from_dictionary(table_spec) is called, the appropriate 
+factory is called to build it
+Arguments:</p>
+<blockquote>
+<div><p>table_factory: an instance of a subclass of TableFactory which actually builds the table</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.get_all_tables">
+<span class="sig-name descname"><span class="pre">get_all_tables</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.get_all_tables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.get_all_tables" title="Link to this definition">¶</a></dt>
+<dd><p>Get all the tables.  This
+is to support a request for a numeric_spec or all_values for a column name when the
+table_name is not specified. In this case, all tables will be searched for this column name.</p>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>a list of all tables</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.get_all_values">
+<span class="sig-name descname"><span class="pre">get_all_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.get_all_values"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.get_all_values" title="Link to this definition">¶</a></dt>
+<dd><p>Get all of the distinct values for column column_name for table
+table_name.  Returns the list of distinct values for the columns
+Arguments:</p>
+<blockquote>
+<div><p>table_name: table to be searched
+column_name: name of the column
+jsonify: jsonify, or not, the result</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>Returns the list of distinct values for the columns</p>
+</dd>
+<dt>Raises:</dt><dd><p>TableNotFoundException if the table is not found
+ColumnNotFoundException if the column can’t be found</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.get_column">
+<span class="sig-name descname"><span class="pre">get_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.get_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.get_column" title="Link to this definition">¶</a></dt>
+<dd><p>Get the column for column column_name for table
+table_name.  Returns the column as a list
+Arguments:</p>
+<blockquote>
+<div><p>table_name: table to be searched
+column_name: name of the column
+jsonify: jsonify, or not, the result</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>Returns  a dictionary with keys{max_val, min_val}</p>
+</dd>
+<dt>Raises:</dt><dd><p>TableNotFoundException if the table is not found
+ColumnNotFoundException if the column can’t be found</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.get_range_spec">
+<span class="sig-name descname"><span class="pre">get_range_spec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">column_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jsonify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.get_range_spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.get_range_spec" title="Link to this definition">¶</a></dt>
+<dd><p>Get the range specification for column column_name for table
+table_name.  Returns  a two-length list [min_val, max_val]
+Arguments:</p>
+<blockquote>
+<div><p>table_name: table to be searched
+column_name: name of the column
+jsonify: jsonify, or not, the result</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>Returns  a dictionary with keys{max_val, min_val}</p>
+</dd>
+<dt>Raises:</dt><dd><p>TableNotFoundException if the table is not found
+ColumnNotFoundException if the column can’t be found</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="table_server.TableServer.get_table">
+<span class="sig-name descname"><span class="pre">get_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/table_server.html#TableServer.get_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#table_server.TableServer.get_table" title="Link to this definition">¶</a></dt>
+<dd><p>Get the table with name table_name, first checking to see
+if  table access is authorized by the passed headers.
+Arguments:</p>
+<blockquote>
+<div><p>table_name: name of the table to search for</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>The SDML table corresponding to the request</p>
+</dd>
+<dt>Raises:</dt><dd><p>TableNotFoundException if the table is not found</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
 
@@ -76,7 +1320,51 @@
 <li class="toctree-l1"><a class="reference internal" href="sdml.html">The Simple Data Markup Language</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sdql.html">The Simple Data Query Language</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sdql.html#examples">Examples</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">API</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.DEFAULT_HEADER_VARIABLES"><code class="docutils literal notranslate"><span class="pre">DEFAULT_HEADER_VARIABLES</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.FileTable"><code class="docutils literal notranslate"><span class="pre">FileTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.FileTableFactory"><code class="docutils literal notranslate"><span class="pre">FileTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.GCSTable"><code class="docutils literal notranslate"><span class="pre">GCSTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.GCSTableFactory"><code class="docutils literal notranslate"><span class="pre">GCSTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.HTTPTable"><code class="docutils literal notranslate"><span class="pre">HTTPTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.HTTPTableFactory"><code class="docutils literal notranslate"><span class="pre">HTTPTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.ReloadableTable"><code class="docutils literal notranslate"><span class="pre">ReloadableTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.RemoteSDMLTable"><code class="docutils literal notranslate"><span class="pre">RemoteSDMLTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.RemoteSDMLTableFactory"><code class="docutils literal notranslate"><span class="pre">RemoteSDMLTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.RowTable"><code class="docutils literal notranslate"><span class="pre">RowTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.RowTableFactory"><code class="docutils literal notranslate"><span class="pre">RowTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.SDMLDataFrameTable"><code class="docutils literal notranslate"><span class="pre">SDMLDataFrameTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.SDMLFixedTable"><code class="docutils literal notranslate"><span class="pre">SDMLFixedTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.SDMLTable"><code class="docutils literal notranslate"><span class="pre">SDMLTable</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.SDMLTableFactory"><code class="docutils literal notranslate"><span class="pre">SDMLTableFactory</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_table.get_errors"><code class="docutils literal notranslate"><span class="pre">get_errors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_filter.SDQLFilter"><code class="docutils literal notranslate"><span class="pre">SDQLFilter</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_filter.check_valid_spec"><code class="docutils literal notranslate"><span class="pre">check_valid_spec()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_filter.check_valid_spec_return_boolean"><code class="docutils literal notranslate"><span class="pre">check_valid_spec_return_boolean()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.SDTPServer"><code class="docutils literal notranslate"><span class="pre">SDTPServer</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_all_values"><code class="docutils literal notranslate"><span class="pre">get_all_values()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_column"><code class="docutils literal notranslate"><span class="pre">get_column()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_filtered_rows"><code class="docutils literal notranslate"><span class="pre">get_filtered_rows()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_range_spec"><code class="docutils literal notranslate"><span class="pre">get_range_spec()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_table_names"><code class="docutils literal notranslate"><span class="pre">get_table_names()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_table_schema"><code class="docutils literal notranslate"><span class="pre">get_table_schema()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_server.get_tables"><code class="docutils literal notranslate"><span class="pre">get_tables()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.InvalidDataException"><code class="docutils literal notranslate"><span class="pre">InvalidDataException</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.SDML_SCHEMA_TYPES"><code class="docutils literal notranslate"><span class="pre">SDML_SCHEMA_TYPES</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.check_sdml_type_of_list"><code class="docutils literal notranslate"><span class="pre">check_sdml_type_of_list()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.convert_dict_to_type"><code class="docutils literal notranslate"><span class="pre">convert_dict_to_type()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.convert_list_to_type"><code class="docutils literal notranslate"><span class="pre">convert_list_to_type()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.convert_rows_to_type_list"><code class="docutils literal notranslate"><span class="pre">convert_rows_to_type_list()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.convert_to_type"><code class="docutils literal notranslate"><span class="pre">convert_to_type()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.jsonifiable_column"><code class="docutils literal notranslate"><span class="pre">jsonifiable_column()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.jsonifiable_row"><code class="docutils literal notranslate"><span class="pre">jsonifiable_row()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.jsonifiable_rows"><code class="docutils literal notranslate"><span class="pre">jsonifiable_rows()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sdtp_utils.jsonifiable_value"><code class="docutils literal notranslate"><span class="pre">jsonifiable_value()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#table_server.ColumnNotFoundException"><code class="docutils literal notranslate"><span class="pre">ColumnNotFoundException</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#table_server.TableNotFoundException"><code class="docutils literal notranslate"><span class="pre">TableNotFoundException</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#table_server.TableServer"><code class="docutils literal notranslate"><span class="pre">TableServer</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="authors.html">Contributors</a></li>
 <li class="toctree-l1"><a class="reference internal" href="history.html">History</a></li>

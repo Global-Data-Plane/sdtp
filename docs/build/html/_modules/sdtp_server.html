@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sdtp_server &#8212; Simple Data Transfer Protocol 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sdtp_server</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">A framework to easily and quickly implement a web server which serves tables according to</span>
+<span class="sd">the SDTP REST  protocol.  This implements the URL methods get_filtered_rows, get_all_values,</span>
+<span class="sd">and get_numeric_spec.  It parses the arguments, checking for errors, takes the</span>
+<span class="sd">table argument, looks up the appropriate SDMLTable to serve for that table, and</span>
+<span class="sd">then calls the method on that server to serve the request.  If no exception is thrown,</span>
+<span class="sd">returns a 200 with the result as a JSON structure, and if an exception is thrown, returns</span>
+<span class="sd">a 400 with an approrpriate error message.</span>
+<span class="sd">All of the methods here except for add_sdtp_table are simply route targets: none are</span>
+<span class="sd">designed for calls from any method other than flask.</span>
+<span class="sd">The way to use this is very simple:</span>
+<span class="sd">1. For each Table to be served, create an instance of sdtp_table.SDMLTable</span>
+<span class="sd">2. Call add_sdtp_table(table_name, sdtp_table)</span>
+<span class="sd">After that, requests for the named table will be served by the created data server.</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="c1"># BSD 3-Clause License</span>
+
+<span class="c1"># Copyright (c) 2024, The Regents of the University of California (Regents)</span>
+<span class="c1"># All rights reserved.</span>
+
+<span class="c1"># Redistribution and use in source and binary forms, with or without</span>
+<span class="c1"># modification, are permitted provided that the following conditions are met:</span>
+
+<span class="c1"># 1. Redistributions of source code must retain the above copyright notice, this</span>
+<span class="c1">#    list of conditions and the following disclaimer.</span>
+
+<span class="c1"># 2. Redistributions in binary form must reproduce the above copyright notice,</span>
+<span class="c1">#    this list of conditions and the following disclaimer in the documentation</span>
+<span class="c1">#    and/or other materials provided with the distribution.</span>
+
+<span class="c1"># 3. Neither the name of the copyright holder nor the names of its</span>
+<span class="c1">#    contributors may be used to endorse or promote products derived from</span>
+<span class="c1">#    this software without specific prior written permission.</span>
+
+<span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;</span>
+<span class="c1"># AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE</span>
+<span class="c1"># IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE</span>
+<span class="c1"># DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE</span>
+<span class="c1"># FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL</span>
+<span class="c1"># DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR</span>
+<span class="c1"># SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER</span>
+<span class="c1"># CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,</span>
+<span class="c1"># OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE</span>
+<span class="c1"># OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">json</span> <span class="kn">import</span> <span class="n">JSONDecodeError</span><span class="p">,</span> <span class="n">loads</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Blueprint</span><span class="p">,</span> <span class="n">abort</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">request</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">InvalidDataException</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">check_valid_spec</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">TableServer</span><span class="p">,</span> <span class="n">TableNotFoundException</span><span class="p">,</span> <span class="n">ColumnNotFoundException</span>
+
+<div class="viewcode-block" id="SDTPServer">
+<a class="viewcode-back" href="../modules.html#sdtp_server.SDTPServer">[docs]</a>
+<span class="k">class</span> <span class="nc">SDTPServer</span><span class="p">(</span><span class="n">Blueprint</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    An SDTP Server.  This is just an overlay on a Flask Blueprint, added so </span>
+<span class="sd">    we can expose initialize methods to the application</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SDTPServer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_server</span> <span class="o">=</span> <span class="n">TableServer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ROUTES</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_table_names&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Return the list of table names&quot;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_table_schema?table_name string, required&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s1">&#39;Returns the schema of the table as a list of objects.  Each object will  contain the fields &quot;name&quot; and &quot;type&quot;, where &quot;type&quot;is an SDML type.&#39;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_tables&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span> <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s1">&#39;Dumps a JSONIfied dictionary of the form:{table_name: &lt;table_schema&gt;}, where &lt;table_schema&gt; is a dictionary{&quot;name&quot;: name, &quot;type&quot;: type}&#39;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_filtered_rows&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;POST&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;body&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;table&quot;</span><span class="p">:</span> <span class="s2">&quot; required, the name of the table to get the rows from&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="s2">&quot; If  present, a list of the names of the columns to fetch&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;filter&quot;</span><span class="p">:</span> <span class="s2">&quot; optional, a filter_spec in the SDTP filter language&quot;</span><span class="p">},</span>
+                
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Get the rows from table table which match filter filter.  If columns is present, return only those columns.  Returns a simple list of lists of columns&quot;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_range_spec?column_name string, required&amp;table_name string, required&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Get the  minimum and maximum values for column column_name in table table_name, returned as a list [min_val, max_val].&quot;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_all_values?column_name string, required&amp;table_name string, required&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Get all the distinct values for column column_name in table table_name, returned as a sorted list.&quot;</span><span class="p">},</span>
+            <span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;/get_column?column_name string, required&amp;table_name string, required&quot;</span><span class="p">,</span> <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;GET&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;headers&quot;</span><span class="p">:</span> <span class="s2">&quot;None&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Return the column &lt;column_name&gt; in table &lt;table_name&gt; as a list.  The behavior is undefined when the table is infinite&quot;</span><span class="p">},</span>
+            
+        <span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">init_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">,</span> <span class="n">logfile</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">logfile</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logfile</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;/tmp/sdtp_server_</span><span class="si">{</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span><span class="si">}</span><span class="s1">.log&#39;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">filename</span> <span class="o">=</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span></div>
+
+
+<span class="n">sdtp_server_blueprint</span> <span class="o">=</span> <span class="n">SDTPServer</span><span class="p">(</span><span class="s1">&#39;sdtp_server&#39;</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># utilities</span>
+
+<span class="k">def</span> <span class="nf">_log_and_abort</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="mi">400</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Sent an abort with error code (default 400) and log the error message.  Utility, internal use only</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        message: string with the message to be logged/sent</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+    <span class="n">abort</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_table_server</span><span class="p">(</span><span class="n">request_api</span><span class="p">,</span> <span class="n">table_name</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Utility for _get_table_server and _get_table_servers.  Get the server for  table_name and return it.</span>
+<span class="sd">    Aborts the request with a 400 if the table isn&#39;t found.  Aborts with a 403 if the</span>
+<span class="sd">    table isn&#39;t authorized</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        request_api: api  of the request</span>
+<span class="sd">        table_name: the table to get</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">get_table</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">TableNotFoundException</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Table </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1"> not found for request </span><span class="si">{</span><span class="n">request_api</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="mi">404</span>
+    <span class="n">_log_and_abort</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">code</span><span class="p">)</span>
+
+    
+<span class="k">def</span> <span class="nf">_get_json_body_from_post_request_data</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Get the json body (if any) from the data field of a  request.  The JSON</span>
+<span class="sd">    body might be as a dict or as a string; if the latter, decode it</span>
+<span class="sd">    Arguments:</span>
+<span class="sd">        request: a Flask request </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        A dictionary the json decode of the body, or None for a decode failure, no</span>
+<span class="sd">        data</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">type</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="ow">in</span> <span class="p">{</span><span class="nb">bytes</span><span class="p">,</span> <span class="nb">str</span><span class="p">}:</span> <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">data</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">loads</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">JSONDecodeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+<span class="k">def</span> <span class="nf">_get_post_argument</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">form_data</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">get_multi</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Get the value of the POST argument key from a request.  These can be either in the</span>
+<span class="sd">    form (which is a MultiDict) or in the data body.</span>
+<span class="sd">    </span>
+<span class="sd">    Arguments:</span>
+<span class="sd">        key: the key for the request</span>
+<span class="sd">        form_data: the contents of request.form</span>
+<span class="sd">        data: the contents of request.data, parsed into a JSON dict</span>
+<span class="sd">        get_multi: if true and the results are in a MultiDict (request.form) returns a list of all values</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        The value, or None if it is not present.  Raised no exceptions</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">form_data</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">form_data</span><span class="o">.</span><span class="n">getlist</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">if</span> <span class="n">get_multi</span> <span class="k">else</span> <span class="n">form_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span> <span class="k">return</span> <span class="n">result</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">if</span> <span class="n">data</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">_check_required_parameters</span><span class="p">(</span><span class="n">route</span><span class="p">,</span> <span class="n">required_parameters</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Internal use only.  Check that the required parameters are present.</span>
+<span class="sd">    If they aren&#39;t, aborts with a 400 and an error message</span>
+<span class="sd">    Arguments:</span>
+<span class="sd">        route: the route of the call, for an error message</span>
+<span class="sd">        required_parameters: the parameters that are supposed to be present</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">parameter</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">required_parameters</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parameter</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">parameter_string</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;parameters </span><span class="si">{</span><span class="nb">set</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s1"> &#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39;parameter </span><span class="si">{</span><span class="n">missing</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1"> &#39;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Missing &#39;</span> <span class="o">+</span> <span class="n">parameter_string</span> <span class="o">+</span> <span class="sa">f</span><span class="s1">&#39;for route </span><span class="si">{</span><span class="n">route</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+
+<span class="c1">#------------------------ROUTES-------------------------------------------------</span>
+
+<span class="c1"># A global route to return all of the routes</span>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/routes&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">routes</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">ROUTES</span><span class="p">)</span>
+
+<span class="c1"># Table routes</span>
+
+<div class="viewcode-block" id="get_table_names">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_table_names">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_table_names&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_table_names</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_table_names route.  Returns the list of names of tables hosted by this server, as a simple list of strings.</span>
+<span class="sd">    Parameters: none</span>
+<span class="sd">    Errors: none</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span></div>
+
+
+<div class="viewcode-block" id="get_tables">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_tables">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_tables&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_tables</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_tables route.  Dumps a JSONIfied dictionary of the form:</span>
+<span class="sd">    {table_name: &lt;table_schema&gt;}, where &lt;table_schema&gt; is a dictionary</span>
+<span class="sd">    {&quot;name&quot;: name, &quot;type&quot;: type}</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">            None</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">table</span><span class="p">)</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">schema</span>
+
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_table_schema">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_table_schema">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_table_schema&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_table_schema</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_table_schema.  Returns the schema of the table as a list</span>
+<span class="sd">    of objects.  Each object will contain the fields &quot;name&quot; and &quot;type&quot;, where &quot;type&quot;</span>
+<span class="sd">    is an SDML type.</span>
+<span class="sd">    Returns 400 if the table is not found.</span>
+<span class="sd">    Arguments:</span>
+<span class="sd">            table_name: the name of the table</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">_check_required_parameters</span><span class="p">(</span><span class="s1">&#39;/get_table_schema&#39;</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;table_name&#39;</span><span class="p">])</span>
+    
+    <span class="n">table</span> <span class="o">=</span> <span class="n">_table_server</span><span class="p">(</span><span class="s1">&#39;/get_table_schema&#39;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span></div>
+
+
+
+
+
+<span class="k">def</span> <span class="nf">_execute_column_operation</span><span class="p">(</span><span class="n">route</span><span class="p">):</span>
+    <span class="c1"># A utility for all of the column routes: they are all identical except for the TableServer method name, which </span>
+    <span class="c1"># even takes the same arguments</span>
+    <span class="n">_check_required_parameters</span><span class="p">(</span><span class="n">route</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;column_name&#39;</span><span class="p">])</span>
+    <span class="n">column_name</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;column_name&#39;</span><span class="p">)</span>
+    <span class="n">table_name</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">)</span>
+    <span class="n">methods</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;/get_range_spec&#39;</span><span class="p">:</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">get_range_spec</span><span class="p">,</span>
+        <span class="s1">&#39;/get_all_values&#39;</span><span class="p">:</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">get_all_values</span><span class="p">,</span>
+        <span class="s1">&#39;/get_column&#39;</span><span class="p">:</span> <span class="n">sdtp_server_blueprint</span><span class="o">.</span><span class="n">table_server</span><span class="o">.</span><span class="n">get_column</span>
+    <span class="p">}</span>
+    <span class="n">method</span> <span class="o">=</span> <span class="n">methods</span><span class="p">[</span><span class="n">route</span><span class="p">]</span>
+    
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">method</span><span class="p">(</span><span class="n">table_name</span><span class="p">,</span> <span class="n">column_name</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">TableNotFoundException</span><span class="p">:</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No  table </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1"> present, request </span><span class="si">{</span><span class="n">route</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="mi">404</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">ColumnNotFoundException</span><span class="p">:</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No column </span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s1"> in table </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1">, request </span><span class="si">{</span><span class="n">route</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="mi">404</span><span class="p">)</span>
+
+<div class="viewcode-block" id="get_range_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_range_spec">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_range_spec&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_range_spec</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_range_spec route.  Makes sure that column_name and table_name are  specified in the call, then returns the</span>
+<span class="sd">    range  spec [min_val, max_val] as a list. Aborts with a 400</span>
+<span class="sd">    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</span>
+
+<span class="sd">    Arrguments:</span>
+<span class="sd">            None</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_execute_column_operation</span><span class="p">(</span><span class="s1">&#39;/get_range_spec&#39;</span><span class="p">)</span></div>
+
+    
+
+
+<div class="viewcode-block" id="get_all_values">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_all_values">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_all_values&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_all_values</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_all_values route.  Makes sure that column_name and table_name are  specified in the call, then returns the</span>
+<span class="sd">    sorted list of all distinct values in the column.    Aborts with a 400</span>
+<span class="sd">    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">            None</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_execute_column_operation</span><span class="p">(</span><span class="s1">&#39;/get_all_values&#39;</span><span class="p">)</span></div>
+
+    
+
+<div class="viewcode-block" id="get_column">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_column">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_column&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">get_column</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Target for the /get_column route.  Makes sure that column_name and table_name are  specified in the call, then returns the</span>
+<span class="sd">    sorted list of all distinct values in the column.    Aborts with a 400</span>
+<span class="sd">    for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">            None</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_execute_column_operation</span><span class="p">(</span><span class="s1">&#39;/get_column&#39;</span><span class="p">)</span></div>
+
+ 
+
+<span class="c1"># A route solely intended for debugging/diagnostics -- just echo back the </span>
+<span class="c1"># POST form data</span>
+
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/_echo_json_post&#39;</span><span class="p">,</span> <span class="n">methods</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">_echo_json_post</span><span class="p">():</span>
+    <span class="n">json_data</span> <span class="o">=</span> <span class="n">_get_json_body_from_post_request_data</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">json_data</span><span class="p">)</span>
+
+
+<span class="c1"># Sole row route: get_filtered_rows</span>
+
+<div class="viewcode-block" id="get_filtered_rows">
+<a class="viewcode-back" href="../modules.html#sdtp_server.get_filtered_rows">[docs]</a>
+<span class="nd">@sdtp_server_blueprint</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get_filtered_rows&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_filtered_rows</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Get the filtered rows from a request.   Gets the filter_spec from the filter  field in the body, the table name from the table field</span>
+<span class="sd">    in the body.  If there is a columns field in the body, returns</span>
+<span class="sd">    onlyt the named columns.  If there is no filter_spec, returns all rows using server.get_rows().</span>
+<span class="sd">    Aborts with a 400 if there is no table, or if check_valid_spec or get_filtered_rows throws an InvalidDataException, or if the filter_spec is not valid JSON.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        None</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        The filtered rows as a JSONified list of lists</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># print(request.data)</span>
+        <span class="n">json_data</span> <span class="o">=</span> <span class="n">_get_json_body_from_post_request_data</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="n">filter_spec</span> <span class="o">=</span> <span class="n">_get_post_argument</span><span class="p">(</span><span class="s1">&#39;filter&#39;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">,</span> <span class="n">json_data</span><span class="p">)</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="n">_get_post_argument</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">,</span> <span class="n">json_data</span><span class="p">)</span>
+        <span class="n">table_name</span> <span class="o">=</span> <span class="n">_get_post_argument</span><span class="p">(</span><span class="s1">&#39;table&#39;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">,</span> <span class="n">json_data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_log_and_abort</span><span class="p">(</span><span class="s1">&#39;table is a required parameter to get filtererd rows&#39;</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="n">JSONDecodeError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Bad arguments to /get_filtered_rows.  Error </span><span class="si">{</span><span class="n">error</span><span class="o">.</span><span class="n">msg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">_table_server</span><span class="p">(</span><span class="s1">&#39;/get_filtered_rows&#39;</span><span class="p">,</span> <span class="n">table_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">columns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">columns</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Columns to /get_filtered_rows must be a list of strings, not </span><span class="si">{</span><span class="n">columns</span><span class="si">}</span><span class="s1">, 400&#39;</span><span class="p">)</span>
+    <span class="c1"># Make sure that the columns are all valid columns of this table</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">column_names</span><span class="p">()</span>
+    <span class="n">bad_columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span> <span class="k">if</span> <span class="n">column</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">bad_columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">_log_and_abort</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Bad Columns </span><span class="si">{</span><span class="n">bad_columns</span><span class="si">}</span><span class="s1"> sent to /get_filtered_rows, table </span><span class="si">{</span><span class="n">table_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="mi">400</span><span class="p">)</span>
+
+    <span class="c1"># If there is no filter, just return the table&#39;s rows.  If</span>
+    <span class="c1"># there is a filter, make sure it&#39;s valid and then return the filtered</span>
+    <span class="c1"># rows</span>
+    <span class="k">if</span> <span class="n">filter_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">check_valid_spec</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">InvalidDataException</span> <span class="k">as</span> <span class="n">invalid_error</span><span class="p">:</span>
+            <span class="n">_log_and_abort</span><span class="p">(</span><span class="n">invalid_error</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">get_filtered_rows</span><span class="p">(</span><span class="n">filter_spec</span><span class="o">=</span><span class="n">filter_spec</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">jsonify</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+    <span class="c1"># types = _column_types(table, columns)</span>
+    <span class="c1"># jsonifiable_result = jsonifiable_rows(result, types)</span>
+
+    <span class="c1"># return jsonify(jsonifiable_result)</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Simple Data Transfer Protocol</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdtp.html">The Simple Data Transfer Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdml.html">The Simple Data Markup Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html">The Simple Data Query Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html#examples">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../authors.html">Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../history.html">History</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, UC Regents.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

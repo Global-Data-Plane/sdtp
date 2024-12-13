@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sdtp_filter &#8212; Simple Data Transfer Protocol 0.1.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sdtp_filter</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">A SDMLTable class and associated utilities.  The SDMLTable class is initialized</span>
+<span class="sd">with the table&#39;s schema,  single function,get_rows(), which returns the rows of the table.  To</span>
+<span class="sd">use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.</span>
+<span class="sd">The SDMLTable instance can then be passed to a SDTPServer with a call to</span>
+<span class="sd">galyleo_server_framework.add_table_server, and the server will then be able to serve</span>
+<span class="sd">the tables automatically using the instantiated SDMLTable.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="c1"># BSD 3-Clause License</span>
+<span class="c1"># Copyright (c) 2024, The Regents of the University of California (Regents)</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1"># Redistribution and use in source and binary forms, with or without</span>
+<span class="c1"># modification, are permitted provided that the following conditions are met:</span>
+<span class="c1"># 1. Redistributions of source code must retain the above copyright notice, this</span>
+<span class="c1">#    list of conditions and the following disclaimer.</span>
+<span class="c1"># 2. Redistributions in binary form must reproduce the above copyright notice,</span>
+<span class="c1">#    this list of conditions and the following disclaimer in the documentation</span>
+<span class="c1">#    and/or other materials provided with the distribution.</span>
+<span class="c1"># 3. Neither the name of the copyright holder nor the names of its</span>
+<span class="c1">#    contributors may be used to endorse or promote products derived from</span>
+<span class="c1">#    this software without specific prior written permission.</span>
+<span class="c1"># THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;</span>
+<span class="c1"># AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE</span>
+<span class="c1"># IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE</span>
+<span class="c1"># DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE</span>
+<span class="c1"># FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL</span>
+<span class="c1"># DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR</span>
+<span class="c1"># SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER</span>
+<span class="c1"># CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,</span>
+<span class="c1"># OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE</span>
+<span class="c1"># OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</span>
+
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">nan</span><span class="p">,</span> <span class="n">isnan</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">urllib</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">SDML_BOOLEAN</span><span class="p">,</span> <span class="n">SDML_NUMBER</span><span class="p">,</span> <span class="n">SDML_DATETIME</span><span class="p">,</span> <span class="n">SDML_DATE</span><span class="p">,</span> \
+    <span class="n">SDML_SCHEMA_TYPES</span><span class="p">,</span> <span class="n">SDML_STRING</span><span class="p">,</span> <span class="n">SDML_TIME_OF_DAY</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">InvalidDataException</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">jsonifiable_column</span><span class="p">,</span> <span class="n">jsonifiable_row</span><span class="p">,</span> <span class="n">jsonifiable_rows</span><span class="p">,</span> <span class="n">jsonifiable_value</span>
+<span class="kn">from</span> <span class="nn">sdtp</span> <span class="kn">import</span> <span class="n">convert_list_to_type</span><span class="p">,</span> <span class="n">convert_to_type</span>
+
+<span class="n">SDQL_FILTER_FIELDS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;ALL&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;arguments&#39;</span><span class="p">},</span>
+    <span class="s1">&#39;ANY&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;arguments&#39;</span><span class="p">},</span>
+    <span class="s1">&#39;NONE&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;arguments&#39;</span><span class="p">},</span>
+    <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;column&#39;</span><span class="p">,</span> <span class="s1">&#39;values&#39;</span><span class="p">},</span>
+    <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;column&#39;</span><span class="p">,</span> <span class="s1">&#39;max_val&#39;</span><span class="p">,</span> <span class="s1">&#39;min_val&#39;</span><span class="p">},</span>
+    <span class="s1">&#39;REGEX_MATCH&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;column&#39;</span><span class="p">,</span> <span class="s1">&#39;expression&#39;</span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">SDQL_FILTER_OPERATORS</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">SDQL_FILTER_FIELDS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+
+
+<span class="k">def</span> <span class="nf">_canonize_set</span><span class="p">(</span><span class="n">any_set</span><span class="p">):</span>
+    <span class="c1"># Canonize a set into a sorted list; this is useful to ensure that</span>
+    <span class="c1"># error messages are deterministic</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">any_set</span><span class="p">)</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="check_valid_spec_return_boolean">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.check_valid_spec_return_boolean">[docs]</a>
+<span class="k">def</span> <span class="nf">check_valid_spec_return_boolean</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Class method which checks to make sure that a filter spec is valid.</span>
+<span class="sd">    Returns True iff the filter_spec is valid.  Doesn&#39;t give a reason </span>
+<span class="sd">    if it&#39;s invalid</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        filter_spec: spec to test for validity</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">check_valid_spec</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="n">InvalidDataException</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="check_valid_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.check_valid_spec">[docs]</a>
+<span class="k">def</span> <span class="nf">check_valid_spec</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Class method which checks to make sure that a filter spec is valid.</span>
+<span class="sd">    Does not return, but throws an InvalidDataException with an error message</span>
+<span class="sd">    if the filter spec is invalid</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        filter_spec: spec to test for validity</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Check to make sure filter_spec is a dictionary, and not something else</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;filter_spec must be a dictionary, not </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="c1">#</span>
+    <span class="c1"># Step 1: check to make sure there is an operator field, and that it&#39;s an operator we recognize</span>
+    <span class="k">if</span> <span class="s1">&#39;operator&#39;</span> <span class="ow">in</span> <span class="n">filter_spec</span><span class="p">:</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;operator&#39;</span><span class="p">]</span>
+        <span class="n">valid_operators</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">,</span> <span class="s1">&#39;ANY&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">,</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">,</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">,</span> <span class="s1">&#39;REGEX_MATCH&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">type</span><span class="p">(</span><span class="n">operator</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;operator </span><span class="si">{</span><span class="n">operator</span><span class="si">}</span><span class="s1"> is not a string&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">operator</span> <span class="ow">in</span> <span class="n">valid_operators</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">operator</span><span class="si">}</span><span class="s1"> is not a valid operator.  Valid operators are </span><span class="si">{</span><span class="n">valid_operators</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;There is no operator in </span><span class="si">{</span><span class="n">filter_spec</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># Check to make sure that the fields are right for the operator that was given</span>
+    <span class="c1"># We don&#39;t throw an error for extra fields, just for missing fields. Since we&#39;re</span>
+    <span class="c1"># going to use keys() to get the fields in the spec, and this will include the</span>
+    <span class="c1"># operator, &#39;operator&#39; is one of the fields</span>
+
+    <span class="n">fields_in_spec</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">filter_spec</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">missing_fields</span> <span class="o">=</span> <span class="n">SDQL_FILTER_FIELDS</span><span class="p">[</span><span class="n">operator</span><span class="p">]</span> <span class="o">-</span> <span class="n">fields_in_spec</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_fields</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filter_spec</span><span class="si">}</span><span class="s1"> is missing required fields </span><span class="si">{</span><span class="n">_canonize_set</span><span class="p">(</span><span class="n">missing_fields</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="c1"># For ALL and ANY, recursively check the arguments list and return</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">operator</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;ALL&#39;</span><span class="p">,</span> <span class="s1">&#39;ANY&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">}):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;arguments&#39;</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">bad_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">])</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;The arguments field for </span><span class="si">{</span><span class="n">operator</span><span class="si">}</span><span class="s1"> must be a list, not </span><span class="si">{</span><span class="n">bad_type</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;arguments&#39;</span><span class="p">]:</span>
+            <span class="n">check_valid_spec</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="c1"># if we get here, it&#39;s IN_LIST, IN_RANGE, or REGEX_MATCH.</span>
+
+    <span class="c1"># For IN_LIST, check that the values argument is a list</span>
+    <span class="k">if</span> <span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span>
+        <span class="n">values_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">values_type</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;The Values argument to IN_LIST must be a list, not </span><span class="si">{</span><span class="n">values_type</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;REGEX_MATCH&#39;</span><span class="p">:</span>
+
+        <span class="c1"># check to make sure the expression argument is a valid regex</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;expression&#39;</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Expression </span><span class="si">{</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;expression&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> is not a valid regular expression&#39;</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span>
+        <span class="n">primitive_types</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">bool</span><span class="p">}</span>
+        <span class="c1"># even though dates, datetimes, and times are allowable, they must be strings</span>
+        <span class="c1"># in iso format in the spec</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        fields = [&#39;max_val&#39;, &#39;min_val&#39;]</span>
+<span class="sd">        for field in fields:</span>
+<span class="sd">            if filter_spec[field] is None:</span>
+<span class="sd">                # for some reason type-check doesn&#39;t catch this</span>
+<span class="sd">                raise InvalidDataException(f&#39;The type of {field} must be one of {primitive_types}, not NoneType&#39;)</span>
+
+<span class="sd">            if not type(filter_spec[field]) in primitive_types:</span>
+<span class="sd">                raise InvalidDataException(f&#39;The type of {field} must be one of {primitive_types}, not {type(filter_spec[field])}&#39;)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># max_val and min_val must be comparable</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;max_val&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;min_val&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;max_val </span><span class="si">{</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;max_val&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> and min_val </span><span class="si">{</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;min_val&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> must be comparable for an IN_RANGE filter&#39;</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">_valid_column_spec</span><span class="p">(</span><span class="n">column</span><span class="p">):</span>
+    <span class="c1"># True iff column is a dictionary with keys &quot;name&quot;, &quot;type&quot;</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">column</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="k">return</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">keys</span> <span class="ow">and</span> <span class="s1">&#39;type&#39;</span> <span class="ow">in</span> <span class="n">keys</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<div class="viewcode-block" id="SDQLFilter">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.SDQLFilter">[docs]</a>
+<span class="k">class</span> <span class="nc">SDQLFilter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A Class which implements a Filter used  to filter rows.</span>
+<span class="sd">    The arguments to the contstructor are a filter_spec, which is a boolean tree</span>
+<span class="sd">    of filters and the columns which the filter is implemented over.</span>
+
+<span class="sd">    This is designed to be instantiated from SDMLTable.get_filtered_rows()</span>
+<span class="sd">    and in no other place -- error checking, if any, should be done there.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        filter_spec: a Specification of the filter as a dictionary.</span>
+<span class="sd">        columns: the columns in the form of a list {&quot;name&quot;, &quot;type&quot;}</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_spec</span><span class="p">,</span> <span class="n">columns</span><span class="p">):</span>
+        <span class="n">check_valid_spec</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">)</span>
+        <span class="n">bad_columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">_valid_column_spec</span><span class="p">(</span><span class="n">column</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bad_columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid column specifications </span><span class="si">{</span><span class="n">bad_columns</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">=</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;operator&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;ALL&#39;</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;ANY&#39;</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;NONE&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="o">=</span> <span class="p">[</span><span class="n">SDQLFilter</span><span class="p">(</span><span class="n">argument</span><span class="p">,</span> <span class="n">columns</span><span class="p">)</span> <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">column_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+            <span class="n">column_types</span> <span class="o">=</span> <span class="p">[</span><span class="n">column</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">column_index</span> <span class="o">=</span> <span class="n">column_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">column_name</span> <span class="o">=</span> <span class="n">column_names</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">column_index</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">column_type</span> <span class="o">=</span> <span class="n">column_types</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">column_index</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filter_spec</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> is not a valid column name&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">value_list</span> <span class="o">=</span> <span class="n">convert_list_to_type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">,</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;values&#39;</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span>  <span class="c1"># operator is IN_RANGE</span>
+                <span class="n">max_val</span> <span class="o">=</span> <span class="n">convert_to_type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">,</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;max_val&#39;</span><span class="p">])</span>
+                <span class="n">min_val</span> <span class="o">=</span> <span class="n">convert_to_type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">,</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;min_val&#39;</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">max_val</span> <span class="o">=</span> <span class="n">max_val</span> <span class="k">if</span> <span class="n">max_val</span> <span class="o">&gt;=</span> <span class="n">min_val</span> <span class="k">else</span> <span class="n">min_val</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">min_val</span> <span class="o">=</span> <span class="n">min_val</span> <span class="k">if</span> <span class="n">min_val</span> <span class="o">&lt;=</span> <span class="n">max_val</span> <span class="k">else</span> <span class="n">max_val</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># operator is REGEX_MATCH</span>
+                <span class="k">if</span> <span class="n">column_types</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">column_index</span><span class="p">]</span> <span class="o">!=</span> <span class="n">SDML_STRING</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;The column type for a REGEX filter must be SDML_STRING, not </span><span class="si">{</span><span class="n">column_types</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">column_index</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="c1"># note we&#39;ve already checked for expression and that it&#39;s valid</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;expression&#39;</span><span class="p">])</span>
+                <span class="c1"># hang on to the original expression for later jsonification</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">expression</span> <span class="o">=</span> <span class="n">filter_spec</span><span class="p">[</span><span class="s1">&#39;expression&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="SDQLFilter.to_filter_spec">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.SDQLFilter.to_filter_spec">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_filter_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where</span>
+<span class="sd">        A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to</span>
+<span class="sd">        the server for server-side filtering.  It&#39;s also useful for testing and debugging</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary form of the Filter</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">compound_operators</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;ALL&#39;</span><span class="p">,</span> <span class="s1">&#39;ANY&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">}</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;operator&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="p">}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="ow">in</span> <span class="n">compound_operators</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">argument</span><span class="o">.</span><span class="n">to_filter_spec</span><span class="p">()</span> <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_name</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidDataException</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Filter with operator </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="si">}</span><span class="s2"> must have a column name&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="s2">&quot;values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jsonifiable_column</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value_list</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="s2">&quot;max_val&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jsonifiable_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_val</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">)</span>
+                <span class="n">result</span><span class="p">[</span><span class="s2">&quot;min_val&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jsonifiable_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_val</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_type</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># operator == &#39;REGEX_MATCH&#39;</span>
+                <span class="n">result</span><span class="p">[</span><span class="s2">&quot;expression&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="SDQLFilter.filter">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.SDQLFilter.filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rows</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Filter the rows according to the specification given to the constructor.</span>
+<span class="sd">        Returns the rows for which the filter returns True.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            rows: list of list of values, in the same order as the columns</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            subset of the rows, which pass the filter</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c1"># Just an overlay on filter_index, which returns the INDICES of the rows</span>
+        <span class="c1"># which pass the filter.  This is the top-level call, filter_index is recursive</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_index</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">))</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="SDQLFilter.filter_index">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.SDQLFilter.filter_index">[docs]</a>
+    <span class="k">def</span> <span class="nf">filter_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rows</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Not designed for external call.</span>
+<span class="sd">        Filter the rows according to the specification given to the constructor.</span>
+<span class="sd">        Returns the INDICES of the  rows for which the filter returns True.</span>
+<span class="sd">        Arguments:</span>
+
+<span class="sd">            rows: list of list of values, in the same order as the columns</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            INDICES of the rows which pass the filter, AS A SET</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">all_indices</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;ALL&#39;</span><span class="p">:</span>
+            <span class="n">argument_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">argument</span><span class="o">.</span><span class="n">filter_index</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span> <span class="o">&amp;</span> <span class="n">y</span><span class="p">,</span> <span class="n">argument_indices</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">all_indices</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;ANY&#39;</span><span class="p">:</span>
+            <span class="n">argument_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">argument</span><span class="o">.</span><span class="n">filter_index</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span> <span class="o">|</span> <span class="n">y</span><span class="p">,</span> <span class="n">argument_indices</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;NONE&#39;</span><span class="p">:</span>
+            <span class="n">argument_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">argument</span><span class="o">.</span><span class="n">filter_index</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span> <span class="o">-</span> <span class="n">y</span><span class="p">,</span> <span class="n">argument_indices</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">all_indices</span><span class="p">))</span>
+        <span class="c1"># Primitive operator if we get here.  Dig out the values to filter</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">column_index</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">all_indices</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_list</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">all_indices</span> <span class="k">if</span> <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_val</span> <span class="ow">and</span> <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_val</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># self.operator == &#39;REGEX_MATCH&#39;</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">all_indices</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">regex</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="SDQLFilter.get_all_column_values_in_filter">
+<a class="viewcode-back" href="../modules.html#sdtp_filter.SDQLFilter.get_all_column_values_in_filter">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_all_column_values_in_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column_name</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the set of all values in operators for column column_name.  This is for the </span>
+<span class="sd">        case where a back-end process (e.g., a SQL stored procedure) takes parameter values</span>
+<span class="sd">        for specific columns, and we want to use the values here to select at the source.</span>
+<span class="sd">        Arguments:</span>
+<span class="sd">             column_name: the name of the column to get all the values for</span>
+<span class="sd">        Returns:</span>
+<span class="sd">             A SET of all of the values for the column</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">column_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ALL&#39;</span><span class="p">,</span> <span class="s1">&#39;ANY&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">]:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="c1"># I&#39;d like to use a comprehension here, but I&#39;m not sure how it interacts with union</span>
+            <span class="k">for</span> <span class="n">argument</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">argument</span><span class="o">.</span><span class="n">get_all_column_values_in_filter</span><span class="p">(</span><span class="n">column_name</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">values</span>
+        <span class="k">if</span> <span class="n">column_name</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_LIST&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value_list</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="o">==</span> <span class="s1">&#39;IN_RANGE&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">max_val</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_val</span><span class="p">}</span> 
+        <span class="c1"># must be REGEX_MATCH</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">expression</span><span class="p">}</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Simple Data Transfer Protocol</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdtp.html">The Simple Data Transfer Protocol</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdml.html">The Simple Data Markup Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html">The Simple Data Query Language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sdql.html#examples">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../authors.html">Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../history.html">History</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, UC Regents.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
