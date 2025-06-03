@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: sdtp
-Version: 0.2.5
+Version: 0.2.6
 Summary: A Python implementation of the Simple Data Transfer Protocol data structures, function, and server
 Author-email: Rick McGeer <rick@mcgeer.com>
 Project-URL: homepage, https://github.com/rickmcgeer/sdtp
@@ -21,6 +21,7 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 License-File: LICENSE.txt
+License-File: AUTHORS.rst
 Requires-Dist: Flask
 Requires-Dist: Flask-CORS
 Requires-Dist: numpy
@@ -29,6 +30,7 @@ Requires-Dist: requests
 Requires-Dist: Werkzeug
 Requires-Dist: google-cloud-storage
 Requires-Dist: google-cloud-core
+Dynamic: license-file
 
 #  The Simple Data Transfer Protcol
 
@@ -40,7 +42,7 @@ The structure is as follows:
 ├── sdtp
 │   ├── sdtp_server: A reference SDTP server and middleware
 │   ├── sdtp: The basic SDTP types, including Filters and Tables
-
+```
   
 # The Simple Data Transfer Protocol
 

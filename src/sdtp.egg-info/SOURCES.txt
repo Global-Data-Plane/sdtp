@@ -1,10 +1,9 @@
+AUTHORS.rst
 LICENSE
 LICENSE.txt
 README.md
-README.rst
 pyproject.toml
 setup.cfg
-src/app.py
 src/sdtp/__init__.py
 src/sdtp/sdtp_filter.py
 src/sdtp/sdtp_server.py
@@ -17,6 +16,7 @@ src/sdtp.egg-info/dependency_links.txt
 src/sdtp.egg-info/requires.txt
 src/sdtp.egg-info/top_level.txt
 tests/test_data_plane.py
+tests/test_path.py
 tests/test_sdtp_filter.py
 tests/test_sdtp_server.py
 tests/test_sdtp_table.py
