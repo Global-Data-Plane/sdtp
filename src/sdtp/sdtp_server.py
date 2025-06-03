@@ -49,9 +49,9 @@ import logging
 from json import JSONDecodeError, loads
 import datetime
 from flask import Blueprint, abort, jsonify, request
-from sdtp import InvalidDataException
-from sdtp import check_valid_spec
-from sdtp import TableServer, TableNotFoundException, ColumnNotFoundException
+from .sdtp_utils import InvalidDataException
+from .sdtp_filter import check_valid_spec
+from .table_server import TableServer, TableNotFoundException, ColumnNotFoundException
 
 class SDTPServer(Blueprint):
     '''

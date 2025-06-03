@@ -38,11 +38,11 @@ import requests
 import json
 from google.cloud import storage
 
-from sdtp import SDML_SCHEMA_TYPES
-from sdtp import InvalidDataException
-from sdtp import jsonifiable_column, jsonifiable_rows,  type_check
-from sdtp import convert_list_to_type, convert_rows_to_type_list
-from sdtp import SDQLFilter
+from .sdtp_utils import SDML_SCHEMA_TYPES
+from .sdtp_utils import InvalidDataException
+from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check
+from .sdtp_utils import convert_list_to_type, convert_rows_to_type_list
+from .sdtp_filter import SDQLFilter
 
         
 def _select_entries_from_row(row, indices):
@@ -242,7 +242,7 @@ class SDMLTable:
         # Since the columns are already a dictionary, they are simply directly jsonified.  For the rows,
         # just use the jsonify methods from sdtp_utils
 
-        return json.dumps(self.to_dictionary, indent = 2)
+        return json.dumps(self.to_dictionary(), indent = 2)
 
 class SDMLTableFactory:
     '''

@@ -48,8 +48,8 @@ from json import load
 
 import pandas as pd
 
-from sdtp import InvalidDataException
-from sdtp import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory, FileTableFactory, GCSTableFactory, HTTPTableFactory
+from .sdtp_utils import InvalidDataException
+from .sdtp_table import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory, FileTableFactory, GCSTableFactory, HTTPTableFactory
 
 class TableNotFoundException(Exception):
     '''

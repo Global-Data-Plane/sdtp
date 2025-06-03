@@ -39,11 +39,11 @@ import datetime
 import urllib
 import json
 
-from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
+from .sdtp_utils import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
     SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
-from sdtp import InvalidDataException
-from sdtp import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
-from sdtp import convert_list_to_type, convert_to_type
+from .sdtp_utils import InvalidDataException
+from .sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
+from .sdtp_utils import convert_list_to_type, convert_to_type
 
 SDQL_FILTER_FIELDS = {
     'ALL': {'arguments'},
