@@ -43,7 +43,7 @@ sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import SDMLFixedTable, RowTable, FileTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
+from sdtp import SDMLFixedTable, RowTable, FileTable, SDMLDataFrameTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
 from pytest_httpserver import HTTPServer
 import json
 
@@ -104,6 +104,8 @@ def test_all_values_and_range_spec():
     assert table.range_spec('name') == [ 'Alice', 'Ted']
 
 
+
+
 # Test to build a RowTable
 
 from tests.table_data_good import names, ages, dates, times, datetimes, booleans
@@ -137,6 +139,46 @@ def test_construct_dataframe():
         column_values = df[column["name"]].tolist()
         assert(check_sdml_type_of_list(column["type"], column_values))
 
+# DataFrame table tests
+def _make_dataframe_table():
+    df = pd.DataFrame(table_test_1["rows"])
+    return  SDMLDataFrameTable(table_test_1["schema"], df)
+
+def test_create_dataframe_table():
+    '''
+    Test table creation and ensure that the names and types match
+    '''
+    table = _make_dataframe_table()
+    assert table.column_names() == ['name', 'age']
+    assert table.column_types() == [SDML_STRING, SDML_NUMBER]
+    assert table.get_rows() == table_test_1["rows"]
+    for column in table_test_1["schema"]:
+        assert(table.get_column_type(column["name"]) == column["type"])
+    assert table.get_column_type(None) == None
+    assert table.get_column_type("Foo") == None
+
+def test_all_values_and_range_spec_dataframe_table():
+    table = _make_dataframe_table()
+    assert table.all_values('name') == ['Alice', 'Mary', 'Ted']
+    assert table.all_values('age') == [21, 24]
+    
+    with pytest.raises(InvalidDataException) as e:
+        table.all_values(None)
+        # assert e.message == 'None is not a column of this table'
+    with pytest.raises(InvalidDataException) as e:
+        table.all_values('Foo')
+        # assert e.message == 'Foo is not a column of this table'
+    with pytest.raises(InvalidDataException) as e:
+        table.range_spec(None)
+        # assert e.message == 'None is not a column of this table'
+    with pytest.raises(InvalidDataException) as e:
+        table.range_spec('Foo')
+        # assert e.message == 'Foo is not a column of this table'
+    assert table.range_spec('name') == ["Alice", "Ted"] # {'max_val': "Ted", "min_val": "Alice"}
+    assert table.range_spec('age') == [21, 24] # {'max_val': 24, "min_val": 21}
+    assert table.get_column('name') == ['Ted', 'Alice', 'Mary']
+    assert table.get_column('age') == [21, 24, 24]
+ 
 
 import requests
 from pytest_httpserver import HTTPServer

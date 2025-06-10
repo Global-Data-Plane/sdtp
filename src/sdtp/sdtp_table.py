@@ -467,7 +467,10 @@ class SDMLDataFrameTable(SDMLFixedTable):
             index = self.column_names().index(column_name)
         except ValueError as original_error:
             raise InvalidDataException(f'{column_name} is not a column of this table') from original_error
-        return (self.schema[index]["type"], self.dataframe[column_name].to_list())
+        return  {
+            "type": self.schema[index]["type"],
+            "values": self.dataframe[column_name].to_list()
+        }
     
     def all_values(self, column_name: str, jsonify = False):
         '''
@@ -482,10 +485,10 @@ class SDMLDataFrameTable(SDMLFixedTable):
             appropriate datatyp (if jsonify = False)
 
         '''
-        (values, sdtp_type) = self._get_column_and_type(column_name)
-        result = list(set(values))
+        type_and_values = self._get_column_and_type(column_name)
+        result = list(set(type_and_values['values']))
         result.sort()
-        return jsonifiable_column(result, sdtp_type) if jsonify else result
+        return jsonifiable_column(result, type_and_values['type']) if jsonify else result
     
     def get_column(self, column_name: str, jsonify = False):
         '''
@@ -500,8 +503,8 @@ class SDMLDataFrameTable(SDMLFixedTable):
             appropriate datatyp (if jsonify = False)
 
         '''
-        (result, sdtp_type) = self._get_column_and_type(column_name)
-        return jsonifiable_column(result, sdtp_type) if jsonify else result
+        type_and_values = self._get_column_and_type(column_name)
+        return jsonifiable_column(type_and_values['values'], type_and_values['type']) if jsonify else type_and_values['values']
     
 
     def range_spec(self, column_name: str, jsonify = False):
@@ -515,29 +518,14 @@ class SDMLDataFrameTable(SDMLFixedTable):
             the minimum and  maximum of the column
 
         '''
-        (values, sdtp_type) = self._get_column_and_type(column_name)
-        result = list(set(values))
+        type_and_values = self._get_column_and_type(column_name)
+        result = list(set(type_and_values['values'])) 
+        if len(result) == 0:
+            return []
         result.sort()
-        return jsonifiable_column([result[0], result[-1]], sdtp_type) if jsonify else result
+        response = [result[0], result[-1]]
+        return jsonifiable_column(response, type_and_values['type']) if jsonify else response
          
-            
-    def get_column(self, column_name: str, jsonify = False):
-        '''
-        get the column  column_name
-        Arguments:
-            column_name: name of the column to get
-            jsonify: if true, return the result in a form that can be turned
-                into json 
-
-        Returns:
-            The column as a list, either in json form (if jsonify = True) or in the
-            appropriate datatype (if jsonify = False)
-
-        '''
-        (result, sdtp_type) = self._get_column_and_type(column_name)
-        return jsonifiable_column(result, sdtp_type) if jsonify else result
-
-
     def _get_rows(self):
         '''
         Very simple: just return the rows
