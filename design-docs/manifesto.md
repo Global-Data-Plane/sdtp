@@ -244,6 +244,9 @@ This reflects a central design principle: **live off the land** — make use of 
 5. **Security and Access Control**
    SDTP inherits security features from the web. Authentication and authorization can be handled via bearer tokens, session cookies, OAuth flows, or mTLS — all without requiring custom protocol machinery.
 
+6. **No client-side software required**
+  In order to enable ease of use on the client side, no special-purpose client-side SDML software or library is required.  Requests can be formed and responses received using standard JSON and HTTP request libraries, and the results can be used immediately in any client.
+
 #### Example: Querying a Remote Table
 
 To query a remote table, a client sends a POST request to the SDTP endpoint:
@@ -273,8 +276,27 @@ The server responds with matching rows:
   [ 3, "Carlos", "US", true ]
 ]
 ```
+The rows are simply a JSON list of lists, in keeping with the design principle that no client-side software is required,and the results can be immediately read into a PANDAS DataFrame, JavaScript Array, or any other client-side matrix structure.   This convenience comes at the price of metadata information in the return; the client is responsible for knowing the names and types of the columns.
+In future versions, the query will offer a `return_sdml` boolean option, to permit
+the return of an SDML table.  This offers more robustness in the case where client-side SDML libraries are available and installed.
+```http
+POST /get_filtered_rows HTTP/1.1
+Host: data.example.com
+Content-Type: application/json
 
-In future versions, the same query will  yield:
+{
+  "table": "customers",
+  "filter": {
+    "operator": "ALL",
+    "args": [
+      { "column": "country", "operator": "IN_LIST", "val": ["CA", "US"] },
+      { "column": "active", "operator": "IN_LIST", "val": [true] }
+    ]
+  }
+  "return_sdml": "true"
+}
+```
+Which will give the return:
 
 ```json
 {
