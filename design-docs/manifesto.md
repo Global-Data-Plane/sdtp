@@ -215,7 +215,11 @@ The **Structured Data Transport Protocol (SDTP)** provides a minimal, JSON-over-
 
 SDTP is a REST API designed to support the **Structured Data Query Language**. Its principal method, `get_filtered_rows`, sends a table name and an SDQL filter, and receives in return the list of rows of that table matching the filter. If no filter is supplied, `get_filtered_rows` returns all the rows of the table.
 
-In future versions, this method will return a `RowTable` — a full SDML object including schema and filtered rows — rather than just a raw list of rows. This aligns better with the **Data Equivalence Principle** and enables downstream composition. For now, the reference implementation returns only the list of rows.
+Other methods retun information about tables the server stores, schemas, and column values, in order to provide information to the client in formulating queries.  
+
+All methods are designed to return simple JSON structures that can be parsed without SDML-specific libraries, in order to make SDML accessible immediately to software written in any language.  `get_filtered_rows` returns a list of lists of values; other methods return lists or simple JSON objects.  
+
+In future versions, SDTP's REST methods will, optionally, send SDML structures in response to a query to support stronger semantics when a client-side SDML library is avaiable.  For example, `get_filtered_rows` will return a `RowTable` — a full SDML object including schema and filtered rows — rather than just a raw list of rows.  The option default for all methods will be to return raw, rather than structured data -- it's easy for an SDML library to set the appropriate flags.
 
 This reflects a central design principle: **live off the land** — make use of what the web already gives us.
 
@@ -276,7 +280,7 @@ The server responds with matching rows:
   [ 3, "Carlos", "US", true ]
 ]
 ```
-The rows are simply a JSON list of lists, in keeping with the design principle that no client-side software is required,and the results can be immediately read into a PANDAS DataFrame, JavaScript Array, or any other client-side matrix structure.   This convenience comes at the price of metadata information in the return; the client is responsible for knowing the names and types of the columns.
+The rows are simply a JSON list of lists, in keeping with the design principle that no client-side software is required. The results can be immediately loaded into a Pandas DataFrame, JavaScript array, or any other matrix-like client structure.  This convenience comes at the cost of metadata: the client must already know the names and types of the columns.
 In future versions, the query will offer a `return_sdml` boolean option, to permit
 the return of an SDML table.  This offers more robustness in the case where client-side SDML libraries are available and installed.
 ```http
