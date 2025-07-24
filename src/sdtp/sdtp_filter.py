@@ -39,7 +39,7 @@ import datetime
 import urllib
 import json
 
-from .sdtp_utils import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
+from .sdtp_schema import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
     SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
 from .sdtp_utils import InvalidDataException
 from .sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value

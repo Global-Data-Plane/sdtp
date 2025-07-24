@@ -37,8 +37,10 @@ import pandas as pd
 import requests
 import json
 from google.cloud import storage
+import os
 
-from .sdtp_utils import SDML_SCHEMA_TYPES
+from .sdtp_schema import SDML_SCHEMA_TYPES, ColumnSpec, RowTableSchema, RemoteTableSchema, _make_table_schema 
+from typing import List
 from .sdtp_utils import InvalidDataException
 from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check
 from .sdtp_utils import convert_list_to_type, convert_rows_to_type_list
@@ -357,7 +359,10 @@ class SDMLFixedTable(SDMLTable):
         '''
         value_list = self.all_values(column_name, False)
         required_type = self.get_column_type(column_name)
-        bad_values = [val for val in value_list if not type_check(required_type, val)]
+        if required_type is not None:
+            bad_values = [val for val in value_list if not type_check(required_type, val)]
+        else:
+            bad_values = []
         if len(bad_values) > 0:
             raise InvalidDataException(f'Values {bad_values} could not be converted to {required_type} in column {column_name}')
         
@@ -439,7 +444,14 @@ class RowTableFactory(SDMLTableFactory):
     
     def build_table(self, table_spec):
         super(RowTableFactory, self).build_table(table_spec)
-        return RowTable(table_spec["schema"], table_spec["rows"])    
+        schema = _make_table_schema(table_spec)
+
+        # Ensure the table type is indeed "row"
+        if schema.get("type") == "RowTable":
+            return RowTable(table_spec["columns"], table_spec["rows"]) 
+        else:
+            raise ValueError(f"Expected RowTable, got {schema['type']}")
+           
     
 
 class SDMLDataFrameTable(SDMLFixedTable):
@@ -546,9 +558,13 @@ class RowTable(SDMLFixedTable):
     '''
 
     def __init__(self, schema, rows):
-        super(RowTable, self).__init__(schema, self._get_rows)
+        self.schema = schema  # set this *before* calling self.column_types()
         type_list = self.column_types()
+        # print("RowTable.__init__ received schema:", schema)
+        # print("RowTable.__init__ received rows:", rows)
+        # print("RowTable.__init__ inferred column types:", self.column_types(), type_list)
         self.rows = convert_rows_to_type_list(type_list, rows)
+        super(RowTable, self).__init__(schema, self._get_rows)
     
     def _get_rows(self):
         return [row for row in self.rows]
@@ -568,28 +584,32 @@ class RemoteSDMLTable(SDMLTable):
         table_name: name of the resmote stable
         schema: schema of the remote table
         url: url of the server hosting the remore table
-        header_dict: dictionary of variables and values required to access the table
+        auth: dictionary of variables and values required to access the table
     Throws:
         InvalidDataException if the table doesn't exist on the server, the 
         url is unreachable, the schema doesn't match the downloaded schema
 
     ''' 
-    def __init__(self, table_name, schema, url, header_dict = None): 
+    def __init__(self, table_name, schema, url,  auth = None, header_dict  = None): 
         super(RemoteSDMLTable, self).__init__(schema)
         self.url = url
-        self.schema = schema
+        self.schema: List[ColumnSpec] = schema
         self.table_name = table_name
-        self.header_dict = header_dict
+        self.auth = auth
         self.ok = False
+        self.header_dict = header_dict
 
     def to_dictionary(self):
-        return {
+        result =  {
             "name": self.table_name,
             "type": "RemoteSDMLTable",
             "schema": self.schema,
             "url": self.url,
-            "headers": self.header_dict if self.header_dict is not None else {}
         }
+        if self.auth is not None:
+            result["auth"] = self.auth
+        
+        return result
 
     def _connect_error(self, msg):
         self.ok = False
@@ -610,7 +630,14 @@ class RemoteSDMLTable(SDMLTable):
         if len(mismatches) > 0:
             mismatch_report = 'Schema mismatch: ' + ', '.join(mismatches)
             self._connect_error(mismatch_report)
-    
+
+
+    def _execute_get_request(self, url):
+        if self.header_dict:
+            return requests.get(url, headers = self.header_dict)
+        else:
+            return requests.get(url)
+        
     def connect_with_server(self):
         '''
         Connect with the server, ensuring that the server is:
@@ -620,7 +647,7 @@ class RemoteSDMLTable(SDMLTable):
         '''
         
         try:
-            response = requests.get(f'{self.url}/get_tables')
+            response = self._execute_get_request(f'{self.url}/get_tables')
             if response.status_code >= 300:
                 self._connect_error(f'Bad connection with {self.url}: code {response.status_code}')
         except Exception as e:
@@ -630,8 +657,9 @@ class RemoteSDMLTable(SDMLTable):
         except Exception as e:
             self._connect_error(f'Error {repr(e)} reading tables from  {self.url}/get_tables')
         if self.table_name in server_tables:
-            server_schema = server_tables[self.table_name]
+            server_schema: List[ColumnSpec] = server_tables[self.table_name]
             self._check_schema_match(server_schema)
+            self.server_schema = server_schema
         else:
             self._connect_error(f'Server at {self.url} does not have table {self.table_name}')
         # if we get here, everything worked:
@@ -653,7 +681,7 @@ class RemoteSDMLTable(SDMLTable):
         if not self.ok:
             self.connect_with_server()
         try:
-            response = requests.get(request)
+            response = self._execute_get_request(request)
             if response.status_code >= 300:
                 raise InvalidDataException(f'{request} returned error code{response.status_code}')
             return response.json()
@@ -781,8 +809,46 @@ class RemoteSDMLTableFactory(SDMLTableFactory):
     
     def build_table(self, table_spec):
         super(RemoteSDMLTableFactory, self).build_table(table_spec)
-        header_dict = table_spec['header_dict'] if header_dict in table_spec.keys() else None
-        return RemoteSDMLTable(table_spec['table_name'], table_spec['schema'], table_spec['url'], header_dict)  
+        schema = _make_table_schema(table_spec)
+
+        # Ensure the table type is indeed "remote"
+        if schema["type"] != "RemoteSDMLTable":
+            raise ValueError(f"Expected RemoteTableSchema, got {schema['type']}")
+
+        auth_info = table_spec.get('auth')
+        header_dict = None
+
+        if auth_info and auth_info.get("type"):
+            auth_type = auth_info["type"]
+            auth_token = None
+
+            match auth_type:
+                case 'env':
+                    env_var = auth_info["env_var"]
+                    auth_token = os.environ.get(env_var)
+                    if not auth_token:
+                        raise ValueError(f"Environment variable {env_var} not set")
+                case "file":
+                    path = auth_info["path"]
+                    if not os.path.isfile(path):
+                        raise ValueError(f"Auth file {path} not found")
+                    with open(path, "r") as f:
+                        auth_token = f.read().strip()
+                case "token":
+                    auth_token = auth_info["value"]
+                case _:
+                    raise ValueError(f"Unsupported auth type: {auth_type}")
+
+            if auth_token is not None:
+                header_dict = {"Authorization": f"Bearer {auth_token}"}
+
+        return RemoteSDMLTable(
+            table_spec['table_name'],
+            table_spec['columns'],
+            table_spec['url'],
+            auth_info,
+            header_dict
+        )  
     
 class ReloadableTable(SDMLTable):
     '''
@@ -945,8 +1011,9 @@ class FileTableFactory(SDMLTableFactory):
     
     def build_table(self, table_spec):
         super(FileTableFactory, self).build_table(table_spec)
+        schema = _make_table_schema(table_spec)
         
-        return FileTable(table_spec['schema'], table_spec['path']) 
+        return FileTable(schema['columns'], schema['path']) 
         
 
 class GCSTable(ReloadableTable):
@@ -1005,8 +1072,9 @@ class GCSTableFactory(SDMLTableFactory):
     
     def build_table(self, table_spec):
         super(GCSTableFactory, self).build_table(table_spec)
+        schema = _make_table_schema(table_spec)
         
-        return GCSTable(table_spec['schema'], table_spec['bucket'], table_spec['blob']) 
+        return GCSTable(schema['columns'], schema['bucket'], schema['blob']) 
     
 class HTTPTable(ReloadableTable):
     '''
@@ -1035,7 +1103,7 @@ class HTTPTable(ReloadableTable):
                 raise InvalidDataException(f'Error {response.status_code} in opening {self.url}m, reason {response.reason}')
             return response.json()
         except Exception as e:
-            raise InvalidDataException(f'Exception {repr(e)} reading url {self.url} from {self.bucket_name}')
+            raise InvalidDataException(f'Exception {repr(e)} reading url {self.url}')
         
         
     def to_dictionary(self):
@@ -1058,5 +1126,6 @@ class HTTPTableFactory(SDMLTableFactory):
     
     def build_table(self, table_spec):
         super(HTTPTableFactory, self).build_table(table_spec)
+        schema = _make_table_schema(table_spec)
         
-        return HTTPTable(table_spec['schema'], table_spec['url'])
+        return HTTPTable(schema['columns'], schema['url'])

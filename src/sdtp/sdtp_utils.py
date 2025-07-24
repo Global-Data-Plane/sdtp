@@ -30,31 +30,12 @@ import json
 import datetime
 import functools
 import pandas as pd
-""" Types for the SDTP schema """
+from sdtp import type_check, SDML_PYTHON_TYPES
 
-SDML_STRING = 'string'
-SDML_NUMBER = 'number'
-SDML_BOOLEAN = 'boolean'
-SDML_DATE = 'date'
-SDML_DATETIME = 'datetime'
-SDML_TIME_OF_DAY = 'timeofday'
 
-SDML_SCHEMA_TYPES = ['string', 'number', 'boolean', 'date', 'datetime', 'timeofday']
 
-'''
-SDTP Python Types
-'''
-SDML_PYTHON_TYPES = {
-    SDML_STRING: {str},
-    SDML_NUMBER: {int, float},
-    SDML_BOOLEAN: {bool},
-    SDML_DATE: {datetime.date},
-    SDML_DATETIME: {datetime.datetime, pd.Timestamp},
-    SDML_TIME_OF_DAY: {datetime.time}
-}
 
-def type_check(sdml_type, val):
-    return type(val) in SDML_PYTHON_TYPES[sdml_type]
+
 
 def check_sdml_type_of_list(sdml_type, list_of_values):
     '''
@@ -84,7 +65,7 @@ class InvalidDataException(Exception):
         super().__init__(message)
         self.message = message
 
-NON_JSONIFIABLE_TYPES = {SDML_DATE, SDML_TIME_OF_DAY, SDML_DATETIME}
+NON_JSONIFIABLE_TYPES = {"date", "timeofday", "datetime"}
 
 def jsonifiable_value(value, column_type):
     '''
@@ -129,7 +110,7 @@ def jsonifiable_column(column, column_type):
     '''
     Return a jsonifiable version of the column of values, using jsonifiable_value
     to do the conversion.  We actually cheat a little, only calling _jsonifiable_value if column_type
-    is one of SDML_TIME, SDML_DATE, SDML_DATETIME
+    is one of SDML_TIME, "date", "datetime"
     '''
     if column_type in NON_JSONIFIABLE_TYPES:
         return [jsonifiable_value(value, column_type) for value in column]
@@ -180,16 +161,16 @@ def convert_to_type(sdml_type, value):
     '''
     if type(value) in SDML_PYTHON_TYPES[sdml_type]:
         return value
-    if sdml_type == SDML_STRING:
+    if sdml_type == "string":
         if isinstance(value, str):
             return value
         try:
             return str(value)
         except ValueError:
             raise InvalidDataException('Cannot convert value to string')
-    elif sdml_type == SDML_NUMBER:
+    elif sdml_type == "number":
         return _convert_to_number(value)
-    elif sdml_type == SDML_BOOLEAN:
+    elif sdml_type == "boolean":
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -201,7 +182,7 @@ def convert_to_type(sdml_type, value):
         return False
     # Everything else is a date or time
 
-    elif sdml_type == SDML_DATETIME:
+    elif sdml_type == "datetime":
         if type(value) == datetime.date:
             return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
         if isinstance(value, str):
@@ -211,8 +192,8 @@ def convert_to_type(sdml_type, value):
                 raise InvalidDataException(f"Can't convert {value} to datetime")
         raise InvalidDataException(f"Can't convert {value} to datetime")
 
-    elif sdml_type == SDML_DATE:
-        if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
+    elif sdml_type == "date":
+        if type(value) in SDML_PYTHON_TYPES["datetime"]:
             return value.date()
         if isinstance(value, str):
             try:
@@ -221,8 +202,8 @@ def convert_to_type(sdml_type, value):
                 raise InvalidDataException(f"Can't convert {value} to date")
         raise InvalidDataException(f"Can't convert {value} to date")
     
-    elif sdml_type == SDML_TIME_OF_DAY:
-        if type(value) in SDML_PYTHON_TYPES[SDML_DATETIME]:
+    elif sdml_type == "timeofday":
+        if type(value) in SDML_PYTHON_TYPES["datetime"]:
             return value.time()
         if isinstance(value, str):
             try:
@@ -269,7 +250,13 @@ def convert_rows_to_type_list(sdml_type_list, rows):
     Convert the list of rows to the 
     '''
     length = len(sdml_type_list)
+    
+
     for row in rows:
+        # print("convert_rows_to_type_list received types:", sdml_type_list)
+        # print("Row:", row)
+        # print("Expected length:", length, "Actual length:", len(row))
+
         if len(row) != length:
             raise InvalidDataException(f'Length mismatch: required number of columns {length}, length {row} = {len(row)}')
     return  [convert_row_to_type_list(sdml_type_list, row) for row in rows]

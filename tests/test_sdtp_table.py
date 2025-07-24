@@ -43,7 +43,8 @@ sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import SDMLFixedTable, RowTable, FileTable, SDMLDataFrameTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
+from sdtp import  RowTable, FileTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
+from sdtp.sdtp_table import SDMLFixedTable, SDMLDataFrameTable
 from pytest_httpserver import HTTPServer
 import json
 
@@ -111,19 +112,21 @@ def test_all_values_and_range_spec():
 from tests.table_data_good import names, ages, dates, times, datetimes, booleans
 rows = [[names[i], ages[i], dates[i], times[i], datetimes[i], booleans[i]] for i in range(len(names))]
 
-schema = [
-    {"name": "name", "type": SDML_STRING},
-    {"name": "age", "type": SDML_NUMBER},
-    {"name": "date", "type": SDML_DATE},
-    {"name": "time", "type": SDML_TIME_OF_DAY},
-    {"name": "datetime", "type": SDML_DATETIME},
-    {"name": "boolean", "type": SDML_BOOLEAN}
-]
+def row_table_test_schema():
+    return [
+        {"name": "name", "type": SDML_STRING},
+        {"name": "age", "type": SDML_NUMBER},
+        {"name": "date", "type": SDML_DATE},
+        {"name": "time", "type": SDML_TIME_OF_DAY},
+        {"name": "datetime", "type": SDML_DATETIME},
+        {"name": "boolean", "type": SDML_BOOLEAN}
+    ]
 
 
 def test_row_table():
+    schema = row_table_test_schema()
     row_table = RowTable(schema, rows)
-    assert (row_table.schema == schema)
+    assert (row_table.schema == row_table_test_schema())
     assert (row_table.get_rows() == rows)
 
 
@@ -132,6 +135,7 @@ def test_row_table():
 #
 
 def test_construct_dataframe():
+    schema = row_table_test_schema()
     row_table = RowTable(schema, rows)
     df = row_table.to_dataframe()
     assert(df.columns.tolist() == row_table.column_names())
@@ -188,6 +192,7 @@ from pytest_httpserver import HTTPServer
 
 def test_connect():
     httpserver = HTTPServer(port=8888)
+    schema = row_table_test_schema()
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
@@ -198,6 +203,7 @@ def test_connect():
 
 def test_no_connect():
     httpserver = HTTPServer(port=8888)
+    schema = row_table_test_schema()
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     with pytest.raises(InvalidDataException) as exception:
         remote_table.connect_with_server()
@@ -205,6 +211,7 @@ def test_no_connect():
     assert(not remote_table.ok )
 
 def test_bad_connect():
+    schema = monkey_schema()
     httpserver = HTTPServer(port=8888)
     remote_table = RemoteSDMLTable('test', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
@@ -218,6 +225,7 @@ def test_bad_connect():
 
 
 def test_bad_table():
+    schema = monkey_schema()
     httpserver = HTTPServer(port=8888)
     remote_table = RemoteSDMLTable('test1', schema, httpserver.url_for("/"))
     assert(not remote_table.ok)
@@ -231,6 +239,7 @@ def test_bad_table():
 
 def test_bad_schema():
     httpserver = HTTPServer(port=8888)
+    schema = row_table_test_schema()
     bad_schema = schema[1:]
     remote_table = RemoteSDMLTable('test', bad_schema, httpserver.url_for("/"))
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
@@ -252,7 +261,7 @@ def test_bad_schema():
         remote_table.connect_with_server()
     assert('Schema mismatch' in repr(exception))
     httpserver.stop()
-
+test_bad_schema()
 # Test the remote column operations.  The RemoteSDML table will issue requests to the httpserver, who will repond with the JSONIfied version.  The 
 # Remote table will then translate that into a data structure.  So:
 # 1. Pull the json  responses from the server table and get the server to respond with that
@@ -260,6 +269,7 @@ def test_bad_schema():
 # 3. Pull the response from the RemoteTable and compare.
 def test_remote_column_operations():
     httpserver = HTTPServer(port=3000)
+    schema = row_table_test_schema()
     server_table = RowTable(schema, rows)
     httpserver.expect_request("/get_tables").respond_with_json({"test": schema})
     all_values_responses = {}
@@ -402,3 +412,63 @@ def test_http_table():
         http_table = h1.build_table(http_table_spec)
         assert isinstance(http_table, HTTPTable)
     _test_reloadable_table(http_table, row_table)
+
+
+import os
+import tempfile
+from sdtp import RemoteSDMLTableFactory
+
+def monkey_schema():
+    return [{"name": "foo", "type": "string"}]
+
+def test_remote_table_auth_env(monkeypatch):
+    monkeypatch.setenv("MY_TOKEN", "secret123")
+    schema = monkey_schema()
+    table_spec = {
+        "type": "RemoteSDMLTable",
+        "table_name": "test",
+        "columns": schema,
+        "url": "http://localhost:9999",
+        "auth": {
+            "type": "env",
+            "env_var": "MY_TOKEN"
+        }
+    }
+    factory = RemoteSDMLTableFactory()
+    table = factory.build_table(table_spec)
+    assert table.header_dict == {"Authorization": "Bearer secret123"}
+
+def test_remote_table_auth_file():
+    schema = monkey_schema()
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as f:
+        f.write("filetoken456")
+        f.flush()
+        table_spec = {
+            "type": "RemoteSDMLTable",
+            "table_name": "test",
+            "columns": schema,
+            "url": "http://localhost:9999",
+            "auth": {
+                "type": "file",
+                "path": f.name
+            }
+        }
+        factory = RemoteSDMLTableFactory()
+        table = factory.build_table(table_spec)
+        assert table.header_dict == {"Authorization": "Bearer filetoken456"}
+
+def test_remote_table_auth_token_direct():
+    schema = monkey_schema()
+    table_spec = {
+        "type": "RemoteSDMLTable",
+        "table_name": "test",
+        "columns": schema,
+        "url": "http://localhost:9999",
+        "auth": {
+            "type": "token",
+            "value": "direct-token-789"
+        }
+    }
+    factory = RemoteSDMLTableFactory()
+    table = factory.build_table(table_spec)
+    assert table.header_dict == {"Authorization": "Bearer direct-token-789"}

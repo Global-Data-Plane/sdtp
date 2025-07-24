@@ -28,20 +28,67 @@ __version__ = '0.1.0'
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .sdtp_utils import InvalidDataException
-from .sdtp_utils import SDML_BOOLEAN, SDML_DATE, SDML_DATETIME, SDML_NUMBER, SDML_PYTHON_TYPES, SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
-from .sdtp_utils import type_check, check_sdml_type_of_list, jsonifiable_value,  jsonifiable_row, jsonifiable_rows, jsonifiable_column, convert_to_type, convert_list_to_type, convert_row_to_type_list, convert_rows_to_type_list, convert_dict_to_type
+from .sdtp_schema import (
+    SDML_STRING,
+    SDML_NUMBER,
+    SDML_BOOLEAN,
+    SDML_DATE,
+    SDML_DATETIME,
+    SDML_TIME_OF_DAY,
+    SDMLType,
+    SDML_SCHEMA_TYPES,
+    SDML_PYTHON_TYPES,
+    type_check,
+    is_valid_sdml_type,
+    validate_column_spec,
+    validate_table_schema,
+    ColumnSpec,
+    BaseTableSchema,
+    RowTableSchema,
+    RemoteTableSchema,
+    TableSchema
+)
+
+from .sdtp_table import (
+    SDMLTable,
+    RowTable,
+    RemoteSDMLTable,
+    SDMLTableFactory,
+    RowTableFactory,
+    RemoteSDMLTableFactory,
+    FileTable,
+    FileTableFactory,
+    GCSTable,
+    GCSTableFactory, 
+    HTTPTable,
+    HTTPTableFactory
+)
+
+from .sdtp_utils import (
+    InvalidDataException,
+    check_sdml_type_of_list,
+    jsonifiable_value,  
+    jsonifiable_row,
+    jsonifiable_rows,
+    jsonifiable_column,
+    convert_to_type,
+    convert_list_to_type,
+    convert_row_to_type_list,
+    convert_rows_to_type_list, 
+    convert_dict_to_type
+)
 from .sdtp_filter import SDQL_FILTER_OPERATORS, SDQL_FILTER_FIELDS, check_valid_spec, check_valid_spec_return_boolean, SDQLFilter
-from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
+# from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
 from .table_server import  TableServer, TableNotFoundException, ColumnNotFoundException
 from .sdtp_server import sdtp_server_blueprint, SDTPServer
 
 __all__ = [
   'InvalidDataException',
   'SDML_BOOLEAN', 'SDML_DATE', 'SDML_DATETIME', 'SDML_NUMBER', 'SDML_PYTHON_TYPES', 'SDML_SCHEMA_TYPES', 'SDML_STRING', 'SDML_TIME_OF_DAY',
-  'type_check', 'check_sdml_type_of_list', 'jsonifiable_value', ' jsonifiable_row', 'jsonifiable_rows', 'jsonifiable_column', 'convert_to_type', 'convert_list_to_type', 'convert_row_to_type_list', 'convert_rows_to_type_list', 'convert_dict_to_type',
+  'SDMLType', 'ColumnSpec', 'is_valid_sdml_type', 'validate_column_spec', 'validate_table_schema', 'BaseTableSchema', 'RowTableSchema', 'RemoteTableSchema', 'TableSchema',
+  'type_check', 'check_sdml_type_of_list', 'jsonifiable_value', 'jsonifiable_row', 'jsonifiable_rows', 'jsonifiable_column', 'convert_to_type', 'convert_list_to_type', 'convert_row_to_type_list', 'convert_rows_to_type_list', 'convert_dict_to_type',
   'SDQL_FILTER_OPERATORS', 'SDQL_FILTER_FIELDS', 'check_valid_spec', 'check_valid_spec_return_boolean', 'SDQLFilter',
-  'SDMLTable', 'SDMLFixedTable', 'SDMLDataFrameTable', 'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory', 'FileTable', 'FileTableFactory', 'GCSTable', 'GCSTableFactory', 'HTTPTable', 'HTTPTableFactory',
+  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory', 'FileTable', 'FileTableFactory', 'GCSTable', 'GCSTableFactory', 'HTTPTable', 'HTTPTableFactory',
   'TableServer', 'TableNotFoundException', 'ColumnNotFoundException',
   'sdtp_server_blueprint', 'SDTPServer'
 ]
