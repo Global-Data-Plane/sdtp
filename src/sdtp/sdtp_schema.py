@@ -177,9 +177,6 @@ def validate_table_schema(table_schema: dict) -> None:
         raise ValueError("Schema must include a 'type' field")
     
     required_fields_by_type = {
-        "FileTable": {"path"},
-        "GCSTable": {"bucket", "blob"},
-        "HTTPTable": {"url"},
         "RemoteSDMLTable": {"url", "table_name"},
         "RowTable": {"rows"}
     }
@@ -235,38 +232,11 @@ class RemoteTableSchema(BaseTableSchema):
     table_name: str
     auth: Optional[RemoteAuthSpec]
 
-# --- File Table Schema ---
-class FileTableSchema(BaseTableSchema):
-    '''
-    The schema for a FileTable.  The type of a FileTable is "file", and it must have  a "path"
-    field. 
-    '''
-    type: Literal["file"]
-    path: str
 
-# --- GCS Table Schema ---
-class GCSTableSchema(BaseTableSchema):
-    '''
-    The schema for a GCSTable.  The type of a GCSTable is "gcs", and it must have  "bucket" and "blob" fields 
-    '''
-    type: Literal["gcs"]
-    bucket: str
-    blob:str
-
-# --- HTTP Table Schema ---
-class HTTPTableSchema(BaseTableSchema):
-    '''
-    The schema for an HTTPTable.  The type of an HTTPTable is "http", and it must have a "url"
-    field.  An auth field is optional
-    '''
-    type: Literal["http"]
-    url: str
-    auth: Optional[RemoteAuthSpec]
-    
     
 
 # --- Unified Table Schema Union ---
-TableSchema = Union[RowTableSchema, RemoteTableSchema, FileTableSchema, GCSTableSchema, HTTPTableSchema]
+TableSchema = Union[RowTableSchema, RemoteTableSchema]
 
 # --- Simple make_schema() dispatcher ---
 def _make_table_schema(obj: dict):

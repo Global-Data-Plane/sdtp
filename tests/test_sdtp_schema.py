@@ -89,13 +89,13 @@ def test_make_table_schema_row():
 
 def test_make_table_schema_remote():
     spec = {
-        "type": "RemoteTable",
+        "type": "RemoteSDMLTable",
         "schema": [{"name": "foo", "type": "string"}],
         "url": "http://example.com",
         "table_name": "remote_table"
     }
     schema = _make_table_schema(spec)
-    assert schema["type"] == "RemoteTable"
+    assert schema["type"] == "RemoteSDMLTable"
     assert schema["table_name"] == "remote_table"
 
 def test_make_table_schema_invalid_type():

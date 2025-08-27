@@ -43,7 +43,7 @@ sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import  RowTable, FileTable, HTTPTable, RemoteSDMLTable, RowTableFactory, FileTableFactory, HTTPTableFactory
+from sdtp import  RowTable,  RemoteSDMLTable, RowTableFactory
 from sdtp.sdtp_table import SDMLFixedTable, SDMLDataFrameTable
 from pytest_httpserver import HTTPServer
 import json
@@ -82,13 +82,13 @@ def test_all_values_and_range_spec():
     assert table.all_values('age') == [21, 24]
     
     with pytest.raises(InvalidDataException) as e:
-        table.all_values(None)
+        table.all_values(None) # type: ignore[operator]
         # assert e.message == 'None is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
         table.all_values('Foo')
         # assert e.message == 'Foo is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
-        table.range_spec(None)
+        table.range_spec(None) # type: ignore[operator]
         # assert e.message == 'None is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
         table.range_spec('Foo')
@@ -167,13 +167,13 @@ def test_all_values_and_range_spec_dataframe_table():
     assert table.all_values('age') == [21, 24]
     
     with pytest.raises(InvalidDataException) as e:
-        table.all_values(None)
+        table.all_values(None) # type: ignore[operator]
         # assert e.message == 'None is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
         table.all_values('Foo')
         # assert e.message == 'Foo is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
-        table.range_spec(None)
+        table.range_spec(None) # type: ignore[operator]
         # assert e.message == 'None is not a column of this table'
     with pytest.raises(InvalidDataException) as e:
         table.range_spec('Foo')
@@ -250,13 +250,13 @@ def test_bad_schema():
     assert(not remote_table.ok)
     bad_schema = [dict(entry) for entry in schema]
     bad_schema[0]["name"] = "foo"
-    remote_table.schema = bad_schema
+    remote_table.schema = bad_schema # type: ignore[operator]
     with pytest.raises(InvalidDataException) as exception:
         remote_table.connect_with_server()
     assert('Schema mismatch' in repr(exception))
     bad_schema = [dict(entry) for entry in schema]
     bad_schema[0]["type"] = SDML_DATETIME
-    remote_table.schema = bad_schema
+    remote_table.schema = bad_schema # type: ignore[operator]
     with pytest.raises(InvalidDataException) as exception:
         remote_table.connect_with_server()
     assert('Schema mismatch' in repr(exception))
@@ -338,83 +338,6 @@ def _tables_equivalent(table1, table2):
     assert table1.schema == table2.schema
     _data_equivalent(table1, table2)
 
-# Test a reloadable table.  The reloadable table should be a reloadable form
-# of equivalent_table (the non-reloadable form of the same table)
-# tests:
-#   1. Make sure the reloadable_table starts off with no inner table and
-#      the schema is the same as the equivalent table
-#   2. Test load.  The inner_table should have the same schema as the 
-#      the reloadable table.
-#   3. Test that after load, the inner table and the equivalent table are equivalent
-#   4. Test flush, ensuring that the inner_table is None after flush
-#   5. Test that a get_filtered_rows request forces a load and the results of the
-#      get_filtered_rows query are the same on the reloadable_table and the
-#      equivalent table.  This is done by testing that the data is equivalent on
-#      a flushed reloadable table and the equivalent table -- the get_filtered_rows()
-#      call loads thg table and then calls get_filtered_rows() on the inner table
-#   6. Retest flushing the table
-
-def _test_reloadable_table(reloadable_table, equivalent_table):
-    assert reloadable_table.inner_table is None
-    assert reloadable_table.schema == equivalent_table.schema
-    reloadable_table.load()
-    assert reloadable_table.inner_table is not  None
-    assert reloadable_table.schema == reloadable_table.inner_table.schema
-    _tables_equivalent(reloadable_table.inner_table, equivalent_table)
-    reloadable_table.flush()
-    assert reloadable_table.inner_table is None
-    _data_equivalent(reloadable_table, equivalent_table)
-    reloadable_table.flush()
-    assert reloadable_table.inner_table is None
-    reloadable_table.flush()
-    assert reloadable_table.inner_table is None
-    for column in reloadable_table.schema:
-        assert reloadable_table.all_values(column["name"]) == equivalent_table.all_values(column["name"])
-        assert reloadable_table.get_column(column["name"]) == equivalent_table.get_column(column["name"])
-        assert reloadable_table.range_spec(column["name"]) == equivalent_table.range_spec(column["name"])
-    reloadable_table.flush()
-    assert reloadable_table.inner_table is None
-
-
-#
-# test the file table using _test_reloadable_tables
-# 
-
-def test_file_table():
-    r1 = RowTableFactory()
-    f1 = FileTableFactory()
-    # build and 
-    with open('tests/tables/test1.sdml', 'r') as f:
-        row_table_spec = json.load(f)
-        row_table = r1.build_table(row_table_spec)
-        assert isinstance(row_table, RowTable)
-    with open('tests/tables/file_table.sdml', 'r') as f:
-        file_table_spec = json.load(f)
-        file_table = f1.build_table(file_table_spec)
-        assert isinstance(file_table, FileTable)
-        # check to make sure that file_table.inner_table is initially None
-        assert file_table.inner_table is None
-    _test_reloadable_table(file_table, row_table)
-
-#
-# test the http  table using _test_reloadable_tables
-# 
-def test_http_table():
-    r1 = RowTableFactory()
-    h1 = HTTPTableFactory()
-    response = requests.get('https://raw.githubusercontent.com/rickmcgeer/sdtp-examples/refs/heads/main/simple-table-example/tables/nightingale.sdml')
-    assert response.status_code < 400
-    row_table_spec = response.json()
-    row_table = r1.build_table(row_table_spec)
-    assert isinstance(row_table, RowTable)
-    with open('tests/tables/nightingale-http.sdml', 'r') as f:
-        http_table_spec = json.load(f)
-        http_table = h1.build_table(http_table_spec)
-        assert isinstance(http_table, HTTPTable)
-    _test_reloadable_table(http_table, row_table)
-
-
-import os
 import tempfile
 from sdtp import RemoteSDMLTableFactory
 

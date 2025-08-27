@@ -49,10 +49,11 @@ import logging
 from json import JSONDecodeError, loads
 import datetime
 from flask import Blueprint, abort, jsonify, request
+from typing import NoReturn
 from .sdtp_utils import InvalidDataException
 from .sdtp_filter import check_valid_spec
 from .table_server import TableServer, TableNotFoundException, ColumnNotFoundException
-
+from .sdtp_table import SDMLTable
 class SDTPServer(Blueprint):
     '''
     An SDTP Server.  This is just an overlay on a Flask Blueprint, added so 
@@ -98,7 +99,7 @@ sdtp_server_blueprint = SDTPServer('sdtp_server', __name__)
 
 # utilities
 
-def _log_and_abort(message, code=400):
+def _log_and_abort(message, code=400)->NoReturn:
     '''
     Sent an abort with error code (default 400) and log the error message.  Utility, internal use only
 
@@ -110,7 +111,7 @@ def _log_and_abort(message, code=400):
     abort(code, message)
 
 
-def _table_server(request_api, table_name):
+def _table_server(request_api, table_name:str)->SDMLTable:
     '''
     Utility for _get_table_server and _get_table_servers.  Get the server for  table_name and return it.
     Aborts the request with a 400 if the table isn't found.  Aborts with a 403 if the
@@ -233,12 +234,10 @@ def get_table_schema():
             table_name: the name of the table
     '''
     _check_required_parameters('/get_table_schema', ['table_name'])
-    
-    table = _table_server('/get_table_schema', request.args.get('table_name'))
+    table_name = request.args.get('table_name')
+    assert table_name is not None # shuts PyLance up -- this is guaranteed, otherwise _check_required_parameters would have aborted
+    table = _table_server('/get_table_schema', table_name)
     return jsonify(table.schema)
-
-
-
 
 def _execute_column_operation(route):
     # A utility for all of the column routes: they are all identical except for the TableServer method name, which 

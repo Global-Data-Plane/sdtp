@@ -55,13 +55,7 @@ from .sdtp_table import (
     RemoteSDMLTable,
     SDMLTableFactory,
     RowTableFactory,
-    RemoteSDMLTableFactory,
-    FileTable,
-    FileTableFactory,
-    GCSTable,
-    GCSTableFactory, 
-    HTTPTable,
-    HTTPTableFactory
+    RemoteSDMLTableFactory
 )
 
 from .sdtp_utils import (
@@ -88,7 +82,7 @@ __all__ = [
   'SDMLType', 'ColumnSpec', 'is_valid_sdml_type', 'validate_column_spec', 'validate_table_schema', 'BaseTableSchema', 'RowTableSchema', 'RemoteTableSchema', 'TableSchema',
   'type_check', 'check_sdml_type_of_list', 'jsonifiable_value', 'jsonifiable_row', 'jsonifiable_rows', 'jsonifiable_column', 'convert_to_type', 'convert_list_to_type', 'convert_row_to_type_list', 'convert_rows_to_type_list', 'convert_dict_to_type',
   'SDQL_FILTER_OPERATORS', 'SDQL_FILTER_FIELDS', 'check_valid_spec', 'check_valid_spec_return_boolean', 'SDQLFilter',
-  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory', 'FileTable', 'FileTableFactory', 'GCSTable', 'GCSTableFactory', 'HTTPTable', 'HTTPTableFactory',
+  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory',
   'TableServer', 'TableNotFoundException', 'ColumnNotFoundException',
   'sdtp_server_blueprint', 'SDTPServer'
 ]

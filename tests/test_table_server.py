@@ -82,7 +82,7 @@ def test_check_dict_and_keys():
 def test_table_server_creation():
     server = TableServer()
     # check the factories were initialized
-    assert(server.factories.keys() == {'RowTable', 'RemoteSDMLTable', 'FileTable', 'GCSTable', 'HTTPTable'})
+    assert(server.factories.keys() == {'RowTable', 'RemoteSDMLTable'})
     for factory in server.factories.values():
         assert isinstance(factory, SDMLTableFactory)
 
@@ -243,4 +243,76 @@ def test_get_column():
         for column in table.schema:
             assert(table_server.get_column(entry['name'], column['name']) == table.get_column(column['name']))
             assert(table_server.get_column(entry['name'], column['name'], True) == table.get_column(column['name'], True))
-        
+
+import tempfile
+import json
+
+
+def test_table_server_load_file():
+    # Prepare a simple SDML table dict
+    table_spec = {
+        "type": "RowTable",
+        "schema": [{"name": "a", "type": "string"}],
+        "rows": [["Alice"], ["Bob"]],
+    }
+    config = [{
+        "name": "disk_table",
+        "load_spec": {
+            "location_type": "file",
+            "path": None  # To be filled
+        }
+    }]
+    # Write the table spec to a temp file
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tf:
+        json.dump(table_spec, tf)
+        tf.flush()
+        config[0]["load_spec"]["path"] = tf.name
+        # Write config file to temp file
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as cf:
+            json.dump(config, cf)
+            cf.flush()
+            # Now initialize server
+            server = TableServer()
+            server.init_from_config(cf.name)
+            t = server.get_table("disk_table")
+            assert t.schema == table_spec["schema"]
+            assert t.rows == table_spec["rows"]
+
+
+def test_table_server_load_http(monkeypatch):
+    # The "remote" table data you want to serve
+    fake_table = {
+        "type": "RowTable",
+        "schema": [{"name": "a", "type": "string"}],
+        "rows": [["Alice"], ["Bob"]],
+    }
+
+    class FakeResponse:
+        def __init__(self, json_data):
+            self._json = json_data
+        def raise_for_status(self): pass
+        def json(self): return self._json
+
+    def fake_get(url, headers=None):
+        return FakeResponse(fake_table)
+
+    # Patch requests.get only in this test
+    monkeypatch.setattr("requests.get", fake_get)
+
+    config = [{
+        "name": "remote_table",
+        "load_spec": {
+            "location_type": "uri",
+            "url": "http://doesntmatter/test_table.json"
+        }
+    }]
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as cf:
+        json.dump(config, cf)
+        cf.flush()
+        server = TableServer()
+        server.init_from_config(cf.name)
+        t = server.get_table("remote_table")
+        print(fake_table)
+        assert t.schema == fake_table["columns"]
+        assert t.rows == fake_table["rows"]

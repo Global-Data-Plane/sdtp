@@ -54,7 +54,38 @@ SDQL_FILTER_FIELDS = {
     'REGEX_MATCH': {'column', 'expression'}
 }
 
-SDQL_FILTER_OPERATORS = set(SDQL_FILTER_FIELDS.keys())
+def _composite_argument_check_(filter_spec, filter_spec_keys):
+    if not 'arguments' in filter_spec_keys:
+        raise InvalidDataException(f'{filter_spec} is missing required field arguments')
+
+def _primitive_argument_check_(filter_spec, filter_spec_keys, required_keys):
+    missing_fields = required_keys - filter_spec_keys
+    if len(missing_fields) > 0:
+        raise InvalidDataException(f'{filter_spec} is missing required fields {_canonize_set(missing_fields)}')
+
+def _in_range_argument_check_argument_check_(filter_spec, filter_spec_keys):
+    errors = []
+    if not 'column' in filter_spec_keys:
+        errors.append('missing required field column')
+    if not 'max_val' in filter_spec_keys:
+        if not 'min_val' in filter_spec_keys:
+            errors.append('one of max_val, min_val must be present')
+    if len(errors) > 0:
+        raise InvalidDataException(f'{filter_spec} has the following errors: {"; ".join(errors)}') 
+
+
+
+SDQL_FIELDS_CHECK = {
+    'ALL': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
+    'ANY': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
+    'NONE': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
+    'IN_LIST': lambda spec, spec_keys: _primitive_argument_check_(spec, spec_keys, {'column', 'values'}),
+    'REGEX_MATCH': lambda spec, spec_keys: _primitive_argument_check_(spec, spec_keys, {'column', 'expression'}),
+    'IN_RANGE': lambda spec, spec_keys: _in_range_argument_check_argument_check_(spec, spec_keys)
+
+}
+
+SDQL_FILTER_OPERATORS = set(SDQL_FIELDS_CHECK.keys())
 
 
 
@@ -113,9 +144,8 @@ def check_valid_spec(filter_spec):
     # operator, 'operator' is one of the fields
 
     fields_in_spec = set(filter_spec.keys())
-    missing_fields = SDQL_FILTER_FIELDS[operator] - fields_in_spec
-    if len(missing_fields) > 0:
-        raise InvalidDataException(f'{filter_spec} is missing required fields {_canonize_set(missing_fields)}')
+    SDQL_FIELDS_CHECK[operator](filter_spec, fields_in_spec)
+    
     # For ALL and ANY, recursively check the arguments list and return
     if (operator in {'ALL', 'ANY', 'NONE'}):
         if not isinstance(filter_spec['arguments'], list):
@@ -156,13 +186,16 @@ def check_valid_spec(filter_spec):
             if not type(filter_spec[field]) in primitive_types:
                 raise InvalidDataException(f'The type of {field} must be one of {primitive_types}, not {type(filter_spec[field])}')
         '''
-
-        try:
-            # max_val and min_val must be comparable
-            result = filter_spec['max_val'] > filter_spec['min_val']
-        except TypeError:
-            msg = f'max_val {filter_spec["max_val"]} and min_val {filter_spec["min_val"]} must be comparable for an IN_RANGE filter'
-            raise InvalidDataException(msg)
+        if 'inclusive' in filter_spec:
+            if not filter_spec['inclusive'] in {'both', 'neither', 'left', 'right'}:
+                raise InvalidDataException(f'specification for inclusive must be one of both, neither, left, right, not {filter_spec["inclusive"]}')
+        if 'max_val' in filter_spec and 'min_val' in filter_spec:
+            try:
+                # max_val and min_val must be comparable
+                result = filter_spec['max_val'] > filter_spec['min_val']
+            except TypeError:
+                msg = f'max_val {filter_spec["max_val"]} and min_val {filter_spec["min_val"]} must be comparable for an IN_RANGE filter'
+                raise InvalidDataException(msg)
 
 
 def _valid_column_spec(column):
@@ -173,6 +206,25 @@ def _valid_column_spec(column):
     return False
 
 
+def _is_inclusive(filter_spec, inclusive_values):
+    if 'inclusive' in filter_spec:
+        return filter_spec['inclusive'] in inclusive_values
+    return True
+
+def _compare(low_value, high_value, inclusive):
+    return low_value < high_value or (inclusive and low_value == high_value)
+
+def _in_range(value, min_spec, max_spec):
+    if max_spec['value'] is not None:
+        if not _compare(value, max_spec['value'], max_spec['inclusive']):
+            return False
+    # if we get here, then either the comparison passed or there is no max_value
+    if min_spec['value'] is not None:
+        return  _compare(min_spec['value'], value, min_spec['inclusive'])
+    else:
+        # already passed max
+        return True
+    
 class SDQLFilter:
     '''
     A Class which implements a Filter used  to filter rows.
@@ -208,10 +260,24 @@ class SDQLFilter:
             if self.operator == 'IN_LIST':
                 self.value_list = convert_list_to_type(self.column_type, filter_spec['values'])
             elif self.operator == 'IN_RANGE':  # operator is IN_RANGE
-                max_val = convert_to_type(self.column_type, filter_spec['max_val'])
-                min_val = convert_to_type(self.column_type, filter_spec['min_val'])
-                self.max_val = max_val if max_val >= min_val else min_val
-                self.min_val = min_val if min_val <= max_val else max_val
+                self.min_val = {
+                    'value': None,
+                    'inclusive': _is_inclusive(filter_spec, {'both', 'left'})
+                }
+                self.max_val = {
+                    'value': None,
+                    'inclusive': _is_inclusive(filter_spec, {'both', 'right'})
+                }
+                if 'max_val' in filter_spec and 'min_val' in filter_spec:
+                    max_val = convert_to_type(self.column_type, filter_spec['max_val'])
+                    min_val = convert_to_type(self.column_type, filter_spec['min_val'])
+                    # convert_to_type checks types, no need for pylance checks
+                    self.max_val['value'] = max_val if max_val >= min_val else min_val # type: ignore[operator]
+                    self.min_val['value'] = min_val if min_val <= max_val else max_val # type: ignore[operator]
+                elif 'max_val' in filter_spec:
+                    self.max_val['value'] = convert_to_type(self.column_type, filter_spec['max_val'])
+                elif 'min_val' in filter_spec:
+                    self.min_val['value'] = convert_to_type(self.column_type, filter_spec['min_val'])
             else:  # operator is REGEX_MATCH
                 if column_types[self.column_index] != SDML_STRING:
                     raise InvalidDataException(
@@ -242,8 +308,14 @@ class SDQLFilter:
             if self.operator == 'IN_LIST':
                 result["values"] = jsonifiable_column(self.value_list, self.column_type)
             elif self.operator == 'IN_RANGE':
-                result["max_val"] = jsonifiable_value(self.max_val, self.column_type)
-                result["min_val"] = jsonifiable_value(self.min_val, self.column_type)
+                if self.max_val['value']:
+                    result["max_val"] = jsonifiable_value(self.max_val, self.column_type)
+                if self.min_val['value']:
+                    result["min_val"] = jsonifiable_value(self.min_val, self.column_type)
+                if self.min_val['inclusive']:
+                    result['inclusive'] = 'both' if self.max_val['inclusive'] else 'left'
+                else:
+                    result['inclusive'] = 'right' if self.max_val['inclusive'] else 'neither'
             else:  # operator == 'REGEX_MATCH'
                 result["expression"] = self.expression
         return result
@@ -277,6 +349,7 @@ class SDQLFilter:
 
         '''
         all_indices = range(len(rows))
+        
         if self.operator == 'ALL':
             argument_indices = [argument.filter_index(rows) for argument in self.arguments]
             return reduce(lambda x, y: x & y, argument_indices, set(all_indices))
@@ -291,7 +364,7 @@ class SDQLFilter:
         if self.operator == 'IN_LIST':
             return set([i for i in all_indices if values[i] in self.value_list])
         elif self.operator == 'IN_RANGE':
-            return set([i for i in all_indices if values[i] <= self.max_val and values[i] >= self.min_val])
+            return set([i for i in all_indices if _in_range(values[i], self.min_val, self.max_val)])
         else:  # self.operator == 'REGEX_MATCH'
             return set([i for i in all_indices if self.regex.fullmatch(values[i]) is not None])
 
@@ -320,6 +393,6 @@ class SDQLFilter:
         if self.operator == 'IN_LIST':
             return set(self.value_list)
         if self.operator == 'IN_RANGE':
-            return {self.max_val, self.min_val} 
+            return {self.max_val['value'], self.min_val['value']} 
         # must be REGEX_MATCH
         return {self.expression}

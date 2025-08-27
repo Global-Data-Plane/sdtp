@@ -44,12 +44,14 @@ There are two major classes:
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+import os
 from json import load
-
 import pandas as pd
+import requests
 
 from .sdtp_utils import InvalidDataException
-from .sdtp_table import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory, FileTableFactory, GCSTableFactory, HTTPTableFactory
+from .sdtp_table import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory
+from abc import ABC, abstractmethod
 
 class TableNotFoundException(Exception):
     '''
@@ -91,13 +93,48 @@ class TableServer:
     def __init__(self):
         self.servers = {}
         self.factories = {}
+        self.loaders = {
+            "file": FileTableLoader,
+            "uri": HTTPTableLoader,
+            # Add additional loaders here as needed
+        }
+        
         # factories which are part of the standard  distribution
         self.add_table_factory(RowTableFactory())
         self.add_table_factory(RemoteSDMLTableFactory())
-        self.add_table_factory(FileTableFactory())
-        self.add_table_factory(GCSTableFactory())
-        self.add_table_factory(HTTPTableFactory())
 
+    def init_from_config(self, config_path):
+        """
+        Initialize TableServer from config file.
+        Config must be a JSON list as specified above.
+        """
+        with open(config_path, "r") as f:
+            config = load(f)
+
+        for entry in config:
+            name = entry["name"]
+            load_spec = entry["load_spec"]
+
+            location_type = load_spec["location_type"]
+            loader_cls = self.loaders.get(location_type)
+            if loader_cls is None:
+                raise ValueError(f"No loader for location_type '{location_type}'")
+
+            loader = loader_cls(load_spec)
+            table_spec = loader.load()  # Should return a dict
+
+            # Figure out the table type (e.g. "row", "remote") from the spec
+            table_type = table_spec.get("type")
+            if table_type is None:
+                raise ValueError(f"Missing 'type' field in table spec for '{name}'")
+
+            factory_cls = self.factories.get(table_type)
+            if factory_cls is None:
+                raise ValueError(f"No factory registered for table type '{table_type}'")
+
+            factory = factory_cls
+            table = factory.build_table(table_spec)
+            self.add_sdtp_table(name, table)
 
     def add_table_factory(self, table_factory):
         '''
@@ -250,4 +287,85 @@ class TableServer:
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
 
+class TableLoader(ABC):
+    @abstractmethod
+    def load(self):
+        """Returns a dict spec for the table"""
 
+class FileTableLoader(TableLoader):
+    """
+    Loads a table from a path
+    """
+    def __init__(self, spec):
+        self.path = spec["path"]
+
+    def load(self):
+        with open(self.path, "r") as f:
+            return load(f)
+
+
+class HTTPTableLoader(TableLoader):
+    def __init__(self, spec):
+        self.url = spec["url"]
+        self.auth = HeaderInfo(spec["auth_info"]) if "auth_info" in spec else None
+
+    def load(self):
+        headers = self.auth.headers() if self.auth else {}
+        response = requests.get(self.url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    
+class HeaderInfo:
+    """
+    Supports loading headers from file or env according to our spec:
+    - {"from_file": "path/to/headers.json"}
+    - {"headers": {"Authorization": {"from_env": "API_AUTH"}}}
+    """
+    def __init__(self, spec, error_on_missing_env=True):
+        self.headers_dict = {}
+
+        if spec is None:
+            return
+
+        # Case 1: Load headers from a JSON file
+        if "from_file" in spec:
+            if not os.path.exists(spec["from_file"]):
+                raise FileNotFoundError(f"Header file not found: {spec['from_file']}")
+            with open(spec["from_file"], "r") as f:
+                data = load(f)
+                if not isinstance(data, dict):
+                    raise ValueError(f"Headers file must be a JSON object (dict), got {type(data)}")
+                # No inline validation: assume secret file is trusted
+                self.headers_dict = data
+
+        # Case 2: Load each header from an env var
+        elif "headers" in spec:
+            headers_spec = spec["headers"]
+            if not isinstance(headers_spec, dict):
+                raise ValueError(f"'headers' must be a dict, got {type(headers_spec)}")
+            for k, v in headers_spec.items():
+                if isinstance(v, dict) and "from_env" in v:
+                    env_key = v["from_env"]
+                    env_val = os.environ.get(env_key)
+                    if env_val is None:
+                        msg = f"Environment variable '{env_key}' for header '{k}' is not set."
+                        if error_on_missing_env:
+                            raise EnvironmentError(msg)
+                        else:
+                            print(f"Warning: {msg} (header omitted)")
+                            continue
+                    self.headers_dict[k] = env_val
+                else:
+                    raise ValueError(f"Header '{k}' value must be a dict with 'from_env', got {v}")
+        else:
+            raise ValueError("auth_info must contain 'from_file' or 'headers' as its only key.")
+
+        # Strict: Disallow extra keys
+        allowed_keys = {"from_file", "headers"}
+        extra_keys = set(spec.keys()) - allowed_keys
+        if extra_keys:
+            raise ValueError(f"auth_info has unsupported keys: {extra_keys}")
+
+    def headers(self):
+        # Only return headers with non-None values
+        return {k: v for k, v in self.headers_dict.items() if v is not None}

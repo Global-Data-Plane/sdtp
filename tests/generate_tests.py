@@ -48,9 +48,32 @@ series_for_name = {'name': names, 'age': ages, 'date': dates, 'time': times,
                    'datetime': datetimes, 'boolean': booleans}
 
 
-def _get_indices_for_range(series, min_val, max_val):
-    # Matches an IN_RANGE.  Returns the indices in series where the value is between min_val and max_val inclusive
-    return set([i for i in range(len(series)) if series[i] >= min_val and series[i] <= max_val])
+def _get_indices_for_range_2_sided(series, min_val, max_val, inclusive="both"):
+    # matches a two-sided (upper and lower) bounded comparison, where the 
+    # the inclusive parameter controls whether the comparison is 
+    # inclusive on both ends. (<= or <) on the upper end, and (>= or >)
+    # on the lower end
+    lower_inclusive = inclusive in {"both", "left"}
+    upper_inclusive = inclusive in {"both", "right"}
+    lower_cmp = (lambda x, y: x >= y) if lower_inclusive else (lambda x, y: x > y)
+    upper_cmp = (lambda x, y: x <= y) if upper_inclusive else (lambda x, y: x < y)
+    return set(i for i, v in enumerate(series) if lower_cmp(v, min_val) and upper_cmp(v, max_val))
+
+def _get_indices_for_range_above(series, min_val, inclusive="both"):
+    # matches a  lower-bounded comparison, where the 
+    # the inclusive parameter controls whether the comparison is 
+    # inclusive (>= or >)
+    lower_inclusive = inclusive in {"both", "left"}
+    lower_cmp = (lambda x, y: x >= y) if lower_inclusive else (lambda x, y: x > y)
+    return set(i for i, v in enumerate(series) if lower_cmp(v, min_val))
+
+def _get_indices_for_range_below(series, max_val, inclusive="both"):
+    # matches an upper-bounded comparison, where the 
+    # the inclusive parameter controls whether the comparison is 
+    # inclusive (<= or <)
+    upper_inclusive = inclusive in {"both", "right"}
+    upper_cmp = (lambda x, y: x <= y) if upper_inclusive else (lambda x, y: x < y)
+    return set(i for i, v in enumerate(series) if upper_cmp(v, max_val))
 
 def _get_indices_for_in_list(series, value_list):
      # Matches an IN_LIST filter.  Returns the indices in series where the value appears in value_list
@@ -62,7 +85,56 @@ def _get_indices_for_regex(series, expression):
     return set([i for i in range(len(series)) if regex.fullmatch(series[i])])
 
 
-def make_in_range_test(column, min_val, max_val):
+def make_range_above_test(column, min_val, inclusive = None):
+    '''
+    Make a range filter spec from column name and min_val, and then
+    find the indicies that the actual filter is expected to return
+    Parameters:
+        column: name of the column
+        min_val: minimum value for the filter
+        inclusive: whether the comparison is inclusive
+            If None, defaults to both, but the operator is 
+            omitted from the spec
+    Returns:
+        An object with fields spec, the spec to be turned into the filter, and expected,
+        the row indices with entries in the series associated with the column whose value is above min_val (including min_val if inclusive is both or left)
+
+    '''
+    expected_inclusive = 'both' if inclusive is None else inclusive
+    expected = _get_indices_for_range_above(series_for_name[column], min_val, expected_inclusive)
+    result_spec = {"operator": "IN_RANGE", "column": column, "min_val": min_val}
+    if inclusive is not None:
+        result_spec["inclusive"] = inclusive
+    return {
+        "spec": result_spec,
+        "expected": expected
+    }
+
+def make_range_below_test(column, max_val, inclusive = None):
+    '''
+    Make a range filter spec from column name and max_val, and then
+    find the indices that the actual filter is expected to return
+    Parameters:
+        column: name of the column
+        max_val: maximum value for the filter
+        inclusive: whether the comparison is inclusive
+            If None, defaults to both, but the operator is 
+            omitted from the spec
+    Returns:
+        An object with fields spec, the spec to be turned into the filter, and expected,
+        the row indices with entries in the series associated with the column whose value is below max_val (including max_val if inclusive is both or right)
+
+    '''
+    expected_inclusive = 'both' if inclusive is None else inclusive
+    expected = _get_indices_for_range_below(series_for_name[column], max_val, expected_inclusive)
+    result_spec = {"operator": "IN_RANGE", "column": column, "max_val": max_val}
+    if inclusive is not None:
+        result_spec["inclusive"] = inclusive
+    return {
+        "spec": result_spec,
+        "expected": expected
+    }
+def make_2_sided_in_range_test(column, min_val, max_val, inclusive = None):
     '''
     Make a range filter spec from column name, min_val, and max_val, and then
     find the indicies that the actual filter is expected to return
@@ -70,15 +142,22 @@ def make_in_range_test(column, min_val, max_val):
         column: name of the column
         max_val: maximum value for the filter
         min_val: minimum value for the filter
+        inclusive: whether the comparison is inclusive on the upper, or lower end,
+            or both, or neither.  If None, defaults to both, but the operator is 
+            omitted from the spec
     Returns:
         An object with fields spec, the spec to be turned into the filter, and expected,
         the row indices with entries in the series associated with the column whose value is between min_val and max_val
         between min_val and max_val
 
     '''
-    expected = _get_indices_for_range(series_for_name[column], min_val, max_val)
+    expected_inclusive = 'both' if inclusive is None else inclusive
+    expected = _get_indices_for_range_2_sided(series_for_name[column], min_val, max_val, expected_inclusive)
+    result_spec = {"operator": "IN_RANGE", "column": column, "max_val": max_val, "min_val": min_val}
+    if inclusive is not None:
+        result_spec["inclusive"] = inclusive
     return {
-        "spec": {"operator": "IN_RANGE", "column": column, "max_val": max_val, "min_val": min_val},
+        "spec": result_spec,
         "expected": expected
     }
 
@@ -121,18 +200,48 @@ def make_regex_test(column, expression):
         "expected": expected
     }
 
-def generate_in_range_test(column):
+def generate_2_sided_in_range_test(column):
     '''
     Generate a random in_range test for column, picking out two elements at random
     for the max_val and min_val, and then using make_in_range_test to generate the test
     Parameters:
         column: the name of the column to generate the test for
     Returns
-        The test in the form generated by make_in_range_test
+        The test in the form generated by make_2_sided_in_range_test
     '''
     series = series_for_name[column]
     elements = random.choices(series, k=2)
-    return make_in_range_test(column, min(elements), max(elements))
+    inclusive = random.choice(ALL_INCLUSIVE)
+    return make_2_sided_in_range_test(column, min(elements), max(elements), inclusive)
+
+def generate_range_above_test(column):
+    '''
+    Generate a random in_range test for column, picking out one element at random
+    for the min_val, and then using make_range_above_test to generate the test
+    Parameters:
+        column: the name of the column to generate the test for
+    Returns
+        The test in the form generated by make_range_above_test
+    '''
+    series = series_for_name[column]
+    element = random.choice(series)
+    inclusive = random.choice(ALL_INCLUSIVE)
+    return make_range_above_test(column,element, inclusive)
+
+def generate_range_below_test(column):
+    '''
+    Generate a random in_range test for column, picking out one element at random
+    for the ax_val, and then using make_range_below_test to generate the test
+    Parameters:
+        column: the name of the column to generate the test for
+    Returns
+        The test in the form generated by make_range_below_test
+    '''
+    series = series_for_name[column]
+    element = random.choice(series)
+    inclusive = random.choice(ALL_INCLUSIVE)
+    return make_range_below_test(column,element, inclusive)
+    
 
 def generate_in_list_test(column):
     '''
@@ -164,6 +273,10 @@ def generate_regex_test(column):
     expression = f'.*{seed[1:len(seed) - 2]}.*' if len(seed) > 2 else f'*.{seed[1:]}.*' if len(seed) > 1 else f'.*{seed}.*'
     return make_regex_test(column, expression)
 
+INCLUSIVE = ['both', 'neither', 'left', 'right']
+ALL_INCLUSIVE = ['both', 'neither', 'left', 'right', None]
+
+
 def generate_all_in_range_tests():
     '''
     Generate all the in range tests.  For each column, generate the edge cases
@@ -178,12 +291,14 @@ def generate_all_in_range_tests():
         series = series_for_name[column]
         series_min = min(series)
         series_max = max(series)
-        result.append(make_in_range_test(column, series_min, series_max))
-        result.append(make_in_range_test(column, series_max, series_max))
-        result.append(make_in_range_test(column, series_min, series_min))
+        result.append(make_2_sided_in_range_test(column, series_min, series_max))
+        result.append(make_2_sided_in_range_test(column, series_max, series_max))
+        result.append(make_2_sided_in_range_test(column, series_min, series_min))
+        for inclusive in INCLUSIVE:
+            result.append(make_2_sided_in_range_test(column, series_min, series_max, inclusive))
         rand_tests = random.randrange(1, 20)
         for i in range(rand_tests):
-            result.append(generate_in_range_test(column))
+            result.append(generate_2_sided_in_range_test(column))
     return result
 
 def generate_all_in_list_tests():
@@ -202,7 +317,7 @@ def generate_all_in_list_tests():
         result.append(make_in_list_test(column, series))
         rand_tests = random.randrange(1, 20)
         for i in range(rand_tests):
-            result.append(generate_in_range_test(column))
+            result.append(generate_in_list_test(column))
     return result
 
 def generate_all_regex_tests():
@@ -220,7 +335,7 @@ def generate_all_regex_tests():
     result = [make_regex_test('name', expression) for expression in expressions]
     rand_tests = random.randrange(1, 20)
     for i in range(rand_tests):
-        result.append(generate_in_range_test('name'))
+        result.append(generate_regex_test('name'))
     return result
 
 # Use the above routines to generate all the tests
@@ -233,11 +348,11 @@ tests = {
 
 # Pretty print the tests on tests/filter_tests.py, so they can be read in by the tester
 with open('tests/filter_tests.py', 'w') as f:
-    f.writeln('import datetime')
-    f.writeln("'''")
-    f.writeln("This file is auto-generated, do not change.  The source code to generate this file is in")
-    f.writelin("generate_tests.py.  Modify the code there.")
-    f.writeln("'''")
+    f.write('import datetime\n')
+    f.write("'''\n")
+    f.write("This file is auto-generated, do not change.  The source code to generate this file is in\n")
+    f.write("generate_tests.py.  Modify the code there\n")
+    f.write("'''\n")
     f.write('filter_tests = ')
     pprint.pprint(tests, f, compact = True, width = 80)
 

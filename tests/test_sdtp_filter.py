@@ -36,6 +36,8 @@ from json import dumps
 import math
 import re
 import random
+import datetime
+import copy
 
 import pandas as pd
 import pytest
@@ -46,7 +48,7 @@ from sdtp import SDQLFilter,  check_valid_spec, SDQL_FILTER_FIELDS, SDQL_FILTER_
 def _check_valid_spec_error(bad_filter_spec, error_message):
     with pytest.raises(InvalidDataException) as e:
         check_valid_spec(bad_filter_spec)
-        assert e.message == error_message
+        assert error_message in str(e.value)
 
 def test_check_valid_spec_bad_operator():
     '''
@@ -57,6 +59,7 @@ def test_check_valid_spec_bad_operator():
         _check_valid_spec_error(spec, f'filter_spec must be a dictionary, not {type(spec)}' )
     no_operator = {"a": [1, 2, 3]}
     _check_valid_spec_error(no_operator, f'There is no operator in {no_operator}' )
+    _check_valid_spec_error({}, 'There is no operator in {}' )
     for bad_operator_type in [None, [1, 2, 3], 1]:
         _check_valid_spec_error({"operator": bad_operator_type}, f'operator {bad_operator_type} is not a string')
     _check_valid_spec_error({"operator": "foo"}, "foo is not a valid operator.  Valid operators are {'ALL', 'ANY', 'NONE', 'IN_LIST', 'IN_RANGE', 'REGEX_MATCH'}")
@@ -73,12 +76,21 @@ def test_check_valid_spec_missing_fields():
     '''
     Test missing-field errors
     '''
-    for operator in SDQL_FILTER_OPERATORS:
+    for operator in ['ANY', 'ALL', 'NONE']:
+        test_dict = _form_test_dict(operator, {})
+        _check_valid_spec_error(test_dict, f"{operator} is missing field arguments")
+    for operator in ['IN_LIST', 'REGEX_MATCH']:
         fields = SDQL_FILTER_FIELDS[operator]
         for field in fields:
             other_fields = fields - {field}
             test_dict = _form_test_dict(operator, other_fields)
             _check_valid_spec_error(test_dict, f"{operator} is missing fields {[field]}")
+    test_dict = _form_test_dict('IN_RANGE', {'min_val', 'max_val'})
+    _check_valid_spec_error(test_dict, f"{test_dict} has the following errors: missing required field column")
+    test_dict = _form_test_dict('IN_RANGE', {'column'})
+    _check_valid_spec_error(test_dict, f"{test_dict} has the following errors: one of max_val, min_val must be present")
+    test_dict = _form_test_dict('IN_RANGE', {})
+    _check_valid_spec_error(test_dict, f"{test_dict} has the following errors: missing required field column; one of max_val, min_val must be present")
 
 def test_check_valid_spec_bad_arguments_field():
     '''
@@ -115,6 +127,10 @@ def test_check_valid_spec_bad_in_range_values():
     incomparable_specs =  [({"operator": "IN_RANGE", "column": "a", "max_val": pair[0], "min_val": pair[1]}, f'max_val {pair[0]} and min_val {pair[1]} must be comparable for an IN_RANGE filter') for pair in incomparable]
     for spec in incomparable_specs:
         _check_valid_spec_error(spec[0], spec[1])
+    # Test for bad values in inclusive
+    bad_inclusive_value = {"operator": "IN_RANGE", "min_val": 2, "max_val": 3, "inclusive": "foo"}
+    _check_valid_spec_error(bad_inclusive_value, 'specification for inclusive must be one of both, neither, left, right, not foo')
+    
     
 
 def test_check_valid_spec_bad_regex():
@@ -150,24 +166,61 @@ def _complex_expression(simple_expression_list):
     arguments.append(_complex_expression(simple_expression_list[split:]))
     return {"operator": operator, "arguments": arguments}
 
-VALID_SIMPLE_SPECS = [
+VALID_LIST_SPECS = [
     {"operator": "IN_LIST", "column": "name", "values": []},
     {"operator": "IN_LIST",  "column": "foo","values": [True, False]},
     {"operator": "IN_LIST",  "column": "foo","values": [1, 2,  3]},
     {"operator": "IN_LIST",  "column": "name", "values": ["a", "b", "c"]},
     {"operator": "IN_LIST",  "column": 1, "values": ["a", True, 3, 2.5]},
-    {"operator": "IN_LIST",  "column": 2, "values": ["a", True, math.nan]},
-    {"operator": "IN_RANGE", "column": "age",  "max_val": 1.0, "min_val": 0},
-    {"operator": "IN_RANGE", "column": "age", "max_val": 0.0, "min_val": 0},
-    {"operator": "IN_RANGE", "column": "age", "max_val": 2, "min_val": 0},
-    {"operator": "IN_RANGE", "column": "age", "max_val": 2, "min_val": -4},
-    {"operator": "IN_RANGE", "column": "age1","max_val": 2, "min_val": 4},
-    {"operator": "IN_RANGE", "column": "age1", "max_val": 2, "min_val": math.nan},
-    {"operator": "IN_RANGE", "column": "age1",  "max_val": math.nan, "min_val": math.nan},
-    {"operator": "IN_RANGE", "column": "foo", "max_val": True, "min_val": False},
-    {"operator": "IN_RANGE", "column": "foo", "max_val": 'a', "min_val": 'b'},
-    {"operator": "IN_RANGE", "column": "foo", "max_val": 1, "min_val": True},
-    {"operator": "IN_RANGE", "column": "foo", "max_val": 1.0, "min_val": True},
+    {"operator": "IN_LIST",  "column": 2, "values": ["a", True, math.nan]}
+]
+
+
+def _make_inrange_specs():
+    # Make all the valid IN_RANGE operators
+    # valid min/max value pairs
+    value_pairs = [
+        [datetime.date(1970, 1, 1), datetime.date(1980, 12, 31)],
+        [datetime.datetime(1970, 1, 1, 1, 0, 0), datetime.datetime(1980, 12, 31, 23, 59, 59)],
+        [datetime.time(1, 0, 0), datetime.time(23, 59, 59)],
+        ['a', 'b'],
+        [True, False],
+        [0, 1.0],
+        [0, math.nan],
+        [math.nan, 1.0]
+    ]
+
+    # Get all the combinations: min/max, min, max
+
+    raw = [
+        [
+            {"min_val": pair[0], "max_val": pair[1]},
+            {"min_val": pair[0]},
+            {"max_val": pair[1]}
+        ] for pair in value_pairs
+    ]
+    # flatten to a single list
+    raw_flat = [obj for sublist in raw for obj in sublist]
+    # For each pair, include all four valid inclusives, plus one
+    # with no inclusive
+    inclusives = ["both", "neither", "left", "right"]
+    result = []
+    for obj in raw_flat:
+        for inclusive in inclusives:
+            o = copy.copy(obj)
+            o["inclusive"] = inclusive
+            result.append(o)
+        result.append(obj)
+    # add the operator and column
+    for obj in result:
+        obj["operator"] = "IN_RANGE"
+        obj["column"] = "col"
+    return result
+
+VALID_IN_RANGE_SPECS = _make_inrange_specs()
+
+
+VALID_REGEX_SPECS = [
     {"operator": "REGEX_MATCH", "column": "name", "expression": ''},
     {"operator": "REGEX_MATCH", "column": "name", "expression": '^.*$'},
     {"operator": "REGEX_MATCH", "column": "name", "expression": '\\\\'},
@@ -176,6 +229,7 @@ VALID_SIMPLE_SPECS = [
     {"operator": "REGEX_MATCH", "column": "name", "expression": 'foobar.*$'},
 ]
 
+VALID_SIMPLE_SPECS = VALID_LIST_SPECS + VALID_IN_RANGE_SPECS + VALID_REGEX_SPECS
 
 def test_check_valid_spec():
     '''
