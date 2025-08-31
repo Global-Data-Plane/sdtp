@@ -53,7 +53,7 @@ from typing import NoReturn
 from .sdtp_utils import InvalidDataException, json_serialize
 from .sdtp_filter import check_valid_spec
 from .table_server import TableServer, TableNotFoundException, ColumnNotFoundException
-from .sdtp_table import SDMLTable
+from .sdtp_table import SDMLTable, RowTable
 from .sdtp_table import ALLOWED_FILTERED_ROW_RESULT_FORMATS, DEFAULT_FILTERED_ROW_RESULT_FORMAT
 class SDTPServer(Blueprint):
     '''

@@ -221,7 +221,7 @@ class SDMLTable:
         raise InvalidDataException(f'_get_filtered_rows_from_filter has not been in {type(self)}.__name__')
 
 
-    def get_filtered_rows(self, filter_spec=None, columns=[], format = 'list'):
+    def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT):
         '''
         Filter the rows according to the specific-ation given by filter_spec.
         Returns the rows for which the resulting filter returns True.
@@ -238,6 +238,7 @@ class SDMLTable:
         
         if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')
+        if columns is None: columns = []
         # Note that we don't check if the column names are all valid
         filter = SDQLFilter(filter_spec, self.schema) if filter_spec is not None else None
         rows =  self._get_filtered_rows_from_filter(filter = filter, columns=columns)
@@ -798,7 +799,7 @@ class RemoteSDMLTable(SDMLTable):
         filter_spec = None if filter is None else filter.to_filter_spec()
         return self._get_filtered_rows_from_remote(filter_spec, columns=columns)
     
-    def get_filtered_rows(self, filter_spec=None, columns=[], format = 'list') -> Union[list, list[dict[str, Any]], RowTable]:
+    def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         '''
         Filter the rows according to the specification given by filter_spec.
         Returns the rows for which the resulting filter returns True.
@@ -813,6 +814,7 @@ class RemoteSDMLTable(SDMLTable):
         '''
         # Check to make sure that the format is valid
         if format is None: format = DEFAULT_FILTERED_ROW_RESULT_FORMAT
+        if columns is None: columns = []
         
         if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')

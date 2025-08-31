@@ -42,7 +42,7 @@ sys.path.append('./src')
 sys.path.append('../src')
 
 
-from sdtp import sdtp_server_blueprint, jsonifiable_column
+from sdtp import sdtp_server_blueprint, jsonifiable_column, RowTable
 from sdtp.sdtp_utils import json_serialize
 app = Flask(__name__)
 app.register_blueprint(sdtp_server_blueprint)
@@ -50,6 +50,7 @@ app.register_blueprint(sdtp_server_blueprint)
 sdtp_server_blueprint.init_logging(__name__)
 
 from tests.server_test_tables import test_tables
+# from server_test_tables import test_tables
 for table_spec in test_tables:
     sdtp_server_blueprint.table_server.add_sdtp_table(table_spec['name'], table_spec['table'])
 
@@ -153,27 +154,30 @@ def test_get_column():
 # A utility which does a query that should work -- runs the query both on 
 # the server and the table, and makes sure that the answers match.
 
-def _do_good_row_test(table_name, table, filter_spec = None, columns = None):
+def _do_good_row_test(table_name, table, filter_spec = None, columns = None, format=None):
     json_arg = {"table": table_name}
     
     if filter_spec is not None: json_arg["filter"] = filter_spec
     if columns is not None: json_arg["columns"] = columns
+    if format is not None: json_arg["result_format"] = format
     response = client.post('/get_filtered_rows', json = json_arg)
     assert response.status_code == 200
-    if filter_spec is not None and columns is not None:
-       result_rows = table.get_filtered_rows(filter_spec = filter_spec, columns = columns)
-    elif filter_spec is not None :
-       result_rows = table.get_filtered_rows(filter_spec = filter_spec)
-    elif  columns is not None:
-       result_rows = table.get_filtered_rows(columns = columns)
-    else: 
-       result_rows = table.get_filtered_rows()
+    result = table.get_filtered_rows(filter_spec = filter_spec, columns = columns, format=format)
+    
     # response.json is ALMOST json -- Booleans are converted to upper case
     # so to match this, we jsonify the result coming out of 
     # table.get_filtered_rows and then turn it into Python serialized form
-    jsonified_result = json.dumps(result_rows, default=json_serialize)
-    reread_result = json.loads(jsonified_result)
-    assert response.json == reread_result
+    if format == 'sdml': # result is a table and response is an sdml file
+        table_form = response.json
+        assert table_form is not None
+        assert isinstance(result, RowTable)
+        result_table = RowTable(table_form["schema"], table_form["rows"])
+        assert result.schema == result_table.schema
+        assert result.rows == result_table.rows
+    else:
+        jsonified_result = json.dumps(result, default=json_serialize)
+        reread_result = json.loads(jsonified_result)
+        assert response.json == reread_result
         
 
 def test_get_filtered_rows():
@@ -191,10 +195,10 @@ def test_get_filtered_rows():
     assert response.status_code == 400
     table = sdtp_server_blueprint.table_server.get_table('test3')
     # test valid
-    _do_good_row_test("test3", table, filter_spec = sdml_query)
+    _do_good_row_test("test3", table, filter_spec = sdml_query, format="sdml")
 
     # test with missing filter
-    _do_good_row_test("test3", table, filter_spec = sdml_query)
+    _do_good_row_test("test3", table, filter_spec = sdml_query, format="sdml")
     # add bad columns
     response = client.post(route, json = {"table": "test3", "filter": sdml_query, "columns" : "foo"})
     assert response.status_code == 400
@@ -205,3 +209,7 @@ def test_get_filtered_rows():
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = ['name', 'age'])
     # specify empty columns
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = [])
+    _do_good_row_test("test3", table, filter_spec = sdml_query, columns = ['name', 'age'], format="sdml")
+    # specify empty columns
+    _do_good_row_test("test3", table, filter_spec = sdml_query, columns = [], format="sdml")
+
