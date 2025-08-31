@@ -46,14 +46,15 @@ After that, requests for the named table will be served by the created data serv
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
-from json import JSONDecodeError, loads
+from json import JSONDecodeError, loads, dumps
 import datetime
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, request, Response
 from typing import NoReturn
-from .sdtp_utils import InvalidDataException
+from .sdtp_utils import InvalidDataException, json_serialize
 from .sdtp_filter import check_valid_spec
 from .table_server import TableServer, TableNotFoundException, ColumnNotFoundException
 from .sdtp_table import SDMLTable
+from .sdtp_table import ALLOWED_FILTERED_ROW_RESULT_FORMATS, DEFAULT_FILTERED_ROW_RESULT_FORMAT
 class SDTPServer(Blueprint):
     '''
     An SDTP Server.  This is just an overlay on a Flask Blueprint, added so 
@@ -126,7 +127,7 @@ def _table_server(request_api, table_name:str)->SDMLTable:
     except TableNotFoundException:
         msg = f'Table {table_name} not found for request {request_api}'
         code = 404
-    _log_and_abort(msg, code)
+        _log_and_abort(msg, code)
 
     
 def _get_json_body_from_post_request_data(request):
@@ -149,7 +150,8 @@ def _get_json_body_from_post_request_data(request):
 def _get_post_argument(key, form_data, data, get_multi = False):
     '''
     Get the value of the POST argument key from a request.  These can be either in the
-    form (which is a MultiDict) or in the data body.
+    form (which is a MultiDict) or in the data body.  Accepts both
+    to ensure that spurious errors aren't thrown
     
     Arguments:
         key: the key for the request
@@ -186,6 +188,8 @@ def _check_required_parameters(route, required_parameters):
         parameter_string = f'parameters {set(missing)} ' if len(missing) > 1 else f'parameter {missing[0]} '
         msg = 'Missing ' + parameter_string + f'for route {route}'
         _log_and_abort(msg, 400)
+
+
 
 #------------------------ROUTES-------------------------------------------------
 
@@ -253,7 +257,11 @@ def _execute_column_operation(route):
     method = methods[route]
     
     try:
-        return method(table_name, column_name, True)
+        result = method(table_name, column_name)
+        return Response(
+            dumps(result, default= json_serialize),
+            mimetype = "application/json"
+        )
     except TableNotFoundException:
         _log_and_abort(f'No  table {table_name} present, request {route}', 404)
     except ColumnNotFoundException:
@@ -329,8 +337,11 @@ def get_filtered_rows():
         filter_spec = _get_post_argument('filter', request.form, json_data)
         columns = _get_post_argument('columns', request.form, json_data)
         table_name = _get_post_argument('table', request.form, json_data)
+        format = _get_post_argument('result_format', request.form, json_data)
         if table_name is None:
             _log_and_abort('table is a required parameter to get filtererd rows', 400)
+        if format is None:
+            format = DEFAULT_FILTERED_ROW_RESULT_FORMAT
 
     except JSONDecodeError as error:
         _log_and_abort(f'Bad arguments to /get_filtered_rows.  Error {error.msg}')
@@ -352,8 +363,18 @@ def get_filtered_rows():
             check_valid_spec(filter_spec)
         except InvalidDataException as invalid_error:
             _log_and_abort(invalid_error)
-    result = table.get_filtered_rows(filter_spec=filter_spec, columns=columns, jsonify = True)
-    return result
+
+    # Check to make sure the requested format is OK
+    if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
+        _log_and_abort(f'Bad result_format {format} requested for get_filtered_rows.  Request format must be in {ALLOWED_FILTERED_ROW_RESULT_FORMATS}')
+    result = table.get_filtered_rows(filter_spec=filter_spec, columns=columns, format=format)
+    if isinstance(result, RowTable):
+        # Safe to call .to_dictionary()
+        result = result.to_dictionary()
+    return Response(
+            dumps(result, default= json_serialize),
+            mimetype = "application/json"
+        )
     # types = _column_types(table, columns)
     # jsonifiable_result = jsonifiable_rows(result, types)
 

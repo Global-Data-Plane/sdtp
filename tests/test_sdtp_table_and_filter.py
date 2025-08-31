@@ -48,7 +48,7 @@ from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIM
 from sdtp import jsonifiable_column
 from sdtp import SDQLFilter
 from sdtp import RowTable
-
+from sdtp.sdtp_utils import json_serialize
 
 
 # Tests for construction of tables and filters have been completed.  The following
@@ -274,8 +274,8 @@ def remote_filter_handler(request):
     assert(data['table'] == 'test')
     filter_spec = data['filter'] if 'filter' in data else None
     columns = data['columns'] if 'columns' in data else []
-    result = table.get_filtered_rows(filter_spec = filter_spec, columns = columns, jsonify = True )
-    return Response(dumps(result), mimetype='application/json')
+    result = table.get_filtered_rows(filter_spec = filter_spec, columns = columns, format='sdml')
+    return Response(dumps(result, default=json_serialize), mimetype='application/json')
 
 
 def test_remote_table_filter():
@@ -295,7 +295,5 @@ def test_remote_table_filter():
     # first, make sure just passing the filter_spec works
     assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows(filter_spec = filter_spec))
     filter = SDQLFilter(filter_spec, schema)
-    assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows_from_filter(filter = filter))
-    assert(remote_table.get_filtered_rows_from_filter(filter =filter) == table.get_filtered_rows_from_filter(filter = filter))
-    http_server.stop()
-
+    assert(remote_table.get_filtered_rows(filter_spec=filter_spec) == table.get_filtered_rows(filter_spec=filter_spec))
+    

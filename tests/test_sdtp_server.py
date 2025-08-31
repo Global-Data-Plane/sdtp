@@ -37,11 +37,13 @@ import sys
 from flask import Flask
 
 
+
 sys.path.append('./src')
 sys.path.append('../src')
 
 
 from sdtp import sdtp_server_blueprint, jsonifiable_column
+from sdtp.sdtp_utils import json_serialize
 app = Flask(__name__)
 app.register_blueprint(sdtp_server_blueprint)
 
@@ -51,15 +53,11 @@ from tests.server_test_tables import test_tables
 for table_spec in test_tables:
     sdtp_server_blueprint.table_server.add_sdtp_table(table_spec['name'], table_spec['table'])
 
-
-
-
 def _subsets(aList):
     if len(aList) == 0: return [[]]
     partial = _subsets(aList[:-1])
     full = [l + [aList[-1]] for l in partial]
     return full + partial
-
 
 client = app.test_client()
 
@@ -67,7 +65,7 @@ def test_get_table_names():
     response = client.get('/get_table_names')
     assert response.status_code == 200
     result = response.json
-    assert(len(result)) == len(test_tables)
+    assert result is not None and len(result) == len(test_tables)
     names = [table["name"] for table in test_tables]
     for table_name in result:
         assert(table_name in names)
@@ -163,14 +161,19 @@ def _do_good_row_test(table_name, table, filter_spec = None, columns = None):
     response = client.post('/get_filtered_rows', json = json_arg)
     assert response.status_code == 200
     if filter_spec is not None and columns is not None:
-       result_rows = table.get_filtered_rows(filter_spec = filter_spec, columns = columns, jsonify = True)
+       result_rows = table.get_filtered_rows(filter_spec = filter_spec, columns = columns)
     elif filter_spec is not None :
-       result_rows = table.get_filtered_rows(filter_spec = filter_spec,  jsonify = True)
+       result_rows = table.get_filtered_rows(filter_spec = filter_spec)
     elif  columns is not None:
-       result_rows = table.get_filtered_rows(columns = columns, jsonify = True)
+       result_rows = table.get_filtered_rows(columns = columns)
     else: 
-       result_rows = table.get_filtered_rows(jsonify = True)
-    assert response.json == result_rows
+       result_rows = table.get_filtered_rows()
+    # response.json is ALMOST json -- Booleans are converted to upper case
+    # so to match this, we jsonify the result coming out of 
+    # table.get_filtered_rows and then turn it into Python serialized form
+    jsonified_result = json.dumps(result_rows, default=json_serialize)
+    reread_result = json.loads(jsonified_result)
+    assert response.json == reread_result
         
 
 def test_get_filtered_rows():

@@ -33,7 +33,12 @@ import pandas as pd
 from sdtp import type_check, SDML_PYTHON_TYPES
 
 
-
+def json_serialize(obj):
+    # Convert dates, times, and datetimes to isostrings 
+    # for json serialization
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 

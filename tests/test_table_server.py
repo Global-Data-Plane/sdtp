@@ -225,7 +225,7 @@ def test_get_all_values():
         table = entry['table']
         for column in table.schema:
             assert(table_server.get_all_values(entry['name'], column['name']) == table.all_values(column['name']))
-            assert(table_server.get_all_values(entry['name'], column['name'], True) == table.all_values(column['name'], True))
+            
         
 
 def test_get_range_spec():
@@ -234,7 +234,7 @@ def test_get_range_spec():
         table = entry['table']
         for column in table.schema:
             assert(table_server.get_range_spec(entry['name'], column['name']) == table.range_spec(column['name']))
-            assert(table_server.get_range_spec(entry['name'], column['name'], True) == table.range_spec(column['name'], True))
+            
 
 def test_get_column():
     # Error cases were checked above, so just make sure it handles the case where the column an dtable are valid
@@ -242,7 +242,6 @@ def test_get_column():
         table = entry['table']
         for column in table.schema:
             assert(table_server.get_column(entry['name'], column['name']) == table.get_column(column['name']))
-            assert(table_server.get_column(entry['name'], column['name'], True) == table.get_column(column['name'], True))
 
 import tempfile
 import json

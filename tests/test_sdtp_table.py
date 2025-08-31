@@ -277,18 +277,18 @@ def test_remote_column_operations():
     get_column_responses = {}
 
     for column in schema:
-        response = server_table.all_values(column["name"], False)
+        response = server_table.all_values(column["name"])
         json_response = jsonifiable_column(response, column["type"])
         httpserver.expect_request("/get_all_values", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         all_values_responses[column["name"]] = response
     range_spec_responses = {}
     for column in schema:
-        response = server_table.range_spec(column["name"], False)
+        response = server_table.range_spec(column["name"])
         json_response = jsonifiable_column(response, column["type"])
         httpserver.expect_request("/get_range_spec", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         range_spec_responses[column["name"]] = response
     for column in schema:
-        response = server_table.get_column(column["name"], False)
+        response = server_table.get_column(column["name"])
         json_response = jsonifiable_column(response, column["type"])
         httpserver.expect_request("/get_column", query_string={"table_name": "test", "column_name": column["name"]}).respond_with_json(json_response)
         get_column_responses[column["name"]] = response
