@@ -26,7 +26,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import TypedDict, Literal, Union, List, Set, Optional
+from typing import TypedDict, Literal, Union, List, Optional, Tuple
 import datetime
 import pandas as pd
 
@@ -95,6 +95,22 @@ class ColumnSpec(TypedDict):
     name: str
     type: Literal["string", "number", "boolean", "date", "datetime", "timeofday"]
 
+
+def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]) -> List[ColumnSpec]:
+    """
+    Given a list of tuples of the form (<name> <type>), return an SDTP table schema,
+    which is a list sdtp_schema.ColumnSpec.  Raises an SDTPClientError for an invalid type (type is not a member of sdtp_schema.SDMLType
+    Args:
+        columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]: list of tuples of the form (<name> <type>)
+    Returns:
+        The appropriate  table schema
+    Raises:
+        ValueError if a type is not a valid  sdtp_schema.SDMLType
+    """
+    errors = [column[1] for column in columns if column[1] not in SDML_SCHEMA_TYPES]
+    if len(errors) > 0:
+        raise ValueError(f'Invalid types {errors} sent to make_table_schema.  Valid types are {SDML_SCHEMA_TYPES}')
+    return  [{"name": column[0], "type": column[1]} for column in columns]
 
 def is_valid_sdml_type(t: str) -> bool:
     '''

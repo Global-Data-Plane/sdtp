@@ -46,7 +46,8 @@ from .sdtp_schema import (
     BaseTableSchema,
     RowTableSchema,
     RemoteTableSchema,
-    TableSchema
+    TableSchema,
+    make_table_schema
 )
 
 from .sdtp_table import (
@@ -69,8 +70,12 @@ from .sdtp_utils import (
     convert_list_to_type,
     convert_row_to_type_list,
     convert_rows_to_type_list, 
-    convert_dict_to_type
+    convert_dict_to_type,
+    AuthMethod,
+    resolve_auth_method
 )
+
+from.sdtp_client import SDTPClient, SDTPClientError
 from .sdtp_filter import SDQL_FILTER_OPERATORS, SDQL_FILTER_FIELDS, check_valid_spec, check_valid_spec_return_boolean, SDQLFilter
 # from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
 from .table_server import  TableServer, TableNotFoundException, ColumnNotFoundException
@@ -84,5 +89,6 @@ __all__ = [
   'SDQL_FILTER_OPERATORS', 'SDQL_FILTER_FIELDS', 'check_valid_spec', 'check_valid_spec_return_boolean', 'SDQLFilter',
   'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory',
   'TableServer', 'TableNotFoundException', 'ColumnNotFoundException',
-  'sdtp_server_blueprint', 'SDTPServer'
+  'sdtp_server_blueprint', 'SDTPServer', 'AuthMethod', 'resolve_auth_method', 'make_table_schema',
+  'SDTPClient', 'SDTPClientError'
 ]

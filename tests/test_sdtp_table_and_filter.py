@@ -275,7 +275,8 @@ def remote_filter_handler(request):
     filter_spec = data['filter'] if 'filter' in data else None
     columns = data['columns'] if 'columns' in data else []
     result = table.get_filtered_rows(filter_spec = filter_spec, columns = columns, format='sdml')
-    return Response(dumps(result, default=json_serialize), mimetype='application/json')
+    result_dict = result.to_dictionary()
+    return Response(dumps(result_dict, default=json_serialize), mimetype='application/json')
 
 
 def test_remote_table_filter():

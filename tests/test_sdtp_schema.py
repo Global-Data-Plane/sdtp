@@ -105,3 +105,36 @@ def test_make_table_schema_invalid_type():
     }
     with pytest.raises(ValueError):
         _make_table_schema(spec)
+
+from sdtp.sdtp_schema import make_table_schema
+
+def test_make_table_schema_correct():
+    cols = [("foo", "string"), ("bar", "number")]
+    schema = make_table_schema(cols)
+    assert schema == [{"name": "foo", "type": "string"}, {"name": "bar", "type": "number"}]
+
+def test_make_table_schema_bad_type():
+    cols = [("foo", "string"), ("bar", "bogus")]
+    with pytest.raises(ValueError) as e:
+        make_table_schema(cols)
+    assert "bogus" in str(e.value)
+
+def test_make_table_schema_empty():
+    assert make_table_schema([]) == []
+
+def test_make_table_schema_all_types():
+    types = ["string", "number", "boolean", "date", "datetime", "timeofday"]
+    cols = [(f"c{i}", t) for i, t in enumerate(types)]
+    schema = make_table_schema(cols)
+    assert all(col["type"] in types for col in schema)
+
+def test_make_table_schema_duplicate_names():
+    cols = [("foo", "string"), ("foo", "number")]
+    # Current function allows duplicates; if you want to disallow, add a test for ValueError here
+    schema = make_table_schema(cols)
+    assert schema[0]["name"] == schema[1]["name"] == "foo"
+
+def test_make_table_schema_case_sensitivity():
+    cols = [("foo", "String")]
+    with pytest.raises(ValueError):
+        make_table_schema(cols)

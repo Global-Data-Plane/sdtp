@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: SDTP Server API
+  version: "1.0"
+  description: |
+    REST API for SDTP Table Service — serves tabular data using the SDTP protocol.
+    This spec matches the Flask implementation in sdtp_server.py.
+servers:
+  - url: http://localhost:5000
+
+paths:
+  /get_table_names:
+    get:
+      summary: List all table names
+      responses:
+        '200':
+          description: List of table names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /get_tables:
+    get:
+      summary: List all tables and their schemas
+      responses:
+        '200':
+          description: Dictionary of {table_name: schema}
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/TableSchema'
+
+  /get_table_schema:
+    get:
+      summary: Get schema for a specific table
+      parameters:
+        - name: table_name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Table schema (list of columns)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Column'
+        '404':
+          description: Table not found
+
+  /get_range_spec:
+    get:
+      summary: Get min/max values for a column
+      parameters:
+        - name: table_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: column_name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Min and max value as a 2-element list
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items:
+                  type: string
+        '404':
+          description: Table or column not found
+
+  /get_all_values:
+    get:
+      summary: Get all distinct values in a column
+      parameters:
+        - name: table_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: column_name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sorted list of distinct values
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /get_column:
+    get:
+      summary: Get an entire column from a table
+      parameters:
+        - name: table_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: column_name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of values in the column
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /get_filtered_rows:
+    post:
+      summary: Get filtered rows from a table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilteredRowsRequest'
+      responses:
+        '200':
+          description: List of rows matching the filter
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: string
+        '400':
+          description: Invalid request
+
+  /_echo_json_post:
+    post:
+      summary: Echo POSTed JSON (debug)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Echoed JSON object
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /routes:
+    get:
+      summary: List all API routes (metadata)
+      responses:
+        '200':
+          description: Route metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+components:
+  schemas:
+    Column:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+      required: [name, type]
+
+    TableSchema:
+      type: array
+      items:
+        $ref: '#/components/schemas/Column'
+
+    FilteredRowsRequest:
+      type: object
+      properties:
+        table:
+          type: string
+          description: Name of the table
+        columns:
+          type: array
+          items:
+            type: string
+          description: List of columns to fetch (optional)
+        filter:
+          type: object
+          description: SDTP filter spec (optional)
+        result_format:
+          type: string
+          description: Output format (optional)
+      required:
+        - table
+

@@ -9,3 +9,44 @@ The `TableServer` does not work with `SDMLTable`s directly, but with a containin
 In addition, table_server.py implements the self-explanatory `TableNotFoundException`.
 `sdtp_server` is a reference implementation of an SDTP server, implemented in Flask.  It implements all of the routes specified in the SDTP specification.  The route / and /help prints a list of the supported routes.
 `app` is a thin overlay on `stdp_server`; it simply initializes the stdp server with the tables found in the directories in the `SDTP_PATH` environment variable.
+
+## Using the SDTP Blueprint
+
+This package provides the SDTPServer as a Flask Blueprint.
+You can register it in any Flask app:
+```
+from flask import Flask
+from src.sdtp_server import sdtp_server_blueprint  # Adjust import as needed
+
+app = Flask(__name__)
+app.register_blueprint(sdtp_server_blueprint, url_prefix="/")
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+ ## Adding Swagger (OpenAPI) Documentation
+
+To provide an interactive API docs UI, install flasgger
+```
+pip install flasgger
+```
+Then, after creating your Flask app and registering the blueprint, add:
+```
+from flasgger import Swagger
+
+swagger = Swagger(app, template_file="src/openapi.yaml")  # Path to the provided OpenAPI YAML
+```
+## Example: Minimal Dev Server with Swagger UI
+```
+# run_server.py (dev/demo only)
+from flask import Flask
+from flasgger import Swagger
+from src.sdtp_server import sdtp_server_blueprint  # Adjust path as needed
+
+app = Flask(__name__)
+app.register_blueprint(sdtp_server_blueprint, url_prefix="/")
+swagger = Swagger(app, template_file="src/openapi.yaml")  # Or wherever your YAML lives
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```

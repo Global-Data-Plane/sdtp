@@ -286,3 +286,47 @@ def convert_dict_to_type(sdml_type, value_dict):
         return result
     except Exception as exc:
         raise InvalidDataException(f'Failed to convert {value_dict} to {sdml_type}')
+
+#
+# Classes and methods to support authentication for RemoteSDMLTables and the sdtp
+# client.
+#
+from typing import TypedDict, Union, Optional
+import os
+
+class EnvAuthMethod(TypedDict):
+    '''
+    The authentication token is in an the environment variable env
+    '''
+    env: str
+
+class PathAuthMethod(TypedDict):
+    '''
+    The authentication token is in the file at path
+    '''
+    path: str
+
+class ValueAuthMethod(TypedDict):
+    '''
+    The authentication token is the value
+    '''
+    value: str
+
+AuthMethod = Union[EnvAuthMethod, PathAuthMethod, ValueAuthMethod]
+
+def resolve_auth_method(method: AuthMethod) -> Optional[str]:
+    """
+    Resolve an AuthMethod dict to a credential string.
+    Returns None if the method can't be satisfied (env var/file missing, etc.).
+    """
+    if "env" in method:
+        return os.environ.get(method["env"])
+    elif "path" in method:
+        try:
+            with open(os.path.expanduser(method["path"]), "r") as f:
+                return f.read().strip()
+        except Exception:
+            return None
+    elif "value" in method:
+        return method["value"]
+    return None

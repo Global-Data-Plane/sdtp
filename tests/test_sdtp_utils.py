@@ -39,6 +39,7 @@ from sdtp import type_check, check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_row, jsonifiable_rows, jsonifiable_column
 from sdtp import convert_to_type, convert_list_to_type, convert_dict_to_type
 from sdtp import InvalidDataException
+from sdtp.sdtp_utils import resolve_auth_method, AuthMethod
 # from sdtp_data.sdtp_utils import *
 import math
 
@@ -277,3 +278,45 @@ def test_convert_dict_to_type():
     with pytest.raises(InvalidDataException) as exc:
       convert_dict_to_type(non_dict, SDML_BOOLEAN) # Type doesn't matter
       assert(repr(exc) == f'Failed to conver {non_dict} to {SDML_BOOLEAN}')
+
+def test_env_auth_method_success(monkeypatch):
+    monkeypatch.setenv("FOO_TOKEN", "supersecret")
+    method:AuthMethod = {"env": "FOO_TOKEN"}
+    assert resolve_auth_method(method) == "supersecret"
+
+def test_env_auth_method_missing(monkeypatch):
+    monkeypatch.delenv("NOT_SET", raising=False)
+    method:AuthMethod = {"env": "NOT_SET"}
+    assert resolve_auth_method(method) is None
+
+def test_path_auth_method_success(tmp_path):
+    file = tmp_path / "tokenfile"
+    file.write_text("mytoken\n")
+    method:AuthMethod = {"path": str(file)}
+    assert resolve_auth_method(method) == "mytoken"
+
+def test_path_auth_method_missing(tmp_path):
+    file = tmp_path / "nope"
+    method:AuthMethod = {"path": str(file)}
+    assert resolve_auth_method(method) is None
+
+def test_path_auth_method_bad_file(tmp_path):
+    # Unreadable file (simulate permission error)
+    file = tmp_path / "badfile"
+    file.write_text("secret")
+    file.chmod(0o000)
+    method:AuthMethod = {"path": str(file)}
+    try:
+        assert resolve_auth_method(method) is None
+    finally:
+        # Fix perms so pytest can clean up
+        file.chmod(0o644)
+
+def test_value_auth_method():
+    method:AuthMethod = {"value": "myhardcodedtoken"}
+    assert resolve_auth_method(method) == "myhardcodedtoken"
+
+def test_invalid_auth_method():
+    # Neither env, path, nor value
+    method = {"bogus": "something"}
+    assert resolve_auth_method(method) is None
