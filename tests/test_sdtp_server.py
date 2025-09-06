@@ -35,7 +35,13 @@ import pytest
 import json
 import sys
 from flask import Flask
+import os
+# Get the absolute path to the directory containing THIS file
+file_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Add that directory to sys.path if not already present
+if file_dir not in sys.path:
+    sys.path.insert(0, file_dir)
 
 
 sys.path.append('./src')
@@ -49,7 +55,7 @@ app.register_blueprint(sdtp_server_blueprint)
 
 sdtp_server_blueprint.init_logging(__name__)
 
-from tests.server_test_tables import test_tables
+from server_test_tables import test_tables
 # from server_test_tables import test_tables
 for table_spec in test_tables:
     sdtp_server_blueprint.table_server.add_sdtp_table(table_spec['name'], table_spec['table'])
@@ -212,4 +218,4 @@ def test_get_filtered_rows():
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = ['name', 'age'], format="sdml")
     # specify empty columns
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = [], format="sdml")
-
+test_get_filtered_rows()

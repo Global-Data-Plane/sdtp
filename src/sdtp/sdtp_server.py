@@ -367,10 +367,13 @@ def get_filtered_rows():
     # Check to make sure the requested format is OK
     if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
         _log_and_abort(f'Bad result_format {format} requested for get_filtered_rows.  Request format must be in {ALLOWED_FILTERED_ROW_RESULT_FORMATS}')
+
     result = table.get_filtered_rows(filter_spec=filter_spec, columns=columns, format=format)
+
     if isinstance(result, RowTable):
         # Safe to call .to_dictionary()
         result = result.to_dictionary()
+        
     return Response(
             dumps(result, default= json_serialize),
             mimetype = "application/json"

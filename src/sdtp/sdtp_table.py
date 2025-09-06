@@ -44,7 +44,7 @@ from typing import List
 from .sdtp_utils import InvalidDataException
 from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check, json_serialize
 from .sdtp_utils import convert_list_to_type, convert_rows_to_type_list
-from .sdtp_filter import SDQLFilter
+from .sdtp_filter import SDQLFilter, make_filter
 
 def _row_dict(row, columns):
     result = {}
@@ -53,15 +53,21 @@ def _row_dict(row, columns):
     return result
 
 def _convert_filter_result_to_format(rows, columns, schema, format):
-    if format == 'list': return rows
-    
+    result_rows = rows
+    if len(columns) < len(schema):
+        column_indices = [i for i in range(len(schema)) if schema[i]["name"] in columns]
+        result_rows = [[row[index] for index in column_indices] for row in rows]
+            
+    if format == 'list':
+        return result_rows
+        
     if format == 'dict':
-        return [_row_dict(row, columns) for row in rows]
+        return [_row_dict(row, columns) for row in result_rows]
     # format is SDML, return a RowTable
     schema_as_dict = {}
     for entry in schema: schema_as_dict[entry["name"]] = entry["type"]
     row_table_schema = [{"name": column, "type":schema_as_dict[column]} for column in columns]
-    return RowTable(row_table_schema, rows)
+    return RowTable(row_table_schema, result_rows)
 
 
 ALLOWED_FILTERED_ROW_RESULT_FORMATS = {'dict', 'list', 'sdml'}
@@ -240,7 +246,7 @@ class SDMLTable:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')
         if columns is None: columns = []
         # Note that we don't check if the column names are all valid
-        filter = SDQLFilter(filter_spec, self.schema) if filter_spec is not None else None
+        filter = make_filter(filter_spec) if filter_spec is not None else None
         rows =  self._get_filtered_rows_from_filter(filter = filter, columns=columns)
         columns_in_result = self.column_names() if len(columns) == 0 else columns
         return _convert_filter_result_to_format(rows, columns_in_result, self.schema, format)
@@ -406,7 +412,8 @@ class SDMLFixedTable(SDMLTable):
         if filter is None:
             rows = self.get_rows()
         else:
-            rows = filter.filter(self.get_rows())
+            columns = self.column_names()
+            rows = [row for row in self.get_rows() if filter.matches(row, columns)]
         if columns == []:
             result =  rows
             column_types = self.column_types()

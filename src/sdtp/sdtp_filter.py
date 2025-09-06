@@ -1,11 +1,3 @@
-'''
-A SDMLTable class and associated utilities.  The SDMLTable class is initialized
-with the table's schema,  single function,get_rows(), which returns the rows of the table.  To
-use a  SDMLTable instance, instantiate it with the schema and a get_rows() function.
-The SDMLTable instance can then be passed to a SDTPServer with a call to
-galyleo_server_framework.add_table_server, and the server will then be able to serve
-the tables automatically using the instantiated SDMLTable.
-'''
 
 # BSD 3-Clause License
 # Copyright (c) 2024, The Regents of the University of California (Regents)
@@ -31,368 +23,338 @@ the tables automatically using the instantiated SDMLTable.
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from functools import reduce
-from math import nan, isnan
+from __future__ import annotations
 import re
-import pandas as pd
-import datetime
-import urllib
-import json
-
-from .sdtp_schema import SDML_BOOLEAN, SDML_NUMBER, SDML_DATETIME, SDML_DATE, \
-    SDML_SCHEMA_TYPES, SDML_STRING, SDML_TIME_OF_DAY
+from pydantic import BaseModel, PrivateAttr
+from typing import Dict, List, Any, Union
+from datetime import date, time, datetime
 from .sdtp_utils import InvalidDataException
-from .sdtp_utils import jsonifiable_column, jsonifiable_row, jsonifiable_rows, jsonifiable_value
-from .sdtp_utils import convert_list_to_type, convert_to_type
+
+
+PrimitiveType = Union[str, float, int, bool]
+
+def is_primitive(val):
+    return isinstance(val, (str, int, float, bool))
+
+def format_error(msg: str, spec: Dict[str, Any]) -> str:
+    return f"{msg}. Filter spec: {spec}"
+
+
+def parse_iso(val):
+    # Try to parse as date, time, or datetime; fallback to original value
+    if isinstance(val, str):
+        for parser in (date.fromisoformat, time.fromisoformat, datetime.fromisoformat):
+            try:
+                return parser(val)
+            except Exception:
+                pass
+    return val
+
+
+class SDQLFilter(BaseModel):
+  """
+  Abstract base class for all filters.  
+  """
+  operator: str
+
+  def to_filter_spec(self):
+    '''
+    Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where
+    A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
+    the server for server-side filtering.  It's also useful for testing and debugging
+    Returns:
+        A dictionary form of the Filter
+    '''
+    raise NotImplementedError("to_filter_spec must be implemented by subclass")
+    
+  
+  def matches(self, row, columns):
+    # override in subclass
+    return False
+
+class ColumnFilter(SDQLFilter):
+  """
+  Abstract base class for IN_LIST, GE, LE, LT, GT, REGEX_MATCH filters
+  """
+  column: str
+
+  def matches(self, row, columns):
+    """
+    Every ColumnFilter picks out the appropriate value from the row and runs the test on that, 
+    so do that once, here
+    """
+    try:
+      index = columns.index(self.column)
+      return self.matches_value(row[index])
+    except ValueError:
+      return False
+  
+  def matches_value(self, value):
+    # override in subclass
+    return False
+  
+class InListFilter(ColumnFilter):
+  """
+  Implement an "IN_LIST" filter, which passes all rows in which the 
+  value of column is in the list given by values
+  Arguments:
+    values: list of values to check for
+  """
+
+  values:List[PrimitiveType]
+  _compare_values: list = PrivateAttr()
+
+  def model_post_init(self, context: Any) -> None:
+    super().model_post_init(context)
+    self._compare_values = [parse_iso(v) for v in self.values]
+
+  
+  def matches_value(self, value):
+    return value in self._compare_values
+  
+  def to_filter_spec(self):
+    return {
+      "operator": self.operator,
+      "column": self.column,
+      "values": self.values
+    }
+
+class CompareFilter(ColumnFilter):
+  """
+  Superclass for "GE", "LE", "GT", "LT" operators.  Takes care of
+  finding the compare_value and generating the dictionary form
+  """
+  value: PrimitiveType
+  _compare_value: PrimitiveType = PrivateAttr()
+
+  def model_post_init(self, context: Any) -> None:
+    super().model_post_init(context)
+    self._compare_value = parse_iso(self.value)
+
+  def to_filter_spec(self):
+    return {
+      "operator": self.operator,
+      "column": self.column,
+      "value": self.value
+    }
+
+class GEFilter(CompareFilter):
+  """
+  Implement >=
+  """
+  def matches_value(self, value):
+    try:
+      return value >= self._compare_value
+    except TypeError:
+      return False
+  
+class GTFilter(CompareFilter):
+  """
+  Implement > 
+  """
+  def matches_value(self, value):
+    try:
+      return value > self._compare_value
+    except TypeError:
+      return False
+
+class LEFilter(CompareFilter):
+  """
+  Implement <=
+  """
+  def matches_value(self, value):
+    try:
+      return value <= self._compare_value
+    except TypeError:
+      return False
+
+class LTFilter(CompareFilter):
+  """
+  Implement < 
+  """
+  def matches_value(self, value):
+    try:
+      return value < self._compare_value
+    except TypeError:
+      return False
+
+
+class RegexFilter(ColumnFilter):
+  """
+  Implement a REGEX filter, which passes all rows in which the 
+  value of column matches the regular expression expression
+
+  """
+  expression: str
+  _regex = PrivateAttr()
+  def model_post_init(self, context: Any) -> None:
+    super().model_post_init(context)
+    self._regex = re.compile(self.expression)
+
+  def matches_value(self, value):
+    return isinstance(value, str) and self._regex.fullmatch(value) is not None
+  
+  def to_filter_spec(self):
+    return  {
+      "operator": "REGEX_MATCH",
+      "column": self.column,
+      "expression": self.expression
+    }
+
+
+class CompoundFilter(SDQLFilter):
+  """
+  Superclass for a CompoundFilter (ALL, ANY, or NONE).  Just
+  generates the intermediate form and implements a utility which
+  maps a match across all arguments
+  Arguments:
+    operator: one of ANY, ALL, or NONE
+    arguments: set of subfilters
+  """
+  arguments: List[SDQLFilter]
+
+  def to_filter_spec(self):
+    return {
+      "operator": self.operator,
+      "arguments": [f.to_filter_spec() for f in self.arguments]
+    }
+  
+  def arguments_match(self, row, columns):
+    return [argument.matches(row, columns) for argument in self.arguments]
+  
+class AllFilter(CompoundFilter):
+  """
+  An ALL Filter -- matches a row if ALL of the arguments match on the
+  column
+  """
+  def matches(self, row, columns):
+    return not (False in self.arguments_match(row, columns))
+
+class AnyFilter(CompoundFilter):
+  """
+  An ANY Filter -- matches a row if ANY of the arguments match on the
+  column
+  """ 
+  def matches(self, row, columns):
+    return True in self.arguments_match(row, columns)
+
+class NoneFilter(CompoundFilter):
+  """
+  A None Filter -- matches a row if NONE  of the arguments match on the
+  column
+  Arguments:
+    arguments: set of subfilters
+  """
+  def matches(self, row, columns):
+    return not (True in self.arguments_match(row, columns))
+
+FILTER_CLASSES = {
+  'IN_LIST': InListFilter,
+  'GE': GEFilter,
+  'LE': LEFilter,
+  'LT': LTFilter,
+  'GT': GTFilter,
+  'REGEX_MATCH': RegexFilter,
+  'ALL': AllFilter,
+  'ANY': AnyFilter,
+  'NONE': NoneFilter
+}
+
+
+FilterUnion = Union[
+    InListFilter,
+    GEFilter, LEFilter, GTFilter, LTFilter,
+    RegexFilter,        # if you define it
+    AllFilter, AnyFilter, NoneFilter
+]
+SDQLFilter.model_rebuild()
 
 SDQL_FILTER_FIELDS = {
     'ALL': {'arguments'},
     'ANY': {'arguments'},
     'NONE': {'arguments'},
     'IN_LIST': {'column', 'values'},
-    'IN_RANGE': {'column', 'max_val', 'min_val'},
+    'IN_RANGE': {'column', 'max_val', 'min_val', 'inclusive'},
+    'GE': {'column', 'value'},
+    'GT': {'column', 'value'},
+    'LE': {'column', 'value'},
+    'LT': {'column', 'value'},
     'REGEX_MATCH': {'column', 'expression'}
 }
 
-def _composite_argument_check_(filter_spec, filter_spec_keys):
-    if not 'arguments' in filter_spec_keys:
-        raise InvalidDataException(f'{filter_spec} is missing required field arguments')
 
-def _primitive_argument_check_(filter_spec, filter_spec_keys, required_keys):
-    missing_fields = required_keys - filter_spec_keys
-    if len(missing_fields) > 0:
-        raise InvalidDataException(f'{filter_spec} is missing required fields {_canonize_set(missing_fields)}')
+# --- Use the discriminator for auto-parsing ---
 
-def _in_range_argument_check_argument_check_(filter_spec, filter_spec_keys):
-    errors = []
-    if not 'column' in filter_spec_keys:
-        errors.append('missing required field column')
-    if not 'max_val' in filter_spec_keys:
-        if not 'min_val' in filter_spec_keys:
-            errors.append('one of max_val, min_val must be present')
-    if len(errors) > 0:
-        raise InvalidDataException(f'{filter_spec} has the following errors: {"; ".join(errors)}') 
+SDQL_FILTER_OPERATORS = set(FILTER_CLASSES.keys())
 
+def expand_in_range_spec(spec):
+  """
+  Expands an IN_RANGE filter spec into a list of atomic comparison specs.
+  """
+  min_val = spec.get("min_val")
+  max_val = spec.get("max_val")
+  inclusive = spec.get("inclusive", "both")
+  column = spec["column"]
 
-
-SDQL_FIELDS_CHECK = {
-    'ALL': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
-    'ANY': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
-    'NONE': lambda spec, spec_keys: _composite_argument_check_(spec, spec_keys),
-    'IN_LIST': lambda spec, spec_keys: _primitive_argument_check_(spec, spec_keys, {'column', 'values'}),
-    'REGEX_MATCH': lambda spec, spec_keys: _primitive_argument_check_(spec, spec_keys, {'column', 'expression'}),
-    'IN_RANGE': lambda spec, spec_keys: _in_range_argument_check_argument_check_(spec, spec_keys)
-
-}
-
-SDQL_FILTER_OPERATORS = set(SDQL_FIELDS_CHECK.keys())
+  atomic_specs = []
+  # Left (min)
+  if min_val is not None:
+    op = "GE" if inclusive in ("both", "left") else "GT"
+    atomic_specs.append({"operator": op, "column": column, "value": min_val})
+  # Right (max)
+  if max_val is not None:
+    op = "LE" if inclusive in ("both", "right") else "LT"
+    atomic_specs.append({"operator": op, "column": column,  "value": max_val})
+  return atomic_specs[0] if len(atomic_specs) == 1 else {"operator": "ALL", "arguments": atomic_specs}
 
 
+def make_filter(filter_spec):
+  """
+  Make a filter from a filter_spec.  Note that filter_spec should
+  be free of errors (run filter_spec_errors first)
+  Arguments:
+    filter_spec: A valid dictionary form of a filter
+  Returns:
+    An instance of SDQL Filters
+  """
+  operator = filter_spec["operator"]
+  if operator == "IN_RANGE":
+    filter_spec = expand_in_range_spec(filter_spec)
+    operator = filter_spec["operator"]
 
-def _canonize_set(any_set):
-    # Canonize a set into a sorted list; this is useful to ensure that
-    # error messages are deterministic
-    result = list(any_set)
-    result.sort()
-    return result
-
-def check_valid_spec_return_boolean(filter_spec):
-    '''
-    Class method which checks to make sure that a filter spec is valid.
-    Returns True iff the filter_spec is valid.  Doesn't give a reason 
-    if it's invalid
-
-    Arguments:
-        filter_spec: spec to test for validity
-    '''
-    try:
-        check_valid_spec(filter_spec)
-        return True
-    except InvalidDataException:
-        return False
-
+  cls = FILTER_CLASSES.get(operator)
+  if not cls:
+    raise ValueError(f"Unknown filter operator: {operator}")
+  if issubclass(cls, CompoundFilter):
+    return cls(operator = operator, arguments=[make_filter(s) for s in filter_spec["arguments"]])
+  return cls(**filter_spec)
+  
 
 def check_valid_spec(filter_spec):
-    '''
-    Class method which checks to make sure that a filter spec is valid.
-    Does not return, but throws an InvalidDataException with an error message
-    if the filter spec is invalid
+  '''
+  Method which checks to make sure that a filter spec is valid.
+  Does not return, but throws an InvalidDataException with an error message
+  if the filter spec is invalid
 
-    Arguments:
-        filter_spec: spec to test for validity
-    '''
+  Arguments:
+    filter_spec: spec to test for validity
+  '''
+  try:
+    f = make_filter(filter_spec)
+  except Exception as e:
+    raise InvalidDataException(e)
+  
 
-    # Check to make sure filter_spec is a dictionary, and not something else
-    if not isinstance(filter_spec, dict):
-        raise InvalidDataException(f'filter_spec must be a dictionary, not {type(filter_spec)}')
-    #
-    # Step 1: check to make sure there is an operator field, and that it's an operator we recognize
-    if 'operator' in filter_spec:
-        operator = filter_spec['operator']
-        valid_operators = ['ALL', 'ANY', 'NONE', 'IN_LIST', 'IN_RANGE', 'REGEX_MATCH']
-        if not type(operator) == str:
-            raise InvalidDataException(f'operator {operator} is not a string')
-        if not operator in valid_operators:
-            msg = f'{operator} is not a valid operator.  Valid operators are {valid_operators}'
-            raise InvalidDataException(msg)
-    else:
-        raise InvalidDataException(f'There is no operator in {filter_spec}')
-    
-    # Check to make sure that the fields are right for the operator that was given
-    # We don't throw an error for extra fields, just for missing fields. Since we're
-    # going to use keys() to get the fields in the spec, and this will include the
-    # operator, 'operator' is one of the fields
+def check_valid_spec_return_boolean(filter_spec):
+  '''
+  Method which checks to make sure that a filter spec is valid.
+  Returns True if and only if filter_spec has no errors
 
-    fields_in_spec = set(filter_spec.keys())
-    SDQL_FIELDS_CHECK[operator](filter_spec, fields_in_spec)
-    
-    # For ALL and ANY, recursively check the arguments list and return
-    if (operator in {'ALL', 'ANY', 'NONE'}):
-        if not isinstance(filter_spec['arguments'], list):
-            bad_type = type(filter_spec["arguments"])
-            msg = f'The arguments field for {operator} must be a list, not {bad_type}'
-            raise InvalidDataException(msg)
-        for arg in filter_spec['arguments']:
-            check_valid_spec(arg)
-        return
-    # if we get here, it's IN_LIST, IN_RANGE, or REGEX_MATCH.
-
-    # For IN_LIST, check that the values argument is a list
-    if operator == 'IN_LIST':
-        values_type = type(filter_spec['values'])
-        if values_type != list:
-            msg = f'The Values argument to IN_LIST must be a list, not {values_type}'
-            raise InvalidDataException(msg)
-    elif operator == 'REGEX_MATCH':
-
-        # check to make sure the expression argument is a valid regex
-        try:
-            re.compile(filter_spec['expression'])
-        except Exception:
-            msg = f'Expression {filter_spec["expression"]} is not a valid regular expression'
-            raise InvalidDataException(msg)
-
-    elif operator == 'IN_RANGE':
-        primitive_types = {str, int, float, bool}
-        # even though dates, datetimes, and times are allowable, they must be strings
-        # in iso format in the spec
-        '''
-        fields = ['max_val', 'min_val']
-        for field in fields:
-            if filter_spec[field] is None:
-                # for some reason type-check doesn't catch this
-                raise InvalidDataException(f'The type of {field} must be one of {primitive_types}, not NoneType')
-
-            if not type(filter_spec[field]) in primitive_types:
-                raise InvalidDataException(f'The type of {field} must be one of {primitive_types}, not {type(filter_spec[field])}')
-        '''
-        if 'inclusive' in filter_spec:
-            if not filter_spec['inclusive'] in {'both', 'neither', 'left', 'right'}:
-                raise InvalidDataException(f'specification for inclusive must be one of both, neither, left, right, not {filter_spec["inclusive"]}')
-        if 'max_val' in filter_spec and 'min_val' in filter_spec:
-            try:
-                # max_val and min_val must be comparable
-                result = filter_spec['max_val'] > filter_spec['min_val']
-            except TypeError:
-                msg = f'max_val {filter_spec["max_val"]} and min_val {filter_spec["min_val"]} must be comparable for an IN_RANGE filter'
-                raise InvalidDataException(msg)
-
-
-def _valid_column_spec(column):
-    # True iff column is a dictionary with keys "name", "type"
-    if type(column) == dict:
-        keys = column.keys()
-        return 'name' in keys and 'type' in keys
-    return False
-
-
-def _is_inclusive(filter_spec, inclusive_values):
-    if 'inclusive' in filter_spec:
-        return filter_spec['inclusive'] in inclusive_values
+  Arguments:
+    filter_spec: spec to test for validity
+  '''
+  try:
+    f = make_filter(filter_spec)
     return True
-
-def _compare(low_value, high_value, inclusive):
-    return low_value < high_value or (inclusive and low_value == high_value)
-
-def _in_range(value, min_spec, max_spec):
-    if max_spec['value'] is not None:
-        if not _compare(value, max_spec['value'], max_spec['inclusive']):
-            return False
-    # if we get here, then either the comparison passed or there is no max_value
-    if min_spec['value'] is not None:
-        return  _compare(min_spec['value'], value, min_spec['inclusive'])
-    else:
-        # already passed max
-        return True
-    
-class SDQLFilter:
-    '''
-    A Class which implements a Filter used  to filter rows.
-    The arguments to the contstructor are a filter_spec, which is a boolean tree
-    of filters and the columns which the filter is implemented over.
-
-    This is designed to be instantiated from SDMLTable.get_filtered_rows()
-    and in no other place -- error checking, if any, should be done there.
-
-    Arguments:
-        filter_spec: a Specification of the filter as a dictionary.
-        columns: the columns in the form of a list {"name", "type"}
-    '''
-
-    def __init__(self, filter_spec, columns):
-        check_valid_spec(filter_spec)
-        bad_columns = [column for column in columns if not _valid_column_spec(column)]
-        if len(bad_columns) > 0:
-            raise InvalidDataException(f'Invalid column specifications {bad_columns}')
-        self.operator = filter_spec["operator"]
-        if (self.operator == 'ALL' or self.operator == 'ANY' or self.operator == 'NONE'):
-            self.arguments = [SDQLFilter(argument, columns) for argument in filter_spec["arguments"]]
-        else:
-            column_names = [column["name"] for column in columns]
-            column_types = [column["type"] for column in columns]
-            try:
-                self.column_index = column_names.index(filter_spec["column"])
-                self.column_name = column_names[self.column_index]
-                self.column_type = column_types[self.column_index]
-            except ValueError:
-                raise InvalidDataException(f'{filter_spec["column"]} is not a valid column name')
-
-            if self.operator == 'IN_LIST':
-                self.value_list = convert_list_to_type(self.column_type, filter_spec['values'])
-            elif self.operator == 'IN_RANGE':  # operator is IN_RANGE
-                self.min_val = {
-                    'value': None,
-                    'inclusive': _is_inclusive(filter_spec, {'both', 'left'})
-                }
-                self.max_val = {
-                    'value': None,
-                    'inclusive': _is_inclusive(filter_spec, {'both', 'right'})
-                }
-                if 'max_val' in filter_spec and 'min_val' in filter_spec:
-                    max_val = convert_to_type(self.column_type, filter_spec['max_val'])
-                    min_val = convert_to_type(self.column_type, filter_spec['min_val'])
-                    # convert_to_type checks types, no need for pylance checks
-                    self.max_val['value'] = max_val if max_val >= min_val else min_val # type: ignore[operator]
-                    self.min_val['value'] = min_val if min_val <= max_val else max_val # type: ignore[operator]
-                elif 'max_val' in filter_spec:
-                    self.max_val['value'] = convert_to_type(self.column_type, filter_spec['max_val'])
-                elif 'min_val' in filter_spec:
-                    self.min_val['value'] = convert_to_type(self.column_type, filter_spec['min_val'])
-            else:  # operator is REGEX_MATCH
-                if column_types[self.column_index] != SDML_STRING:
-                    raise InvalidDataException(
-                        f'The column type for a REGEX filter must be SDML_STRING, not {column_types[self.column_index]}')
-                # note we've already checked for expression and that it's valid
-                self.regex = re.compile(filter_spec['expression'])
-                # hang on to the original expression for later jsonification
-                self.expression = filter_spec['expression']
-
-    def to_filter_spec(self):
-        '''
-        Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where
-        A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
-        the server for server-side filtering.  It's also useful for testing and debugging
-        Returns:
-            A dictionary form of the Filter
-        '''
-        compound_operators = {'ALL', 'ANY', 'NONE'}
-        result = {"operator": self.operator}
-        if self.operator in compound_operators:
-            result["arguments"] = [argument.to_filter_spec() for argument in self.arguments]
-        else:
-            try:
-                result["column"] = self.column_name
-            except AttributeError as e:
-                raise InvalidDataException(f"Filter with operator {self.operator} must have a column name")
-
-            if self.operator == 'IN_LIST':
-                result["values"] = jsonifiable_column(self.value_list, self.column_type)
-            elif self.operator == 'IN_RANGE':
-                if self.max_val['value']:
-                    result["max_val"] = jsonifiable_value(self.max_val, self.column_type)
-                if self.min_val['value']:
-                    result["min_val"] = jsonifiable_value(self.min_val, self.column_type)
-                if self.min_val['inclusive']:
-                    result['inclusive'] = 'both' if self.max_val['inclusive'] else 'left'
-                else:
-                    result['inclusive'] = 'right' if self.max_val['inclusive'] else 'neither'
-            else:  # operator == 'REGEX_MATCH'
-                result["expression"] = self.expression
-        return result
-
-    def filter(self, rows):
-        '''
-        Filter the rows according to the specification given to the constructor.
-        Returns the rows for which the filter returns True.
-
-        Arguments:
-            rows: list of list of values, in the same order as the columns
-        Returns:
-            subset of the rows, which pass the filter
-        '''
-        # Just an overlay on filter_index, which returns the INDICES of the rows
-        # which pass the filter.  This is the top-level call, filter_index is recursive
-        indices = self.filter_index(rows)
-        return [rows[i] for i in range(len(rows)) if i in indices]
-
-    def filter_index(self, rows):
-        '''
-        Not designed for external call.
-        Filter the rows according to the specification given to the constructor.
-        Returns the INDICES of the  rows for which the filter returns True.
-        Arguments:
-
-            rows: list of list of values, in the same order as the columns
-
-        Returns:
-            INDICES of the rows which pass the filter, AS A SET
-
-        '''
-        all_indices = range(len(rows))
-        
-        if self.operator == 'ALL':
-            argument_indices = [argument.filter_index(rows) for argument in self.arguments]
-            return reduce(lambda x, y: x & y, argument_indices, set(all_indices))
-        elif self.operator == 'ANY':
-            argument_indices = [argument.filter_index(rows) for argument in self.arguments]
-            return reduce(lambda x, y: x | y, argument_indices, set())
-        elif self.operator == 'NONE':
-            argument_indices = [argument.filter_index(rows) for argument in self.arguments]
-            return reduce(lambda x, y: x - y, argument_indices, set(all_indices))
-        # Primitive operator if we get here.  Dig out the values to filter
-        values = [row[self.column_index] for row in rows]
-        if self.operator == 'IN_LIST':
-            return set([i for i in all_indices if values[i] in self.value_list])
-        elif self.operator == 'IN_RANGE':
-            return set([i for i in all_indices if _in_range(values[i], self.min_val, self.max_val)])
-        else:  # self.operator == 'REGEX_MATCH'
-            return set([i for i in all_indices if self.regex.fullmatch(values[i]) is not None])
-
-    def get_all_column_values_in_filter(self, column_name):
-        '''
-        Return the set of all values in operators for column column_name.  This is for the 
-        case where a back-end process (e.g., a SQL stored procedure) takes parameter values
-        for specific columns, and we want to use the values here to select at the source.
-        Arguments:
-             column_name: the name of the column to get all the values for
-        Returns:
-             A SET of all of the values for the column
-        '''
-        if column_name is None:
-            return set()
-        if type(column_name) != str:
-            return set()
-        if self.operator in ['ALL', 'ANY', 'NONE']:
-            values = set()
-            # I'd like to use a comprehension here, but I'm not sure how it interacts with union
-            for argument in self.arguments:
-                values = values.union(argument.get_all_column_values_in_filter(column_name))
-            return values
-        if column_name != self.column_name:
-            return set()
-        if self.operator == 'IN_LIST':
-            return set(self.value_list)
-        if self.operator == 'IN_RANGE':
-            return {self.max_val['value'], self.min_val['value']} 
-        # must be REGEX_MATCH
-        return {self.expression}
+  except Exception as e:
+    return False

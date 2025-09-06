@@ -37,15 +37,13 @@ SDQL is an *\_intermediate\_* form for queries, designed to support a wide range
 }
 ```
 
-### Example: Value in a range (with inclusivity)
+### Example: Value >= a minimum
 
 ```json
 {
-  "operator": "IN_RANGE",
+  "operator": "GE",
   "column": "Disease",
-  "min_val": 1000,
-  "max_val": 2000,
-  "inclusive": "left"
+  "value": 1000
 }
 ```
 
@@ -55,39 +53,18 @@ SDQL is an *\_intermediate\_* form for queries, designed to support a wide range
 
 SDQL Row queries are designed to filter rows of the table; the result of an SDQL row query is the set of rows which match the condition.  Effectively, it operates as a *\_simple\_* form of a SQL \`WHERE\` clause.  There are currently six supported operators:
 
-| Operator     | Arguments                             | Purpose                                       | SQL Analog      |
-| ------------ | ------------------------------------- | --------------------------------------------- |-----------------|
-| IN\_LIST     | column, values                        | Membership in a value list                    | `<column> = values[0] OR <column> = values[1]...`
-| IN\_RANGE    | column, min\_val, max\_val, inclusive | Bounded value range with optional inclusivity | Every inequality test, depending on which (or both) of `min_val` and `max_val` are present, and the value of the `inclusive` parameter |
-| REGEX\_MATCH | column, expression                    | Regex match for string columns                | `LIKE` |
-| ANY          | arguments (array of filters)          | Logical OR (any sub-filter matches)           | `OR` |
-| ALL          | arguments (array of filters)          | Logical AND (all sub-filters match)           | `AND` | 
-| NONE         | arguments (array of filters)          | Logical NOR (none of the sub-filters match)   | `NOT( OR )` (`NOT` if the `arguments` parameters is a list of length 1) |
+| Operator     | Arguments                    | Purpose                                       | SQL Analog                                                              |
+| ------------ | -----------------------------| --------------------------------------------- |-------------------------------------------------------------------------|
+| IN\_LIST     | column, values               | Membership in a value list                    | `<column> = values[0] OR <column> = values[1]...`                       |
+| GE           | column, value                | column value >= value                         | `<column> >= value`                                                     |
+| LE           | column, value                | column value <= value                         | `<column> <= value`                                                     |
+| GT           | column, value                | column value > value                          | `<column> > value`                                                      |
+| LT           | column, value                | column value < value                          | `<column> < value`                                                      |
+| REGEX\_MATCH | column, expression           | Regex match for string columns                | `LIKE`                                                                  |
+| ANY          | arguments (array of filters) | Logical OR (any sub-filter matches)           | `OR`                                                                    |
+| ALL          | arguments (array of filters) | Logical AND (all sub-filters match)           | `AND`                                                                   | 
+| NONE         | arguments (array of filters) | Logical NOR (none of the sub-filters match)   | `NOT( OR )` (`NOT` if the `arguments` parameters is a list of length 1) |
 
----
-
-## IN\_RANGE Operator and Inclusivity
-
-`IN_RANGE` allows you to select rows where the value of a column falls within a specified range. The `inclusive` argument controls which endpoints are included:
-
-* `both` (default): min\_val <= x <= max\_val
-* `neither`: min\_val < x < max\_val
-* `left`: min\_val <= x < max\_val
-* `right`: min\_val < x <= max\_val
-
-If `inclusive` is omitted, `both` is assumed.
-
-### Example:
-
-```json
-{
-  "operator": "IN_RANGE",
-  "column": "Disease",
-  "min_val": 1000,
-  "max_val": 2000,
-  "inclusive": "left"
-}
-```
 
 ---
 
@@ -106,7 +83,7 @@ SDQL supports composition using the following logical operators:
   "operator": "ALL",
   "arguments": [
     { "operator": "IN_LIST", "column": "Year", "values": [1855] },
-    { "operator": "IN_RANGE", "column": "Wounds", "min_val": 0, "max_val": 200, "inclusive": "left" }
+    { "operator": "LE", "column": "Wounds", "value": 200,  }
   ]
 }
 ```
@@ -125,11 +102,8 @@ SDQL supports composition using the following logical operators:
 
 ```json
 {
-  "operator": "IN_RANGE",
-  "column": "Disease",
-  "min_val": 2000,
-  "max_val": 10000,
-  "inclusive": "both"
+  "operator": "GT",
+  "value": 2000
 }
 ```
 
@@ -140,7 +114,7 @@ SDQL supports composition using the following logical operators:
   "operator": "ALL",
   "arguments": [
     { "operator": "IN_LIST", "column": "Year", "values": [1855] },
-    { "operator": "IN_RANGE", "column": "Wounds", "min_val": 0, "max_val": 200, "inclusive": "left" }
+    { "operator": "LT", "column": "Wounds", "value": 200 }
   ]
 }
 ```
@@ -169,9 +143,12 @@ SDQL supports composition using the following logical operators:
 
 | Operator     | Arguments                             | Purpose                                       |
 | ------------ | ------------------------------------- | --------------------------------------------- |
-| IN\_LIST     | column, values                        | Membership in a value list                    |
-| IN\_RANGE    | column, min\_val, max\_val, inclusive | Bounded value range with optional inclusivity |
-| REGEX\_MATCH | column, expression                    | Regex match for string columns                |
+| IN_LIST      | column, values                        | Membership in a value list                    |
+| GE           | column, value                         | Column value >= value                         |
+| LE           | column, value                         | Column value <= value                         |
+| GT           | column, value                         | Column value > value                          |
+| LT           | column, value                         | Column value < value                          |
+| REGEX_MATCH  | column, expression                    | Regex match for string columns                |
 | ANY          | arguments (array of filters)          | Logical OR (any sub-filter matches)           |
 | ALL          | arguments (array of filters)          | Logical AND (all sub-filters match)           |
 | NONE         | arguments (array of filters)          | Logical NOR (none of the sub-filters match)   |
