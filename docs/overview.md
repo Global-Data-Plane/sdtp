@@ -18,7 +18,5 @@ GDP makes it easy to share structured data between tools, teams, and environment
 
 GDP is intended for data engineers, scientists, and analysts who work across heterogeneous systems.
 
-For architecture, protocol details, and usage examples, see:  
-- [Quick Start](quickstart.md)
-- [Architecture](architecture.md)
-- [Protocol Reference](protocol.md)
+
+

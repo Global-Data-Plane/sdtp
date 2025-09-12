@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Simple Data Transfer Protocol'
-copyright = "2024, UC Regents"
+copyright = "2024-2025, UC Regents"
 author = "Rick McGeer"
 
 # The version info for the project you're documenting, acts as replacement

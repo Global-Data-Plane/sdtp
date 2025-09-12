@@ -2,7 +2,7 @@
 # conftest.py
 # BSD 3-Clause License
 
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 
 # Redistribution and use in source and binary forms, with or without

@@ -3,7 +3,7 @@ Constants and utilities for the Simple Data Transfer Protocol
 '''
 
 # BSD 3-Clause License
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -159,8 +159,8 @@ def convert_to_type(sdml_type, value):
     other values are converted to False
 
     Arguments:
-        sdml_type: type to convert to
-        value: value to be converted
+        sdml_type (str): type to convert to
+        value (Any): value to be converted
     Returns:
         value cast to the correct type
     '''

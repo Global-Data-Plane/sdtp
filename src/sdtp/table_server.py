@@ -15,7 +15,7 @@ There are two major classes:
 
 # BSD 3-Clause License
 
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 
 # Redistribution and use in source and binary forms, with or without
@@ -157,7 +157,8 @@ class TableServer:
         Raises an InvalidDataException if table_name is None or sdtp_table is None or is not an instance of SDMLTable.
 
         Arguments:
-            table_spec: dictionary of the form {"name", "table"}, where table is a Table (see above)
+            table_name (str): name of the table
+            sdtp_table (SDMLTable): table to add
 
         '''
         _check_type(sdtp_table, SDMLTable, 'The sdtp_table argument to add_sdtp_table must be a Table, not')
@@ -172,8 +173,8 @@ class TableServer:
         is not present, or if the factory raises an exception
 
         Arguments:
-            name: the name of the table
-            table_dictionary: dictionary of the form {"name", "table"}, where table is a table specification: a dictionary
+            name (str): the name of the table
+            table_dictionary (dict): dictionary of the form {"type", "table"}, where table is a table specification: a dictionary
                              with the fields type and schema
 
         '''
@@ -187,7 +188,7 @@ class TableServer:
             raise InvalidDataException(f'No factory registered for {table_type}')
 
 
-    def get_all_tables(self):
+    def get_all_tables(self) -> list:
         '''
         Get all the tables.  This
         is to support a request for a numeric_spec or all_values for a column name when the
@@ -195,13 +196,13 @@ class TableServer:
         
 
         Returns:
-            a list of all tables
+            list: a list of all tables
         '''
         tables = self.servers.values()
-        return tables
+        return list(tables)
 
     
-    def get_table(self, table_name):
+    def get_table(self, table_name) -> SDMLTable:
         '''
         Get the table with name table_name, first checking to see
         if  table access is authorized by the passed headers.
@@ -209,7 +210,7 @@ class TableServer:
             table_name: name of the table to search for
             
         Returns:
-            The SDML table corresponding to the request
+            SDMLTable: The SDML table corresponding to the request
         Raises:
             TableNotFoundException if the table is not found
             
@@ -221,16 +222,16 @@ class TableServer:
             raise TableNotFoundException(f'Table {table_name} not found')
 
    
-    def get_all_values(self, table_name, column_name):
+    def get_all_values(self, table_name, column_name) -> list:
         '''
         Get all of the distinct values for column column_name for table
         table_name.  Returns the list of distinct values for the columns
         Arguments:
-            table_name: table to be searched
-            column_name: name of the column
+            table_name (str): table to be searched
+            column_name (str): name of the column
            
         Returns:
-            Returns the list of distinct values for the columns
+            list: Returns the list of distinct values for the columns
         Raises:
             TableNotFoundException if the table is not found
             ColumnNotFoundException if the column can't be found
@@ -244,7 +245,7 @@ class TableServer:
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
 
-    def get_range_spec(self, table_name, column_name):
+    def get_range_spec(self, table_name, column_name) -> list:
         '''
         Get the range specification for column column_name for table
         table_name.  Returns  a two-length list [min_val, max_val]
@@ -253,7 +254,7 @@ class TableServer:
             column_name: name of the column
             
         Returns:
-            Returns  a dictionary with keys{max_val, min_val}
+            list: Returns  a dictionary with keys{max_val, min_val}
         Raises:
             TableNotFoundException if the table is not found
             ColumnNotFoundException if the column can't be found
@@ -265,7 +266,7 @@ class TableServer:
         except InvalidDataException:
             raise ColumnNotFoundException(f'Column {column_name} not found in table {table_name}')
         
-    def get_column(self, table_name, column_name):
+    def get_column(self, table_name, column_name) -> list:
         '''
         Get the column for column column_name for table
         table_name.  Returns the column as a list
@@ -274,7 +275,7 @@ class TableServer:
             column_name: name of the column
            
         Returns:
-            Returns  a dictionary with keys{max_val, min_val}
+            list: Returns  a dictionary with keys{max_val, min_val}
         Raises:
             TableNotFoundException if the table is not found
             ColumnNotFoundException if the column can't be found

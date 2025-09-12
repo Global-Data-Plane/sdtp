@@ -226,7 +226,7 @@ class SDTPClient:
             List[str]: list of table names.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         query = f'{self.url}/get_table_names'
         return self._do_get_request(query, auth)
@@ -242,7 +242,7 @@ class SDTPClient:
             Dict[Dict]:  Dictionary of table schemas
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         query = f'{self.url}/get_tables'
         return self._do_get_request(query, auth)
@@ -265,7 +265,7 @@ class SDTPClient:
             List[Dict[str, str]]: Schema for the table.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         query = f"{self.url}/get_table_schema?table_name={table_name}"
         return self._do_get_request(query, auth)
@@ -291,7 +291,7 @@ class SDTPClient:
             List[Any]: Result of the query.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         query_to_execute = f"{self.url}/{query}?table_name={table_name}&column_name={column_name}"
         return self._do_get_request(query_to_execute, auth)
@@ -314,7 +314,7 @@ class SDTPClient:
             List[Any]: List of length 2: [min, max]
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         return self._execute_column_query('get_range_spec', table_name, column_name, auth)
 
@@ -336,7 +336,7 @@ class SDTPClient:
             List[Any]: List of column values.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         return self._execute_column_query('get_all_values', table_name, column_name, auth)
 
@@ -358,7 +358,7 @@ class SDTPClient:
             List[Any]: The column as a list.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         return self._execute_column_query('get_column', table_name, column_name, auth)
 
@@ -386,7 +386,7 @@ class SDTPClient:
             List of rows (list of lists), or as specified by result_format.
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         headers = {'Accept': 'application/json'}
         token = self._resolve_effective_token(auth)
@@ -423,7 +423,7 @@ class SDTPClient:
             The echoed payload (dict).
 
         Raises:
-            SDTPClientError on a bad response.
+            SDTPClientError: SDTPClientError on a bad response.
         """
         headers = {'Accept': 'application/json'}
         token = self._resolve_effective_token(auth)

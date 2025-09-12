@@ -26,15 +26,6 @@ The GDP is intended to make data publishing and access simple and transparent.
 - **Extensibility:** Add new operators, types, or backends as your needs grow.
 - **Transparency:** Inspect and understand every data flow—no hidden magic.
 
----
-
-## Getting Started
-
-- [Quick Start](quickstart.md): Install and try out the Global Data Plane.
-- [Architecture Overview](architecture.md): See how SDML, SDQL, and SDTP work together.
-- [User’s Guide](users_guide.md): Concepts, setup, and example workflows.
-- [Protocol Reference](protocol.md): Technical details for SDML, SDQL, and SDTP.
-- [API Docs](api_reference.md): Classes, methods, and extensibility information.
 
 ---
 
@@ -55,8 +46,6 @@ A: Developers, data engineers, and anyone who needs to move tabular data simply 
 **Q: Can I use this with my existing tools and workflows?**  
 A: Yes. GDP tools are designed for interoperability. You can convert to/from pandas, SQL, CSV, and other formats.
 
-**Q: How do I get support or ask questions?**  
-A: Open a GitHub Issue, or see our [User’s Guide](users_guide.md) for documentation and examples.
 
 **Q: Where Can You Use It?**
 - Locally, in cloud environments, or between organizations—anywhere tabular data needs to be exchanged or queried.
@@ -76,7 +65,3 @@ A: Open a GitHub Issue, or see our [User’s Guide](users_guide.md) for document
 **Q: Where and how are SDML Tables stored?**
 - SDML and SDQL _do not imply any implementation_.  An SDML Table is an abstract, not concrete, artifact; it is the data equivalent of a software API.  It simply declares that each record is of the lengths and types of the schema, and that it will deliver matching rows in response to an SDQL Query.  In the package, we offer two standard SDML Tables -- a RowTable, where the rows are physically present in the table structure, and a RemoteSDMLTable, where the table is hosted at a remote SDTP Server.
 
-
-
-
----

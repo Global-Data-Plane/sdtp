@@ -17,7 +17,7 @@ After that, requests for the named table will be served by the created data serv
 
 # BSD 3-Clause License
 
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 
 # Redistribution and use in source and binary forms, with or without
@@ -217,8 +217,6 @@ def get_tables():
     {table_name: <table_schema>}, where <table_schema> is a dictionary
     {"name": name, "type": type}
 
-    Arguments:
-            None
     '''
     items = sdtp_server_blueprint.table_server.servers.items()
     result = {}
@@ -288,8 +286,6 @@ def get_all_values():
     sorted list of all distinct values in the column.    Aborts with a 400
     for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
 
-    Arguments:
-            None
     '''
     return _execute_column_operation('/get_all_values')
     
@@ -301,8 +297,6 @@ def get_column():
     sorted list of all distinct values in the column.    Aborts with a 400
     for missing arguments, missing table, bad column name or if there is no column_name in the arguments, and a 403 if the table is not authorized.
 
-    Arguments:
-            None
     '''
     return _execute_column_operation('/get_column')
  
@@ -319,15 +313,13 @@ def _echo_json_post():
 # Sole row route: get_filtered_rows
 
 @sdtp_server_blueprint.route('/get_filtered_rows', methods=['POST'])
-def get_filtered_rows():
+def get_filtered_rows() -> Response:
     '''
     Get the filtered rows from a request.   Gets the filter_spec from the filter  field in the body, the table name from the table field
     in the body.  If there is a columns field in the body, returns
     onlyt the named columns.  If there is no filter_spec, returns all rows using server.get_rows().
     Aborts with a 400 if there is no table, or if check_valid_spec or get_filtered_rows throws an InvalidDataException, or if the filter_spec is not valid JSON.
 
-    Arguments:
-        None
     Returns:
         The filtered rows as a JSONified list of lists
     '''

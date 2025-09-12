@@ -8,7 +8,7 @@ the tables automatically using the instantiated SDMLTable.
 '''
 
 # BSD 3-Clause License
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -36,7 +36,7 @@ import pandas as pd
 
 import requests
 import json
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Callable
 import os
 
 from .sdtp_schema import SDML_SCHEMA_TYPES, ColumnSpec, RowTableSchema, RemoteTableSchema, _make_table_schema 
@@ -167,7 +167,7 @@ class SDMLTable:
         name  column_name.
 
         Arguments:
-            column_name: name of the column to get the type for
+            column_name(str): name of the column to get the type for
         '''
         matches = [column["type"] for column in self.schema if column["name"] == column_name]
         if len(matches) == 0:
@@ -175,19 +175,19 @@ class SDMLTable:
         else:
             return matches[0]
     
-    def all_values(self, column_name: str,):
+    def all_values(self, column_name: str)  -> list:
         '''
         get all the values from column_name
         Arguments:
             column_name: name of the column to get the values for
            
         Returns:
-            List of the values
+            list: List of the values
 
         '''
         raise InvalidDataException(f'all_values has not been in {type(self)}.__name__')
     
-    def get_column(self, column_name: str):
+    def get_column(self, column_name: str)  -> list:
         '''
         get the column  column_name
         Arguments:
@@ -195,13 +195,13 @@ class SDMLTable:
              
 
         Returns:
-            List of the values in the column
+            list: List of the values in the column
 
         '''
         raise InvalidDataException(f'get_column has not been in {type(self)}.__name__')
     
 
-    def range_spec(self, column_name: str):
+    def range_spec(self, column_name: str) -> list:
         '''
         Get the dictionary {min_val, max_val} for column_name
         Arguments:
@@ -209,7 +209,7 @@ class SDMLTable:
             column_name: name of the column to get the range spec for
 
         Returns:
-            the minimum and  maximum of the column
+            list: the minimum and  maximum of the column
 
         '''
         raise InvalidDataException(f'range_spec has not been in {type(self)}.__name__')
@@ -232,11 +232,11 @@ class SDMLTable:
         Returns the rows for which the resulting filter returns True.
 
         Arguments:
-            filter_spec: Specification of the filter, as a dictionary
-            columns: the names of the columns to return.  Returns all columns if absent
-            format: one of 'list', 'dict', 'sdml'.  Default is list.  
+            filter_spec(dict): Specification of the filter, as a dictionary
+            columns(list): the names of the columns to return.  Returns all columns if absent
+            format(str): one of 'list', 'dict', 'sdml'.  Default is list.  
         Returns:
-            The subset of self.get_rows() which pass the filter in the format specified by format
+            list: The subset of self.get_rows() which pass the filter in the format specified by format
         '''
         # Check to make sure that the format is valid
         if format is None: format = DEFAULT_FILTERED_ROW_RESULT_FORMAT
@@ -246,7 +246,7 @@ class SDMLTable:
         if columns is None: columns = []
         # Note that we don't check if the column names are all valid
         filter = make_filter(filter_spec) if filter_spec is not None else None
-        rows =  self._get_filtered_rows_from_filter(filter = filter, columns=columns)
+        rows =  self._get_filtered_rows_from_filter(filter = filter)
         columns_in_result = self.column_names() if len(columns) == 0 else columns
         return _convert_filter_result_to_format(rows, columns_in_result, self.schema, format)
         
@@ -303,28 +303,27 @@ class SDMLFixedTable(SDMLTable):
     more efficient method than the obvious implementation, which is what's implemented here.
 
     Arguments:
-        schema: a list of records of the form {"name": <column_name, "type": <column_type>}.
-           The column_type must be a type from galyleo_constants.SDTP_TYPES.
-        get_rows: a function which returns a list of list of values.  Each component list
+        schema(List): a list of records of the form {"name": <column_name, "type": <column_type>}.
+            The column_type must be a type from galyleo_constants.SDTP_TYPES.
+        get_rows (Callable): a function which returns a list of list of values.  Each component list
             must have the same length as schema, and the jth element must be of the
             type specified in the jth element of schema
     '''
 
-    def __init__(self, schema, get_rows):
+    def __init__(self, schema: list, get_rows: Callable[[], List]):
         super(SDMLFixedTable, self).__init__(schema)
         self.get_rows = get_rows
 
     # This is used to get the names of a column from the schema
 
     def _get_column_values_and_type(self, column_name: str):
-        '''
-        get all the column  column_name
-        Arguments:
-            column_name: name of the column to get
+        # get all the column  column_name
+        # Arguments:
+        #     column_name (str): name of the column to get
         
-        Returns:
-            The column as a list
-        '''
+        # Returns:
+        #     The column as a list
+ 
         try:
             index = self.column_names().index(column_name)
         except ValueError as original_error:
@@ -335,7 +334,7 @@ class SDMLFixedTable(SDMLTable):
 
 
     
-    def all_values(self, column_name: str):
+    def all_values(self, column_name: str) -> list:
         '''
         get all the values from column_name
         Arguments:
@@ -343,7 +342,7 @@ class SDMLFixedTable(SDMLTable):
             
 
         Returns:
-            List of the values
+            list: List of the values
 
         '''
         (values, sdtp_type) = self._get_column_values_and_type(column_name)
@@ -351,7 +350,7 @@ class SDMLFixedTable(SDMLTable):
         result.sort()
         return result
     
-    def get_column(self, column_name: str):
+    def get_column(self, column_name: str)  -> list:
         '''
         get all the column  column_name
         Arguments:
@@ -359,7 +358,7 @@ class SDMLFixedTable(SDMLTable):
             
 
         Returns:
-            The column as a list
+            list: The column as a list
 
         '''
         (result, sdtp_type) = self._get_column_values_and_type(column_name)
@@ -380,14 +379,14 @@ class SDMLFixedTable(SDMLTable):
             raise InvalidDataException(f'Values {bad_values} could not be converted to {required_type} in column {column_name}')
         
 
-    def range_spec(self, column_name: str):
+    def range_spec(self, column_name: str) -> list:
         '''
         Get the dictionary {min_val, max_val} for column_name
         Arguments:
             column_name: name of the column to get the range spec for
 
         Returns:
-            the minimum and  maximum of the column
+            list: the minimum and  maximum of the column
 
         '''
         (values, sdtp_type) = self._get_column_values_and_type(column_name)
@@ -493,7 +492,7 @@ class SDMLDataFrameTable(SDMLFixedTable):
             "values": self.dataframe[column_name].to_list()
         }
     
-    def all_values(self, column_name: str):
+    def all_values(self, column_name: str)  -> list:
         '''
         get all the values from column_name
         Arguments:
@@ -501,7 +500,7 @@ class SDMLDataFrameTable(SDMLFixedTable):
            
 
         Returns:
-            List of the values
+            list: List of the values
 
         '''
         type_and_values = self._get_column_and_type(column_name)
@@ -509,7 +508,7 @@ class SDMLDataFrameTable(SDMLFixedTable):
         result.sort()
         return  result
     
-    def get_column(self, column_name: str):
+    def get_column(self, column_name: str)  -> list:
         '''
         get the column  column_name
         Arguments:
@@ -517,14 +516,14 @@ class SDMLDataFrameTable(SDMLFixedTable):
             
 
         Returns:
-            List of the values in the column
+            list: List of the values in the column
 
         '''
         type_and_values = self._get_column_and_type(column_name)
         return type_and_values['values']
     
 
-    def range_spec(self, column_name: str):
+    def range_spec(self, column_name: str)  -> list:
         '''
         Get the dictionary {min_val, max_val} for column_name
         Arguments:
@@ -532,7 +531,7 @@ class SDMLDataFrameTable(SDMLFixedTable):
             column_name: name of the column to get the range spec for
 
         Returns:
-            the minimum and  maximum of the column
+            list: the minimum and  maximum of the column
 
         '''
         type_and_values = self._get_column_and_type(column_name)
@@ -725,7 +724,7 @@ class RemoteSDMLTable(SDMLTable):
         result = self._do_request(request)
         return convert_list_to_type(column_type, result)
         
-    def all_values(self, column_name: str):
+    def all_values(self, column_name: str) -> list:
         '''
         get all the values from column_name
         Arguments:
@@ -733,13 +732,13 @@ class RemoteSDMLTable(SDMLTable):
             column_name: name of the column to get the values for
 
         Returns:
-            List of the values
+            list: List of the values
 
         '''
         return self._execute_column_route(column_name,  'get_all_values')
         
         
-    def get_column(self, column_name: str):
+    def get_column(self, column_name: str)  -> list:
         '''
         get the column  column_name
         Arguments:
@@ -747,12 +746,12 @@ class RemoteSDMLTable(SDMLTable):
            
 
         Returns:
-            The column as a list
+            List: The column as a list
         '''
         return self._execute_column_route(column_name, 'get_column')
 
 
-    def range_spec(self, column_name: str):
+    def range_spec(self, column_name: str)  -> list:
         '''
         Get the dictionary {min_val, max_val} for column_name
         Arguments:
@@ -760,7 +759,7 @@ class RemoteSDMLTable(SDMLTable):
             column_name: name of the column to get the range spec for
 
         Returns:
-            the minimum and  maximum of the column
+            list: the minimum and  maximum of the column
 
         '''
         return self._execute_column_route(column_name, 'get_range_spec')
@@ -791,7 +790,7 @@ class RemoteSDMLTable(SDMLTable):
 
         
 
-    def _get_filtered_rows_from_filter(self, filter=None):
+    def _get_filtered_rows_from_filter(self, filter=None) -> list:
         '''
         Returns the rows for which the  filter returns True.  
 
@@ -800,10 +799,10 @@ class RemoteSDMLTable(SDMLTable):
             columns: the names of the columns to return.  Returns all columns if absent
             
         Returns:
-            The subset of self.get_rows() which pass the filter
+            List: The subset of self.get_rows() which pass the filter
         '''
         filter_spec = None if filter is None else filter.to_filter_spec()
-        return self._get_filtered_rows_from_remote(filter_spec, columns=[])
+        return self._get_filtered_rows_from_remote(filter_spec, columns=[]).get_rows()
     
     def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         '''
@@ -812,9 +811,9 @@ class RemoteSDMLTable(SDMLTable):
         Reorders columns to match client request, even if remote server responds in different order. This guarantees protocol safety.
 
         Arguments:
-            filter_spec: Specification of the filter, as a dictionary
-            columns: the names of the columns to return.  Returns all columns if absent
-            format: one of 'list', 'dict', 'sdml'.  Default is list.  
+            filter_spec (dict): Specification of the filter, as a dictionary
+            columns (list): the names of the columns to return.  Returns all columns if absent
+            format (str): one of 'list', 'dict', 'sdml'.  Default is list.  
         Returns:
             The subset of self.get_rows() which pass the filter in the format specified by format
         '''

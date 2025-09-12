@@ -1,6 +1,6 @@
 
 # BSD 3-Clause License
-# Copyright (c) 2024, The Regents of the University of California (Regents)
+# Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -330,14 +330,14 @@ def make_filter(filter_spec):
   return cls(**filter_spec)
   
 
-def check_valid_spec(filter_spec):
+def check_valid_spec(filter_spec: dict):
   '''
   Method which checks to make sure that a filter spec is valid.
   Does not return, but throws an InvalidDataException with an error message
   if the filter spec is invalid
 
   Arguments:
-    filter_spec: spec to test for validity
+    filter_spec (dict): spec to test for validity
   '''
   try:
     f = make_filter(filter_spec)
@@ -345,13 +345,13 @@ def check_valid_spec(filter_spec):
     raise InvalidDataException(e)
   
 
-def check_valid_spec_return_boolean(filter_spec):
+def check_valid_spec_return_boolean(filter_spec: dict):
   '''
   Method which checks to make sure that a filter spec is valid.
   Returns True if and only if filter_spec has no errors
 
   Arguments:
-    filter_spec: spec to test for validity
+    filter_spec(dict): spec to test for validity
   '''
   try:
     f = make_filter(filter_spec)

@@ -117,3 +117,5 @@ External features — such as validation, connectors to storage systems, or AI i
 | SDML      | Schema & Table definition      | Declarative, minimal contract | Plugins, tools |
 | SDQL      | Query specification            | Explicit, composable, limited | Adapters       |
 | SDTP      | Protocol/API for data movement | RESTful, minimal, stateless   | Extensions     |
+
+
