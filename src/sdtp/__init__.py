@@ -2,7 +2,9 @@
 
 __author__ = """Rick McGeer"""
 __email__ = 'rick@mcgeer.com'
-__version__ = '0.1.0'
+from importlib.metadata import version
+__version__ = version("sdtp")
+
 
 # BSD 3-Clause License
 # Copyright (c) 2024-2025, The Regents of the University of California (Regents)
