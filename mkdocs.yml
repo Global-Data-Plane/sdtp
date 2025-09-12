@@ -1,0 +1,65 @@
+site_name: Global Data Plane Documentation
+repo_url: https://github.com/your-org/your-repo  # Update as needed
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep orange
+
+nav:
+  - Home: README.md
+  - Overview:
+      - Project Overview: overview.md
+      - Architecture: architecture.md
+      # - Hello SDTP: hello.md
+      # - Manifesto: manifesto.md # move to website
+  - Quick Start: hello.md  # Or create a dedicated quickstart.md
+  - User Guide:
+      - SDML Reference: sdml_reference.md
+      - SDQL Reference: sdql_reference.md
+      - Table Types & Config: sdtp_client.md
+      - Auth & Security: auth.md
+  - Protocol Reference:
+      - SDTP Protocol: sdtp_protocol_reference.md
+      - SDTP Client v1: sdtp_client.md
+      - SDTP Client v2: sdtp_client_2.md
+  - Developer/API Reference:
+      - API Overview: architecture.md  # Or a dedicated API index
+      - Class Docs (auto-generated): api/
+  - Cookbook & Examples:
+      - Recipes & FAQ: hello.md  # Or a cookbook.md if you split it
+  - Docs Manifest: sdtp_documentation_plan.md
+  - Contributing: CONTRIBUTING.md
+  - Meta:
+      - License & Contributing: manifesto.md
+
+# Optional: Plugins for auto API docs, search, etc.
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [".", "src"]
+          options:
+            docstring_style: google
+            merge_init_into_class: true
+            show_source: true
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.details
+
+# (Optional) Extra configs for logo, favicon, etc.
+# extra:
+#   logo: images/logo.png
+#   favicon: images/favicon.ico

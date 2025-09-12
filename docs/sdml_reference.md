@@ -7,15 +7,16 @@ Every GDP Table implements a standard contract, regardless of how its rows are p
 ### Core Features of a GDP Table
 
 Every GDP Table must provide:
-1. **A Schema:**  
-   A list of columns (each with a name and type), defining the structure of the table.
-2. **Filtered Row Access:**  
-   A method for returning filtered rows—typically, a way to answer SDQL (Simple Data Query Language) queries for the table.
-3. **Column Access and Statistics:**  
-   Methods for returning:
-   - All values in a given column (including duplicates, if needed)
-   - The set of distinct values in a column
-   - The minimum and maximum value of a column
+
+1. **A Schema:** A list of columns (each with a name and type), defining the structure of the table.
+
+2. **Filtered Row Access:**  A method for returning filtered rows—typically, a way to answer SDQL (Simple Data Query Language) queries for the table.
+
+3. **Column Access and Statistics:**  Methods for returning:
+
+    - All values in a given column (including duplicates, if needed)
+    - The set of distinct values in a column
+    - The minimum and maximum value of a column
 
 This “contract” enables any SDTP server to support common data queries and makes GDP Tables interchangeable and composable, no matter their underlying implementation.
 
@@ -28,26 +29,27 @@ In the reference Python SDTP server, a GDP Table is created by:
 
 2. **Implementing the following required methods:**
 
-   ```python
-   class MyTable(SDMLTable):
-       def all_values(self, column_name):
-           # Return all distinct values in the specified column
+```python
+class MyTable(SDMLTable):
+    def all_values(self, column_name):
+        # Return all distinct values in the specified column
 
-       def get_column(self, column_name: str):
-           # Return all values (including duplicates) in the specified column
+    def get_column(self, column_name: str):
+        # Return all values (including duplicates) in the specified column
 
-       def range_spec(self, column_name: str):
-           # Return [min, max] for the specified column
+    def range_spec(self, column_name: str):
+        # Return [min, max] for the specified column
 
-       def _get_filtered_rows_from_filter(self, filter=None, columns=[]):
-           # Return rows matching the filter and (optionally) column selection
+    def _get_filtered_rows_from_filter(self, filter=None, columns=[]):
+        # Return rows matching the filter and (optionally) column selection
 
-       def to_dictionary(self):
-           # Return the table as a Python dictionary
+    def to_dictionary(self):
+        # Return the table as a Python dictionary
 
-       def to_json(self):
-           # Return the table as a JSON-serializable object
+    def to_json(self):
+        # Return the table as a JSON-serializable object
 ```
+
 - These methods form the minimum interface contract for a GDP Table in the Python SDTP reference implementation.
 
 - Other SDTP servers (in other languages) will define equivalent contracts with similar required methods.
@@ -60,8 +62,7 @@ In the reference Python SDTP server, a GDP Table is created by:
 | Row access    | Must implement methods for filtered row and column access    |
 | Column stats  | Must provide all/distinct values and min/max for each column |
 | Serialization | Must support dictionary and JSON export                      |
-**Takeaway:**
-A GDP Table is a composable, code-backed table object that enables any SDTP server to answer standard tabular queries using a consistent interface
+
 
 ## 2. SDML: Declarative Table Markup
 
@@ -127,6 +128,7 @@ This table type is best for datasets that are static or small enough to be fully
     // ...
   ]
 }
+```
 
 **Behavior:**
 

@@ -214,13 +214,12 @@ class SDMLTable:
         '''
         raise InvalidDataException(f'range_spec has not been in {type(self)}.__name__')
     
-    def _get_filtered_rows_from_filter(self, filter=None, columns=[]):
+    def _get_filtered_rows_from_filter(self, filter=None):
         '''
         Returns the rows for which the  filter returns True.  Returns a list of the matching rows 
 
         Arguments:
             filter: A SDQLFilter 
-            columns: the names of the columns to return.  Returns all columns if absent
         Returns:
             The subset of self.get_rows() which pass the filter 
         '''
@@ -792,7 +791,7 @@ class RemoteSDMLTable(SDMLTable):
 
         
 
-    def _get_filtered_rows_from_filter(self, filter=None, columns=[]):
+    def _get_filtered_rows_from_filter(self, filter=None):
         '''
         Returns the rows for which the  filter returns True.  
 
@@ -804,7 +803,7 @@ class RemoteSDMLTable(SDMLTable):
             The subset of self.get_rows() which pass the filter
         '''
         filter_spec = None if filter is None else filter.to_filter_spec()
-        return self._get_filtered_rows_from_remote(filter_spec, columns=columns)
+        return self._get_filtered_rows_from_remote(filter_spec, columns=[])
     
     def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         '''
@@ -826,8 +825,8 @@ class RemoteSDMLTable(SDMLTable):
         if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')
         # Note that we don't check if the column names are all valid
-        filter = SDQLFilter(filter_spec, self.schema) if filter_spec is not None else None
-        remoteRowTable =  self._get_filtered_rows_from_filter(filter = filter, columns=columns)
+       
+        remoteRowTable = self._get_filtered_rows_from_remote(filter_spec, columns=columns)
         if format == 'list':
             requestedColumns = self.column_names() if len(columns) == 0 else columns
             return _generate_ordered_lists(remoteRowTable, self, requestedColumns)

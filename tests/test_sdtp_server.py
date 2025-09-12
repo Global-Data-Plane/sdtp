@@ -218,4 +218,3 @@ def test_get_filtered_rows():
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = ['name', 'age'], format="sdml")
     # specify empty columns
     _do_good_row_test("test3", table, filter_spec = sdml_query, columns = [], format="sdml")
-test_get_filtered_rows()
