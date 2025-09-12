@@ -1,43 +1,36 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdtp"
-version = "0.2.7"
+version = "0.3.0"
+description = "Simple Data Transfer Protocol (SDTP) reference implementation"
 authors = [
-  { name = "Rick McGeer", email='rick@mcgeer.com' }
+    { name = "The Regents of the University of California", email = "opensource@ucop.edu" }
 ]
-description = "A Python implementation of the Simple Data Transfer Protocol data structures, function, and server"
+license = { file = "LICENSE" }
 readme = "README.md"
-requires-python =  ">=3.8"
-classifiers = [
-  'Development Status :: 3 - Alpha',     
-  'Intended Audience :: Science/Research',      
-  'Topic :: Scientific/Engineering :: Image Recognition',
-  'License :: OSI Approved :: BSD License', 
-  'Programming Language :: Python :: 3',      
-  'Programming Language :: Python :: 3.4',
-  'Programming Language :: Python :: 3.5',
-  'Programming Language :: Python :: 3.6',
-  'Programming Language :: Python :: 3.7',
-  'Programming Language :: Python :: 3.8',
-  'Programming Language :: Python :: 3.9',
-]
+requires-python = ">=3.8"
 
 dependencies = [
-  'Flask',
-  'Flask-CORS',
-  'numpy',
-  'pandas',
-  'requests',
-  'Werkzeug',
-  'google-cloud-storage',
-  'google-cloud-core'
+    "flask",
+    "pandas",
+    "pydantic",
+    "requests",
+    "pyyaml"
 ]
 
-keywords = ['Data access', 'Data analytics']
+[project.optional-dependencies]
+gcs = [
+    "google-cloud-storage",
+    "google-cloud-core"
+]
 
 [project.urls]
-homepage = 'https://github.com/rickmcgeer/sdtp'
-issues = 'https://github.com/rickmcgeer/sdtp/issues'
+Homepage = "https://global-data-plane.github.io/sdtp/"
+Documentation = "https://global-data-plane.github.io/sdtp/"
+Source = "https://github.com/Global-Data-Plane/sdtp"
+
+[tool.setuptools]
+packages = ["sdtp"]
