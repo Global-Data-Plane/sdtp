@@ -9,6 +9,7 @@ src/sdtp/sdtp_filter.py
 src/sdtp/sdtp_schema.py
 src/sdtp/sdtp_server.py
 src/sdtp/sdtp_table.py
+src/sdtp/sdtp_table_factory.py
 src/sdtp/sdtp_utils.py
 src/sdtp/table_server.py
 src/sdtp.egg-info/PKG-INFO
@@ -27,6 +28,7 @@ tests/test_sdtp_schema.py
 tests/test_sdtp_server.py
 tests/test_sdtp_table.py
 tests/test_sdtp_table_and_filter.py
+tests/test_sdtp_table_factory.py
 tests/test_sdtp_utils.py
 tests/test_serialization.py
 tests/test_table_server.py

@@ -235,3 +235,70 @@ def test_filter_type_coercion_datetime_vs_string():
     filt = {"operator": "IN_LIST", "column": "dt", "values": ["2023-01-01T13:00:00"]}
     result = t.get_filtered_rows(filt)
     assert result == [[dt2, 2]]
+
+
+
+def test_get_filtered_rows_respects_column_order():
+    schema = [
+        {'name': 'A', 'type': 'number'},
+        {'name': 'B', 'type': 'string'},
+        {'name': 'C', 'type': 'number'},
+        {'name': 'D', 'type': 'boolean'},
+    ]
+    rows = [
+        [1, 'foo', 1.1, True],
+        [2, 'bar', 2.2, False],
+    ]
+    table = RowTable(schema, rows)
+
+    # Case 1: Partial, out-of-schema order ['D', 'B']
+    requested_columns = ['D', 'B']
+    result_rows_partial = [
+        [True, 'foo'],
+        [False, 'bar'],
+    ]
+    schema_partial = [
+        {'name': 'D', 'type': 'boolean'},
+        {'name': 'B', 'type': 'string'},
+    ]
+    dict_partial = [
+        {'D': True, 'B': 'foo'},
+        {'D': False, 'B': 'bar'},
+    ]
+
+    result = table.get_filtered_rows(columns=requested_columns)
+    assert result == result_rows_partial
+
+    result = table.get_filtered_rows(columns=requested_columns, format='sdml')
+    assert result.rows == result_rows_partial
+    assert result.schema == schema_partial
+
+    result = table.get_filtered_rows(columns=requested_columns, format='dict')
+    assert result == dict_partial
+
+    # Case 2: All columns, out-of-schema order ['C', 'A', 'D', 'B']
+    requested_columns = ['C', 'A', 'D', 'B']
+    result_rows_full = [
+        [1.1, 1, True, 'foo'],
+        [2.2, 2, False, 'bar'],
+    ]
+    schema_full = [
+        {'name': 'C', 'type': 'number'},
+        {'name': 'A', 'type': 'number'},
+        {'name': 'D', 'type': 'boolean'},
+        {'name': 'B', 'type': 'string'},
+    ]
+    dict_full = [
+        {'C': 1.1,  'A': 1, 'D': True, 'B': 'foo'},
+        {'C': 2.2,  'A': 2, 'D': False, 'B': 'bar'},
+    ]
+
+    result = table.get_filtered_rows(columns=requested_columns)
+    assert result == result_rows_full
+
+    result = table.get_filtered_rows(columns=requested_columns, format='sdml')
+    assert result.rows == result_rows_full
+    assert result.schema == schema_full
+
+    result = table.get_filtered_rows(columns=requested_columns, format='dict')
+    assert result == dict_full

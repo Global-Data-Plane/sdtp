@@ -55,9 +55,9 @@ def _row_dict(row, columns):
 
 def _convert_filter_result_to_format(rows, columns, schema, format):
     result_rows = rows
-    if len(columns) < len(schema):
-        column_indices = [i for i in range(len(schema)) if schema[i]["name"] in columns]
-        result_rows = [[row[index] for index in column_indices] for row in rows]
+    column_names = [entry['name'] for entry in schema]
+    column_indices = [column_names.index(column) for column in columns]
+    result_rows = [[row[index] for index in column_indices] for row in rows]
             
     if format == 'list':
         return result_rows
@@ -65,9 +65,7 @@ def _convert_filter_result_to_format(rows, columns, schema, format):
     if format == 'dict':
         return [_row_dict(row, columns) for row in result_rows]
     # format is SDML, return a RowTable
-    schema_as_dict = {}
-    for entry in schema: schema_as_dict[entry["name"]] = entry["type"]
-    row_table_schema = [{"name": column, "type":schema_as_dict[column]} for column in columns]
+    row_table_schema = [schema[i] for i in column_indices]
     return RowTable(row_table_schema, result_rows)
 
 
@@ -227,7 +225,7 @@ class SDMLTable:
         raise InvalidDataException(f'_get_filtered_rows_from_filter has not been in {type(self)}.__name__')
 
 
-    def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT):
+    def get_filtered_rows(self, filter_spec=None, columns=None, format = DEFAULT_FILTERED_ROW_RESULT_FORMAT):
         '''
         Filter the rows according to the specific-ation given by filter_spec.
         Returns the rows for which the resulting filter returns True.
@@ -244,11 +242,11 @@ class SDMLTable:
         
         if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')
-        if columns is None: columns = []
+        requested_columns = columns  if columns else []
         # Note that we don't check if the column names are all valid
         filter = make_filter(filter_spec) if filter_spec is not None else None
         rows =  self._get_filtered_rows_from_filter(filter = filter)
-        columns_in_result = self.column_names() if len(columns) == 0 else columns
+        columns_in_result = self.column_names() if len(requested_columns) == 0 else requested_columns
         return _convert_filter_result_to_format(rows, columns_in_result, self.schema, format)
         
 
@@ -374,32 +372,24 @@ class SDMLFixedTable(SDMLTable):
         result = [values[0], values[-1]]
         return result
     
-    def _get_filtered_rows_from_filter(self, filter=None, columns=[]):
+    def _get_filtered_rows_from_filter(self, filter=None):
         '''
         Returns the rows for which the  filter returns True.  
 
         Arguments:
             filter: A SDQLFilter 
-            columns: the names of the columns to return.  Returns all columns if absent
+    
            
         Returns:
             The subset of self.get_rows() which pass the filter
         '''
-         # Note that we don't check if the column names are all valid
-        if columns is None: columns = []  # Make sure there's a value
+        
         if filter is None:
-            rows = self.get_rows()
+            return  self.get_rows()
         else:
-            columns = self.column_names()
-            rows = [row for row in self.get_rows() if filter.matches(row, columns)]
-        if columns == []:
-            result =  rows
-            column_types = self.column_types()
-        else:
-            names = self.column_names()
-            column_indices = [i for i in range(len(names)) if names[i] in columns]
-            result = [[row[i] for i in column_indices] for row in rows]
-        return  result
+            match_columns = self.column_names()
+            return  [row for row in self.get_rows() if filter.matches(row, match_columns)]
+        
 
 
     def to_dataframe(self):
@@ -421,11 +411,6 @@ class SDMLFixedTable(SDMLTable):
             "rows": jsonifiable_rows(self.get_rows(), self.column_types())
         }
     
-    
-
-           
-    
-
 class SDMLDataFrameTable(SDMLFixedTable):
     '''
     A simple utility class to serve data from a PANDAS DataFrame.  The general idea is 
@@ -820,7 +805,7 @@ class RemoteSDMLTable(SDMLTable):
         filter_spec = None if filter is None else filter.to_filter_spec()
         return self._get_filtered_rows_from_remote(filter_spec, columns=[]).get_rows()
     
-    def get_filtered_rows(self, filter_spec=None, columns=[], format = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
+    def get_filtered_rows(self, filter_spec=None, columns=None, format = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         '''
         Filter the rows according to the specification given by filter_spec.
         Returns the rows for which the resulting filter returns True.
@@ -835,24 +820,20 @@ class RemoteSDMLTable(SDMLTable):
         '''
         # Check to make sure that the format is valid
         if format is None: format = DEFAULT_FILTERED_ROW_RESULT_FORMAT
-        if columns is None: columns = []
+        requested_columns = columns if columns else []
+    
         
         if format not in ALLOWED_FILTERED_ROW_RESULT_FORMATS:
             raise InvalidDataException(f'format for get_filtered rows must be one of {ALLOWED_FILTERED_ROW_RESULT_FORMATS}, not {format}')
         # Note that we don't check if the column names are all valid
        
-        remoteRowTable = self._get_filtered_rows_from_remote(filter_spec, columns=columns)
+        remoteRowTable = self._get_filtered_rows_from_remote(filter_spec, columns=requested_columns)
         if format == 'list':
-            requestedColumns = self.column_names() if len(columns) == 0 else columns
-            return _generate_ordered_lists(remoteRowTable, self, requestedColumns)
+            column_names = self.column_names() if len(requested_columns) == 0 else requested_columns
+            return _generate_ordered_lists(remoteRowTable, self, column_names)
         elif format == 'dict':
             result_columns = remoteRowTable.column_names()
             return [_row_dict(row, result_columns) for row in remoteRowTable.rows]
         else:
             return remoteRowTable
-    
-   
         
-        
- 
-    
