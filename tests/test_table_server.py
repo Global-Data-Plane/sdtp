@@ -38,7 +38,7 @@ sys.path.append('src')
 sys.path.append('tests')
 
 from sdtp import TableServer, TableNotFoundException, ColumnNotFoundException
-from sdtp import RowTable, SDMLTableFactory
+from sdtp import RowTable
 from sdtp import InvalidDataException, SDML_STRING
 import os
 from json import load
@@ -78,41 +78,6 @@ def test_check_dict_and_keys():
     
 
 
-
-def test_table_server_creation():
-    server = TableServer()
-    # check the factories were initialized
-    assert(server.factories.keys() == {'RowTable', 'RemoteSDMLTable'})
-    for factory in server.factories.values():
-        assert isinstance(factory, SDMLTableFactory)
-
-class SDMLTestTableFactory(SDMLTableFactory):
-    '''
-    A simple SDMLTableFactory to test add_table_factory
-    '''
-    def __init__(self):
-        super(SDMLTestTableFactory, self).__init__('TestTable')
-    
-    def build_table(self, table_spec):
-        # Since this is just a test, don't do anything different 
-        # than a RowTableFactory and take the same spec
-        super(SDMLTestTableFactory, self).build_table(table_spec)
-        return RowTable(table_spec["schema"], table_spec["rows"])
-
-def test_add_table_factory():
-    table_factory = SDMLTestTableFactory()
-    server = TableServer()
-    # test for None
-    with pytest.raises(AssertionError):
-        server.add_table_factory(None)
-    # test for non-factory
-    with pytest.raises(AssertionError):
-        server.add_table_factory('foo')
-    # test that the add was done successfully
-    server.add_table_factory(table_factory)
-    assert('TestTable' in server.factories.keys())
-    assert(server.factories['TestTable'] == table_factory)
-
 def _check_table_key_present(server, key, table):
     assert(key in server.servers.keys())
     assert(server.servers[key] == table)
@@ -136,7 +101,7 @@ def test_add_sdtp_table_from_dictionary():
     schema = [{"name": "a", "type": SDML_STRING}]
     rows = [['Alice']]
     test_table_spec_row = {'type': 'RowTable', 'schema': schema, 'rows': rows}
-    test_table_spec_test = {'type': 'TestTable', 'schema': schema, 'rows': rows}
+    test_table_spec_test = {'type': 'ServerTestTable', 'schema': schema, 'rows': rows}
     server = TableServer()
     
     # test for a non-existent factory.  Haven't added SDMLTestTableFactory yet
@@ -145,11 +110,8 @@ def test_add_sdtp_table_from_dictionary():
     # test for a valid factory (make sure it's added)
     server.add_sdtp_table_from_dictionary('row_table',  test_table_spec_row)
     assert('row_table' in server.servers.keys())
-    # add a new factory, then table, make sure it works
-    server.add_table_factory(SDMLTestTableFactory())
-    server.add_sdtp_table_from_dictionary('test_table', test_table_spec_test)
-    assert('row_table' in server.servers.keys())
-    assert('test_table' in server.servers.keys())
+    
+# test_add_sdtp_table_from_dictionary()
 
 def test_get_all_tables():
     # check an empty server
@@ -313,5 +275,5 @@ def test_table_server_load_http(monkeypatch):
         server.init_from_config(cf.name)
         t = server.get_table("remote_table")
         print(fake_table)
-        assert t.schema == fake_table["columns"]
+        assert t.schema == fake_table["schema"]
         assert t.rows == fake_table["rows"]

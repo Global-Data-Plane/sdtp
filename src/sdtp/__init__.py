@@ -55,10 +55,14 @@ from .sdtp_schema import (
 from .sdtp_table import (
     SDMLTable,
     RowTable,
-    RemoteSDMLTable,
+    RemoteSDMLTable
+)
+
+from .sdtp_table_factory import (
     SDMLTableFactory,
     RowTableFactory,
-    RemoteSDMLTableFactory
+    RemoteSDMLTableFactory,
+    TableBuilder
 )
 
 from .sdtp_utils import (
@@ -89,7 +93,7 @@ __all__ = [
   'SDMLType', 'ColumnSpec', 'is_valid_sdml_type', 'validate_column_spec', 'validate_table_schema', 'BaseTableSchema', 'RowTableSchema', 'RemoteTableSchema', 'TableSchema',
   'type_check', 'check_sdml_type_of_list', 'jsonifiable_value', 'jsonifiable_row', 'jsonifiable_rows', 'jsonifiable_column', 'convert_to_type', 'convert_list_to_type', 'convert_row_to_type_list', 'convert_rows_to_type_list', 'convert_dict_to_type',
   'SDQL_FILTER_OPERATORS', 'SDQL_FILTER_FIELDS', 'check_valid_spec', 'check_valid_spec_return_boolean', 'SDQLFilter', 'make_filter',
-  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory',
+  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory', 'TableBuilder',
   'TableServer', 'TableNotFoundException', 'ColumnNotFoundException',
   'sdtp_server_blueprint', 'SDTPServer', 'AuthMethod', 'resolve_auth_method', 'make_table_schema',
   'SDTPClient', 'SDTPClientError'

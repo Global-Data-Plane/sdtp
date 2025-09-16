@@ -19,9 +19,13 @@ from .sdtp_schema import (
 # Table classes and factories
 from .sdtp_table import (
     RowTable,
-    RemoteSDMLTable,
+    RemoteSDMLTable
+)
+
+from .sdtp_table_factory import (
     RowTableFactory,
-    RemoteTableFactory
+    RemoteSDMLTableFactory,
+    TableBuilder
 )
 
 # Filter logic
@@ -53,7 +57,8 @@ __all__ = [
     "RowTable",
     "RemoteSDMLTable",
     "RowTableFactory",
-    "RemoteTableFactory",
+    "RemoteSDMLTableFactory",
+    "TableBuilder",
 
     # Filtering
     "SDQLFilter",

@@ -54,7 +54,7 @@ def test_invalid_column_spec_bad_type():
 def test_valid_table_schema():
     schema = {
         "type": "RowTable",
-        "columns": [{"name": "name", "type": "string"}],
+        "schema": [{"name": "name", "type": "string"}],
         "rows": [{"name": "Rick"}]  # Required field for row-type tables
     }
     validate_table_schema(schema) 

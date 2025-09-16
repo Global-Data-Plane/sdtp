@@ -46,6 +46,7 @@ from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check, json_
 from .sdtp_utils import convert_list_to_type, convert_rows_to_type_list
 from .sdtp_filter import SDQLFilter, make_filter
 
+
 def _row_dict(row, columns):
     result = {}
     for i in range(len(columns)):
@@ -266,31 +267,10 @@ class SDMLTable:
         # just use jjson.dumps, making sure to convert types appropriately
 
         return json.dumps(self.to_dictionary(), default = json_serialize, indent = 2)
-
-class SDMLTableFactory:
-    '''
-    A class which builds an SDMLTable of a specific type.  All SDMLTables have a schema, but after
-    that the specification varies, depending on the method the table uses to get the table rows.
-    Specific factories should subclass this and instantiate the class method build_table.
-    The tag is the table type, simply a string which indicates which class of table should be
-    built.
-    A new SDMLTableFactory class should be built for each concrete subclass of SDMLTable, and ideally
-    in the same file.  The SDMLTable subclass should put a "type" field in the intermediate form,
-    and the value of "type" should be the type built by the SDTP Table field
-    SDMLTableFactory is an abstract class -- each concrete subclass should call the init method on the 
-    table_type on initialization.  build_table is the method which actually builds the table; the superclass 
-    convenience version of the method throws an InvalidDataException if the spec has the wrong table type 
-    '''
-    def __init__(self, table_type):
-        self.table_type = table_type
-
-    def valid_factory(self):
-        return isinstance(self.table_type, str)
     
-    def build_table(self, table_spec):
-        if (table_spec["type"] != self.table_type):
-            raise InvalidDataException(f'Bad table type {table_spec["type"]} to build_table: expecting {self.table_type}')
-        return None
+
+
+
 
 class SDMLFixedTable(SDMLTable):
     '''
@@ -442,23 +422,7 @@ class SDMLFixedTable(SDMLTable):
         }
     
     
-class RowTableFactory(SDMLTableFactory):
-    '''
-    A factory to build RowTables -- in fact, all SDMLFixedTables.  build_table is very simple, just instantiating
-    a RowTable on the rows and schema of the specification
-    '''
-    def __init__(self):
-        super(RowTableFactory, self).__init__('RowTable')
-    
-    def build_table(self, table_spec):
-        super(RowTableFactory, self).build_table(table_spec)
-        schema = _make_table_schema(table_spec)
 
-        # Ensure the table type is indeed "row"
-        if schema.get("type") == "RowTable":
-            return RowTable(table_spec["columns"], table_spec["rows"]) 
-        else:
-            raise ValueError(f"Expected RowTable, got {schema['type']}")
            
     
 
@@ -597,6 +561,55 @@ def _generate_ordered_lists(remoteRowTable, localRemoteTable, requestedColumns):
     target_index_list = get_index_list(localRemoteTable)
     return [reorder_row(row, source_index_list, target_index_list) for row in remoteRowTable.rows]
 
+def _make_headers(auth_info, header_dict):
+    '''
+    A Utility which makes the headers for requests from the
+    given auth info and header_dict.  Returns None if there are no
+    headers.  Elements of header_dict are passed directly to the
+    output.  auth_info is None, or one of {'env', 'env_var'};
+    {'file', 'path' }, {'token', 'value'}. The latter is not
+    reccommended.   It resolves the authorization into a bearer 
+    toekn, and if successful attaches 'Authorization': f'Bearer {token}'
+    to the result headers.
+    Arguments:
+        auth_info: authorization info
+        header_dict: a dictionary of headers
+    Returns:
+        The augmented header dictionary, or None if both arguments are None
+    Raises:
+        ValueError if there's an error in getting the auth token
+    '''
+    has_auth = auth_info is not None and auth_info.get("type")
+    if not has_auth:
+        return header_dict.copy() if header_dict is not None else None
+    auth_type = auth_info["type"]
+    auth_token = None
+    headers = {}
+
+    match auth_type:
+        case 'env':
+            env_var = auth_info["env_var"]
+            auth_token = os.environ.get(env_var)
+            if not auth_token:
+                raise ValueError(f"Environment variable {env_var} not set")
+        case "file":
+            path = auth_info["path"]
+            if not os.path.isfile(path):
+                raise ValueError(f"Auth file {path} not found")
+            with open(path, "r") as f:
+                auth_token = f.read().strip()
+        case "token":
+            auth_token = auth_info["value"]
+        case _:
+            raise ValueError(f"Unsupported auth type: {auth_type}")
+
+    if auth_token is not None:
+        headers = {"Authorization": f"Bearer {auth_token}"}
+    if header_dict is not None:
+        for (key, value) in header_dict.items():
+            headers[key] = value
+    return None if headers == {} else headers
+    
         
 class RemoteSDMLTable(SDMLTable):
     '''
@@ -623,17 +636,19 @@ class RemoteSDMLTable(SDMLTable):
         self.auth = auth
         self.ok = False
         self.header_dict = header_dict
-        self.row_table_factory = RowTableFactory()
+        self.headers = _make_headers(auth, header_dict)
 
     def to_dictionary(self):
         result =  {
-            "name": self.table_name,
+            "table_name": self.table_name,
             "type": "RemoteSDMLTable",
             "schema": self.schema,
             "url": self.url,
         }
         if self.auth is not None:
             result["auth"] = self.auth
+        if self.header_dict is not None:
+            result["header_dict"]  = self.header_dict
         
         return result
 
@@ -660,7 +675,7 @@ class RemoteSDMLTable(SDMLTable):
 
     def _execute_get_request(self, url):
         if self.header_dict:
-            return requests.get(url, headers = self.header_dict)
+            return requests.get(url, headers = self.headers)
         else:
             return requests.get(url)
         
@@ -778,11 +793,12 @@ class RemoteSDMLTable(SDMLTable):
             data['columns'] = columns
         
         try:
-            response = requests.post(request, json=data, headers=self.header_dict) if self.header_dict is not None else requests.post(request, json=data)
+            response = requests.post(request, json=data, headers=self.headers) if self.headers is not None else requests.post(request, json=data)
             if response.status_code >= 300:
                 raise InvalidDataException(f'get_filtered_rows to {self.url}: caused error response {response.status_code}')
             raw_result = response.json()
-            resultTable = self.row_table_factory.build_table(raw_result)
+            from .sdtp_table_factory import TableBuilder
+            resultTable = TableBuilder.build_table(raw_result)
             return resultTable
         except Exception as exc:
             raise InvalidDataException(f'Error in get_filtered_rows to {self.url}: {repr(exc)}')
@@ -838,54 +854,5 @@ class RemoteSDMLTable(SDMLTable):
    
         
         
-class RemoteSDMLTableFactory(SDMLTableFactory):
-    '''
-    A factory to build RemoteSDMLTables.  build_table is very simple, just instantiating
-    a RemoteSDMLTables on the url and schema of the specification
-    '''
-    def __init__(self):
-        super(RemoteSDMLTableFactory, self).__init__('RemoteSDMLTable')
-    
-    def build_table(self, table_spec):
-        super(RemoteSDMLTableFactory, self).build_table(table_spec)
-        schema = _make_table_schema(table_spec)
-
-        # Ensure the table type is indeed "remote"
-        if schema["type"] != "RemoteSDMLTable":
-            raise ValueError(f"Expected RemoteTableSchema, got {schema['type']}")
-
-        auth_info = table_spec.get('auth')
-        header_dict = None
-
-        if auth_info and auth_info.get("type"):
-            auth_type = auth_info["type"]
-            auth_token = None
-
-            match auth_type:
-                case 'env':
-                    env_var = auth_info["env_var"]
-                    auth_token = os.environ.get(env_var)
-                    if not auth_token:
-                        raise ValueError(f"Environment variable {env_var} not set")
-                case "file":
-                    path = auth_info["path"]
-                    if not os.path.isfile(path):
-                        raise ValueError(f"Auth file {path} not found")
-                    with open(path, "r") as f:
-                        auth_token = f.read().strip()
-                case "token":
-                    auth_token = auth_info["value"]
-                case _:
-                    raise ValueError(f"Unsupported auth type: {auth_type}")
-
-            if auth_token is not None:
-                header_dict = {"Authorization": f"Bearer {auth_token}"}
-
-        return RemoteSDMLTable(
-            table_spec['table_name'],
-            table_spec['columns'],
-            table_spec['url'],
-            auth_info,
-            header_dict
-        )  
+ 
     

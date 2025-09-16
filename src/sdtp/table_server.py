@@ -50,7 +50,8 @@ import pandas as pd
 import requests
 
 from .sdtp_utils import InvalidDataException
-from .sdtp_table import RowTableFactory, RemoteSDMLTableFactory, SDMLTable, SDMLTableFactory
+from .sdtp_table_factory import TableBuilder
+from .sdtp_table import SDMLTable
 from abc import ABC, abstractmethod
 
 class TableNotFoundException(Exception):
@@ -99,9 +100,6 @@ class TableServer:
             # Add additional loaders here as needed
         }
         
-        # factories which are part of the standard  distribution
-        self.add_table_factory(RowTableFactory())
-        self.add_table_factory(RemoteSDMLTableFactory())
 
     def init_from_config(self, config_path):
         """
@@ -124,32 +122,9 @@ class TableServer:
             table_spec = loader.load()  # Should return a dict
 
             # Figure out the table type (e.g. "row", "remote") from the spec
-            table_type = table_spec.get("type")
-            if table_type is None:
-                raise ValueError(f"Missing 'type' field in table spec for '{name}'")
-
-            factory_cls = self.factories.get(table_type)
-            if factory_cls is None:
-                raise ValueError(f"No factory registered for table type '{table_type}'")
-
-            factory = factory_cls
-            table = factory.build_table(table_spec)
+            table = TableBuilder.build_table(table_spec)
             self.add_sdtp_table(name, table)
 
-    def add_table_factory(self, table_factory):
-        '''
-        Add a TableFactory for table type table_type.  When 
-        self.add_table_from_dictionary(table_spec) is called, the appropriate 
-        factory is called to build it
-        Arguments:
-           table_factory: an instance of a subclass of TableFactory which actually builds the table
-        '''
-        # Check the table factory extends SDMLTableFactory
-        _check_type(table_factory, SDMLTableFactory, 'table_factory must be an instance of SDMLTableFactory, not')
-        table_type = table_factory.table_type
-       
-        _check_type(table_type, str, 'table_type must be a string, not')
-        self.factories[table_type] = table_factory
 
     def add_sdtp_table(self, table_name, sdtp_table):
         '''
@@ -167,11 +142,9 @@ class TableServer:
     def add_sdtp_table_from_dictionary(self, name, table_dictionary):
         '''
         Add an  SDMLTable from a dictionary (intermediate on-disk form).   The table dictionary has fields schema and type, and then type-
-        specific fields.  Calls self.factories[table_dictionary["type"]] to build the table,
+        specific fields.  Calls TableBuilder to build the table,
         then calls self.add_sdtp_table to add the table.
-        Raises an InvalidDataException if self.add_sdtp_table raises it or if the factory 
-        is not present, or if the factory raises an exception
-
+        Raises an InvalidDataException if self.add_sdtp_table or TableBuilder.buildTable raises it 
         Arguments:
             name (str): the name of the table
             table_dictionary (dict): dictionary of the form {"type", "table"}, where table is a table specification: a dictionary
@@ -179,13 +152,10 @@ class TableServer:
 
         '''
 
-        _check_dict_and_keys(table_dictionary, {'type', 'schema'}, 'table_dictionary must be a dictionary not', 'table_dictionary')
-        table_type = table_dictionary['type']
-        if table_type in self.factories.keys():
-            table = self.factories[table_type].build_table(table_dictionary)
-            self.add_sdtp_table(name,  table)
-        else:
-            raise InvalidDataException(f'No factory registered for {table_type}')
+       
+        table = TableBuilder.build_table(table_dictionary)
+        self.add_sdtp_table(name,  table)
+    
 
 
     def get_all_tables(self) -> list:

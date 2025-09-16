@@ -43,8 +43,9 @@ sys.path.append('.')
 from sdtp import SDML_BOOLEAN, SDML_NUMBER, SDML_STRING, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY, InvalidDataException
 from sdtp import check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_column
-from sdtp import  RowTable,  RemoteSDMLTable, RowTableFactory
+from sdtp import  RowTable,  RemoteSDMLTable
 from sdtp.sdtp_table import SDMLFixedTable, SDMLDataFrameTable
+from sdtp.sdtp_table_factory import TableBuilder
 from pytest_httpserver import HTTPServer
 import json
 
@@ -103,8 +104,6 @@ def test_all_values_and_range_spec():
     assert table.all_values('name') == [ 'Alice', 'Jane', 'Ted']
     assert table.get_column('name') == ['Ted', 'Alice', 'Jane']
     assert table.range_spec('name') == [ 'Alice', 'Ted']
-
-
 
 
 # Test to build a RowTable
@@ -339,7 +338,7 @@ def _tables_equivalent(table1, table2):
     _data_equivalent(table1, table2)
 
 import tempfile
-from sdtp import RemoteSDMLTableFactory
+
 
 def monkey_schema():
     return [{"name": "foo", "type": "string"}]
@@ -350,16 +349,15 @@ def test_remote_table_auth_env(monkeypatch):
     table_spec = {
         "type": "RemoteSDMLTable",
         "table_name": "test",
-        "columns": schema,
+        "schema": schema,
         "url": "http://localhost:9999",
         "auth": {
             "type": "env",
             "env_var": "MY_TOKEN"
         }
     }
-    factory = RemoteSDMLTableFactory()
-    table = factory.build_table(table_spec)
-    assert table.header_dict == {"Authorization": "Bearer secret123"}
+    table = TableBuilder.build_table(table_spec)
+    assert table.headers == {"Authorization": "Bearer secret123"}
 
 def test_remote_table_auth_file():
     schema = monkey_schema()
@@ -369,29 +367,27 @@ def test_remote_table_auth_file():
         table_spec = {
             "type": "RemoteSDMLTable",
             "table_name": "test",
-            "columns": schema,
+            "schema": schema,
             "url": "http://localhost:9999",
             "auth": {
                 "type": "file",
                 "path": f.name
             }
         }
-        factory = RemoteSDMLTableFactory()
-        table = factory.build_table(table_spec)
-        assert table.header_dict == {"Authorization": "Bearer filetoken456"}
+        table = TableBuilder.build_table(table_spec)
+        assert table.headers == {"Authorization": "Bearer filetoken456"}
 
 def test_remote_table_auth_token_direct():
     schema = monkey_schema()
     table_spec = {
         "type": "RemoteSDMLTable",
         "table_name": "test",
-        "columns": schema,
+        "schema": schema,
         "url": "http://localhost:9999",
         "auth": {
             "type": "token",
             "value": "direct-token-789"
         }
     }
-    factory = RemoteSDMLTableFactory()
-    table = factory.build_table(table_spec)
-    assert table.header_dict == {"Authorization": "Bearer direct-token-789"}
+    table = TableBuilder.build_table(table_spec)
+    assert table.headers  == {"Authorization": "Bearer direct-token-789"}
