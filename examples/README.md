@@ -4,29 +4,10 @@ This directory contains a collection of example SDML files for use with SDTP and
 
 ## File List & Descriptions
 
-- **aggregate_cy.sdml**  
-  UFO sightings by country and year
-
-- **aggregate_cym.sdml**  
-  UFO sightings by country, year, and month
-
-- **aggregate_cyt.sdml**  
-  UFO sightings by country, year, and type
-
-- **aggregate_sy.sdml**  
-  UFO sightings by state and year
-
-- **aggregate_sym.sdml**  
-  UFO sightings by state, year, and month
-
-- **aggregate_syt.sdml**  
-  UFO sightings by state, year, and type
 
 - **electoral_college.sdml**  
   Electoral college results, 1828–2020
 
-- **history.sdml**  
-  Senate vote history by state, 1976–2020
 
 - **margin.sdml**  
   Senate vote margin by state, 1976–2020  
@@ -51,11 +32,33 @@ This directory contains a collection of example SDML files for use with SDTP and
 - **senate-control.sdml**  
   Control of the Senate, 1976–2020
 
+- **senate-history.sdml**  
+  Senate vote history by state, 1976–2020
+
 - **senate_vote.sdml**  
   Senate vote by state, 1975–2020
 
 - **summary.sdml**  
   Summary of Florence Nightingale's dataset
+
+- **ufos_by_country_year.sdml**  
+  UFO sightings by country and year
+
+- **ufos_by_country_year_month.sdml**  
+  UFO sightings by country, year, and month
+
+- **ufos_by_country_year_type.sdml**  
+  UFO sightings by country, year, and type
+
+- **ufos_by_state_and_year.sdml**  
+  UFO sightings by state and year
+
+- **ufos_by_state_year_and_month.sdml**  
+  UFO sightings by state, year, and month
+
+- **ufos_by_state_year_type.sdml**  
+  UFO sightings by state, year, and type
+
 
 ## Usage
 

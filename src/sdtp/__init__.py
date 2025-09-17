@@ -41,19 +41,22 @@ from .sdtp_schema import (
     SDML_SCHEMA_TYPES,
     SDML_PYTHON_TYPES,
     type_check,
+    make_table_schema,
     is_valid_sdml_type,
     validate_column_spec,
     validate_table_schema,
     ColumnSpec,
     BaseTableSchema,
     RowTableSchema,
+    RemoteAuthSpec,
     RemoteTableSchema,
-    TableSchema,
-    make_table_schema
+    TableSchema
 )
+
 
 from .sdtp_table import (
     SDMLTable,
+    SDMLFixedTable,
     RowTable,
     RemoteSDMLTable
 )
@@ -67,34 +70,144 @@ from .sdtp_table_factory import (
 
 from .sdtp_utils import (
     InvalidDataException,
+    json_serialize,
     check_sdml_type_of_list,
-    jsonifiable_value,  
+    jsonifiable_value,
     jsonifiable_row,
     jsonifiable_rows,
     jsonifiable_column,
     convert_to_type,
     convert_list_to_type,
     convert_row_to_type_list,
-    convert_rows_to_type_list, 
+    convert_rows_to_type_list,
     convert_dict_to_type,
+    EnvAuthMethod,
+    PathAuthMethod,
+    ValueAuthMethod,
     AuthMethod,
     resolve_auth_method
 )
 
-from.sdtp_client import SDTPClient, SDTPClientError
-from .sdtp_filter import SDQL_FILTER_OPERATORS, SDQL_FILTER_FIELDS, check_valid_spec, check_valid_spec_return_boolean, SDQLFilter, make_filter
+from .sdtp_client import (
+    SDTPClient,
+    SDTPClientError,
+    load_config
+    )
+
+from .sdtp_filter import (
+    SDQL_FILTER_OPERATORS,
+    SDQL_FILTER_FIELDS,
+    check_valid_spec,
+    check_valid_spec_return_boolean,
+    SDQLFilter,
+    InListFilter,    
+    GEFilter,    
+    GTFilter,    
+    LEFilter,    
+    LTFilter,    
+    RegexFilter,    
+    AllFilter,    
+    AnyFilter,    
+    NoneFilter,
+    make_filter
+)
 # from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
-from .table_server import  TableServer, TableNotFoundException, ColumnNotFoundException
-from .sdtp_server import sdtp_server_blueprint, SDTPServer
+from .table_server import (
+    TableServer,
+    TableNotFoundException,
+    ColumnNotFoundException,
+    TableLoader,
+    FileTableLoader,
+    HTTPTableLoader,
+    HeaderInfo
+)
+from .sdtp_server import (
+    sdtp_server_blueprint,
+    SDTPServer
+)
+
+# Public API surface for the sdtp package
+
 
 __all__ = [
-  'InvalidDataException',
-  'SDML_BOOLEAN', 'SDML_DATE', 'SDML_DATETIME', 'SDML_NUMBER', 'SDML_PYTHON_TYPES', 'SDML_SCHEMA_TYPES', 'SDML_STRING', 'SDML_TIME_OF_DAY',
-  'SDMLType', 'ColumnSpec', 'is_valid_sdml_type', 'validate_column_spec', 'validate_table_schema', 'BaseTableSchema', 'RowTableSchema', 'RemoteTableSchema', 'TableSchema',
-  'type_check', 'check_sdml_type_of_list', 'jsonifiable_value', 'jsonifiable_row', 'jsonifiable_rows', 'jsonifiable_column', 'convert_to_type', 'convert_list_to_type', 'convert_row_to_type_list', 'convert_rows_to_type_list', 'convert_dict_to_type',
-  'SDQL_FILTER_OPERATORS', 'SDQL_FILTER_FIELDS', 'check_valid_spec', 'check_valid_spec_return_boolean', 'SDQLFilter', 'make_filter',
-  'SDMLTable',  'RowTable', 'RemoteSDMLTable', 'SDMLTableFactory', 'RowTableFactory', 'RemoteSDMLTableFactory', 'TableBuilder',
-  'TableServer', 'TableNotFoundException', 'ColumnNotFoundException',
-  'sdtp_server_blueprint', 'SDTPServer', 'AuthMethod', 'resolve_auth_method', 'make_table_schema',
-  'SDTPClient', 'SDTPClientError'
+    # sdtp_schema.py
+    'SDML_STRING',
+    'SDML_NUMBER',
+    'SDML_BOOLEAN',
+    'SDML_DATE',
+    'SDML_DATETIME',
+    'SDML_TIME_OF_DAY',
+    'SDMLType',
+    'SDML_SCHEMA_TYPES',
+    'SDML_PYTHON_TYPES',
+    'type_check',
+    'make_table_schema',
+    'is_valid_sdml_type',
+    'validate_column_spec',
+    'validate_table_schema',
+    'ColumnSpec',
+    'BaseTableSchema',
+    'RowTableSchema',
+    'RemoteAuthSpec',
+    'RemoteTableSchema',
+    'TableSchema',
+    # sdtp_table.py
+    'SDMLTable',
+    'SDMLFixedTable',
+    'RowTable',
+    'RemoteSDMLTable',
+    # sdtp_table_factory.py
+    'SDMLTableFactory',
+    'RowTableFactory',
+    'RemoteSDMLTableFactory',
+    'TableBuilder',
+    # sdtp_utils.py
+    'InvalidDataException',
+    'json_serialize',
+    'check_sdml_type_of_list',
+    'jsonifiable_value',
+    'jsonifiable_row',
+    'jsonifiable_rows',
+    'jsonifiable_column',
+    'convert_to_type',
+    'convert_list_to_type',
+    'convert_row_to_type_list',
+    'convert_rows_to_type_list',
+    'convert_dict_to_type',
+    'EnvAuthMethod',
+    'PathAuthMethod',
+    'ValueAuthMethod',
+    'AuthMethod',
+    'resolve_auth_method',
+    # sdtp_client.py
+    'SDTPClient',
+    'SDTPClientError',
+    'load_config',
+    # sdtp_filter.py
+    'SDQL_FILTER_OPERATORS',
+    'SDQL_FILTER_FIELDS',
+    'check_valid_spec',
+    'check_valid_spec_return_boolean',
+    'SDQLFilter',
+    'InListFilter',    
+    'GEFilter',    
+    'GTFilter',    
+    'LEFilter',    
+    'LTFilter',    
+    'RegexFilter',    
+    'AllFilter',    
+    'AnyFilter',    
+    'NoneFilter',
+    'make_filter',
+    # table_server.py
+    'TableServer',
+    'TableNotFoundException',
+    'ColumnNotFoundException',
+    'TableLoader',
+    'FileTableLoader',
+    'HTTPTableLoader',
+    'HeaderInfo',
+    # sdtp_server.py
+    'sdtp_server_blueprint',
+    'SDTPServer'
 ]
