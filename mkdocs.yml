@@ -7,7 +7,7 @@ theme:
     - navigation.tabs
     - navigation.top
     - content.code.annotate
-    - navigation.footer
+        - navigation.footer
   palette:
     - scheme: default
       primary: indigo
@@ -21,7 +21,8 @@ extra:
   # Any other extra variables you want
 extra_templates:
   - partials/footer.html
-
+extra_javascript:
+  - js/footer.js
 
 
 nav:

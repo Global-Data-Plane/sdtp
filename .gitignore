@@ -13,3 +13,5 @@ src/sdtp.egg-info/top_level.txt
 debug_sdml.py
 foo
 /tmp
+notebooks/scratch/presidential-history.sdml
+notebooks/scratch/quickstart.sdml
