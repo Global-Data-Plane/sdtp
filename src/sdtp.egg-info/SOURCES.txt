@@ -2,7 +2,6 @@ AUTHORS.rst
 LICENSE
 README.md
 pyproject.toml
-src/app.py
 src/sdtp/__init__.py
 src/sdtp/sdtp_client.py
 src/sdtp/sdtp_filter.py
@@ -20,6 +19,7 @@ src/sdtp.egg-info/top_level.txt
 tests/test_compound_filters.py
 tests/test_data_plane.py
 tests/test_factory.py
+tests/test_filter_helpers.py
 tests/test_filter_result_format.py
 tests/test_macroexpansion.py
 tests/test_sdtp_client.py

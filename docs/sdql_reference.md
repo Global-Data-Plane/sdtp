@@ -152,6 +152,72 @@ SDQL supports composition using the following logical operators:
 | NONE         | arguments (array of filters) | Logical NOR (none of the sub-filters match) |
 
 ---
+## SDQL Filter Construction in Python
+
+To make SDQL filters easy to build in code (and avoid manual JSON/dict construction), use the provided high-level helper functions. These generate SDQL-compliant filter dicts for all standard operators, including value normalization (e.g., dates to ISO strings).
+
+```
+from sdtp_filter import IN_LIST, EQ, GE, REGEX, ANY
+
+# IN_LIST (membership in a value list)
+spec1 = IN_LIST("status", ["active", "pending"])
+# result: {"operator": "IN_LIST", "column": "status", "values": ["active", "pending"]}
+
+# EQ (single-value equality)
+spec2 = EQ("user_id", 42)
+# result: {"operator": "IN_LIST", "column": "user_id", "values": [42]}
+
+# GE (greater than or equal) supports date/datetime/time and will normalize to ISO string
+from datetime import date
+spec3 = GE("created", date(2024, 4, 10))
+# result: {"operator": "GE", "column": "created", "value": "2024-04-10"}
+
+# REGEX (pattern match)
+spec4 = REGEX("email", r".+@example.com")
+# result: {"operator": "REGEX_MATCH", "column": "email", "expression": r".+@example.com"}
+
+# Logical composition (ANY): pass a list or multiple filters as varargs
+spec5 = ANY([spec2, spec4])   # as a list
+spec6 = ANY(spec2, spec4)     # as varargs
+# result: {"operator": "ANY", "arguments": [{"operator": "IN_LIST", "column": "user_id", "values": [42]}, {"operator": "REGEX_MATCH", "column": "email", "expression": r".+@example.com"} ]}
+
+# Logical composition (ANY): pass a list or multiple filters as varargs
+spec7 = ALL([spec2, spec4])   # as a list
+spec8 = ALL(spec2, spec4)     # as varargs
+# result: {"operator": "ALL", "arguments": [{"operator": "IN_LIST", "column": "user_id", "values": [42]}, {"operator": "REGEX_MATCH", "column": "email", "expression": r".+@example.com"} ]}
+
+# Logical composition (ANY): pass a list or multiple filters as varargs
+spec9 = NONE([spec2, spec4])   # as a list
+spec10 = NONE(spec2, spec4)     # as varargs
+# result: {"operator": "NONE", "arguments": [{"operator": "IN_LIST", "column": "user_id", "values": [42]}, {"operator": "REGEX_MATCH", "column": "email", "expression": r".+@example.com"} ]}
+
+# Not Equal
+spec11 = NEQ('name', 'Mike')
+# result {"operator": "NONE", "arguments": [{"operator": "IN_LIST", "column": "name", "values": ["Mike"]}]}
+
+# All helpers return plain dicts ready for SDTP/SDML or JSON serialization
+print(spec1)
+# {'operator': 'IN_LIST', 'column': 'status', 'values': ['active', 'pending']}
+
+print(spec3)
+# {'operator': 'GE', 'column': 'created', 'value': '2024-04-10'}
+```
+
+### Automatic Date/Datetime Normalization
+
+When you use these helpers, all `date`, `datetime`, or `time` values are automatically converted to ISO-format strings before inclusion in the filter dict. This ensures filters are always compatible with SDTP servers and JSON APIs.
+
+### Best Practices & Gotchas
+
+Always use helpers. Do not manually construct SDQL filter dicts—helpers handle normalization, argument naming, and future-proofing.
+
+Composite filters (`ANY`, `ALL`, `NONE`) accept either a list of filters or multiple filters as arguments, e.g., `ANY(EQ('y', 3), LT('z', 5))` returns the same result as `ANY([EQ('y', 3), LT('z', 5)])`.
+
+Mixing models and dicts: Helpers always output dicts; never mix Pydantic models or non-serializable objects in composite arguments.
+
+Helpers are guaranteed to match the SDQL spec as documented above. If you ever need to implement a custom filter, use the same field names and normalization rules as the helpers.
+
+Validation: All helpers return filter dicts that can be validated or passed directly to SDMLTable, SDTP, or related APIs.
 
 ## See Also
 
