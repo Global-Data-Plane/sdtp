@@ -111,13 +111,15 @@ from .sdtp_filter import (
     NoneFilter,
     make_filter,
     IN_LIST,
+    EQ,
     GE,
     GT,
     LE,
     LT,
     ANY,
     ALL,
-    NONE
+    NONE,
+    NEQ
 )
 # from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
 from .table_server import (
@@ -208,6 +210,7 @@ __all__ = [
     'NoneFilter',
     'make_filter',
     'IN_LIST',
+    'EQ',
     'GE',
     'GT',
     'LE',
@@ -215,6 +218,7 @@ __all__ = [
     'ANY',
     'ALL',
     'NONE',
+    'NEQ',
     # table_server.py
     'TableServer',
     'TableNotFoundException',
