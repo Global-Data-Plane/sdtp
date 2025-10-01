@@ -32,6 +32,8 @@ from .sdtp_utils import InvalidDataException
 
 
 PrimitiveType = Union[str, float, int, bool]
+DateLike = Union[datetime, date, time]
+GDPType = Union[PrimitiveType, DateLike]
 
 def is_primitive(val):
     return isinstance(val, (str, int, float, bool))
@@ -129,7 +131,7 @@ class CompareFilter(ColumnFilter):
 
   def model_post_init(self, context: Any) -> None:
     super().model_post_init(context)
-    self._compare_value = parse_iso(self.value)
+    self._compare_value = parse_iso(self.value) # type: ignore
 
   def to_filter_spec(self):
     return {
@@ -358,3 +360,96 @@ def check_valid_spec_return_boolean(filter_spec: dict):
     return True
   except Exception as e:
     return False
+  
+#------ High-Level Convenience Methods for Filters ---#
+
+def _iso_or_raw(val: GDPType) -> PrimitiveType:
+  if isinstance(val, (datetime, date, time)):
+    return val.isoformat()
+  return val 
+
+
+def IN_LIST(column: str, values: List[GDPType]) -> Dict:
+  '''
+  Return an InListFilter with column column and values values
+  '''
+  return {"operator": 'IN_LIST', 'column': column, 'values': [_iso_or_raw(v) for v in values]}
+  
+
+
+def EQ(column: str, value: GDPType) -> Dict:
+   '''
+  Return an InListFilter with column column and values [value]
+  '''
+   return IN_LIST(column, [value])
+
+
+def GE(column: str, value: GDPType) -> Dict:
+  '''
+  Return a GreaterEqual Filter with column column and value value
+  '''
+  return  {"operator": 'GE', 'column': column, 'value':  _iso_or_raw(value)}
+  
+
+def GT(column: str, value: GDPType) -> Dict:
+  '''
+  Return a Greater Filter with column column and value value
+  '''
+  return  {"operator": 'GT', 'column': column, 'value':  _iso_or_raw(value)}
+
+
+def LE(column: str, value: GDPType) -> Dict:
+  '''
+  Return a Less than or Equal  Filter with column column and value value
+  '''
+  return  {"operator": 'LE', 'column': column, 'value':  _iso_or_raw(value)}
+
+
+def LT(column: str, value: GDPType) -> Dict:
+  '''
+  Return a Less than Filter with column column and value value
+  '''
+  return  {"operator": 'LT', 'column': column, 'value':  _iso_or_raw(value)}
+
+def REGEX(column: str, expression: str) -> Dict:
+  '''
+  Return a RegexFilter with column column and expression expression
+  '''
+  return RegexFilter(operator = 'REGEX_MATCH', column=column, expression=expression).to_filter_spec()
+
+def _extract_args(*args) -> list:
+  """
+  Accepts ANY([f1, f2]) or ANY(f1, f2); always returns a list of filters.
+  """
+  if len(args) == 1 and isinstance(args[0], (list, tuple)):
+    return list(args[0])
+  else:
+    return list(args)
+
+def ANY(*args) -> dict:
+  """
+  Return an AnyFilter with the given arguments.
+  Accepts ANY([f1, f2]) or ANY(f1, f2).
+  """
+  return {"operator": 'ANY', "arguments":_extract_args(*args)}
+
+def ALL(*args) -> dict:
+  """
+  Return an AllFilter with the given arguments.
+  Accepts ALL([f1, f2]) or ALL(f1, f2).
+  """
+  return  {"operator": 'ALL', "arguments":_extract_args(*args)}
+
+def NONE(*args) -> dict:
+  """
+  Return a NoneFilter with the given arguments.
+  Accepts NONE([f1, f2]) or NONE(f1, f2).
+  """
+  return  {"operator": 'NONE', "arguments":_extract_args(*args)}
+
+
+def NEQ(column: str, value: PrimitiveType) -> dict:
+  """
+  Return a NEQ filter (not equal).
+  """
+  return NONE(EQ(column, value))

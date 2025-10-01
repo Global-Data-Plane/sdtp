@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdtp"
-version = "2025.09.17"
+version = "2025.10.01"
 description = "Simple Data Transfer Protocol (SDTP) reference implementation"
 authors = [
     { name = "The Regents of the University of California", email = "opensource@ucop.edu" }

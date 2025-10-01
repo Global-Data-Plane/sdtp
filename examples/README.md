@@ -8,13 +8,18 @@ This directory contains a collection of example SDML files for use with SDTP and
 - **electoral_college.sdml**  
   Electoral college results, 1828–2020
 
+- **electoral_college_raw.sdml**  
+  Electoral college by cnadidate
 
-- **margin.sdml**  
-  Senate vote margin by state, 1976–2020  
-  *(−10: Republican landslide; 10: Democratic landslide)*
 
 - **nationwide_vote.sdml**  
   Nationwide Presidential Vote, 1828–2020
+
+- **nightingale-original.sdml**  
+  Florence Nightingale's dataset
+
+- **nightingale-summary.sdml**  
+  Summary of Florence Nightingale's dataset
 
 - **presidential_margins.sdml**  
   Presidential margin by state, 1828–2020  
@@ -26,20 +31,18 @@ This directory contains a collection of example SDML files for use with SDTP and
 - **presidential_vote_history.sdml**  
   Presidential vote by state, 1828–2020
 
-- **records.sdml**  
-  Florence Nightingale's dataset
-
 - **senate-control.sdml**  
   Control of the Senate, 1976–2020
 
 - **senate-history.sdml**  
   Senate vote history by state, 1976–2020
 
+- **senate-margin.sdml**  
+  Senate vote margin by state, 1976–2020  
+  *(−10: Republican landslide; 10: Democratic landslide)*
+
 - **senate_vote.sdml**  
   Senate vote by state, 1975–2020
-
-- **summary.sdml**  
-  Summary of Florence Nightingale's dataset
 
 - **ufos_by_country_year.sdml**  
   UFO sightings by country and year
