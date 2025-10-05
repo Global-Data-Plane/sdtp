@@ -237,7 +237,7 @@ def test_table_server_load_file():
             server.init_from_config(cf.name)
             t = server.get_table("disk_table")
             assert t.schema == table_spec["schema"]
-            assert t.rows == table_spec["rows"]
+            assert t.rows == table_spec["rows"] # type: ignore
 
 
 def test_table_server_load_http(monkeypatch):
@@ -274,6 +274,6 @@ def test_table_server_load_http(monkeypatch):
         server = TableServer()
         server.init_from_config(cf.name)
         t = server.get_table("remote_table")
-        print(fake_table)
+        # print(fake_table)
         assert t.schema == fake_table["schema"]
-        assert t.rows == fake_table["rows"]
+        assert t.rows == fake_table["rows"] # type: ignore

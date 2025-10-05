@@ -43,7 +43,7 @@ from .sdtp_schema import SDML_SCHEMA_TYPES, ColumnSpec, RowTableSchema, RemoteTa
 from typing import List
 from .sdtp_utils import InvalidDataException
 from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check, json_serialize
-from .sdtp_utils import convert_list_to_type, convert_rows_to_type_list
+from .sdtp_utils import SDMLTypeConverter, convert_list_to_type, convert_rows_to_type_list
 from .sdtp_filter import SDQLFilter, make_filter
 
 
@@ -417,16 +417,21 @@ class SDMLDataFrameTable(SDMLFixedTable):
     that the values are in the PANDAS Dataframe, which must have the same column names
     as the schema and compatible types.
     '''
-    def __init__(self, schema, dataframe):
+    def __init__(self, schema, dataframe,  type_converter=None, converter_kwargs=None):
         super(SDMLDataFrameTable, self).__init__(schema, self._get_rows)
         self.dataframe = dataframe.copy()
         # Make sure the column names and types match
         self.dataframe.columns = self.column_names()
          # make sure that the types match
+        if type_converter is not None:
+            tc = type_converter
+        else:
+            tc = SDMLTypeConverter(**(converter_kwargs or {}))
         for column in schema:
             column_values = self.dataframe[column["name"]].tolist()
             try:
-                fixed_series = convert_list_to_type(column["type"], column_values)
+               
+                fixed_series = convert_list_to_type(column["type"], column_values, tc)
                 self.dataframe[column["name"]] = fixed_series
             except Exception as exc:
                 raise InvalidDataException(f'error {exc} converting {column["name"]}')
@@ -510,13 +515,26 @@ class RowTable(SDMLFixedTable):
     authentication.
     '''
 
-    def __init__(self, schema, rows):
+    def __init__(self, schema, rows, type_converter=None, converter_kwargs=None):
+        """
+        Construct a RowTable with type-aware conversion.
+
+        Args:
+            schema: SDML schema object/list
+            rows: list of row data
+            type_converter: (optional) an SDMLTypeConverter instance (if None, one will be constructed)
+            converter_kwargs: (optional) dict of args to SDMLTypeConverter (if no type_converter provided)
+        """
         self.schema = schema  # set this *before* calling self.column_types()
         type_list = self.column_types()
         # print("RowTable.__init__ received schema:", schema)
         # print("RowTable.__init__ received rows:", rows)
         # print("RowTable.__init__ inferred column types:", self.column_types(), type_list)
-        self.rows = convert_rows_to_type_list(type_list, rows)
+        if type_converter is not None:
+            tc = type_converter
+        else:
+            tc = SDMLTypeConverter(**(converter_kwargs or {}))
+        self.rows = convert_rows_to_type_list(type_list, rows, tc)
         super(RowTable, self).__init__(schema, self._get_rows)
     
     def _get_rows(self):
@@ -722,7 +740,8 @@ class RemoteSDMLTable(SDMLTable):
         column_type = self._check_column_and_get_type(column_name)
         request = f'{self.url}/{route}?table_name={self.table_name}&column_name={column_name}'
         result = self._do_request(request)
-        return convert_list_to_type(column_type, result)
+        type_converter = SDMLTypeConverter()
+        return convert_list_to_type(column_type, result, type_converter)
         
     def all_values(self, column_name: str) -> list:
         '''

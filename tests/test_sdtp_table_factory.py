@@ -63,8 +63,61 @@ def test_build():
     remote_table = RemoteSDMLTable('test', spec['schema'], 'https://www.example.com', header_dict = {'foo': 'bar'})
     spec = remote_table.to_dictionary()
     _check_remote_table_equal(RemoteSDMLTableFactory.build_table(spec), remote_table)
+
+
     
-test_build()
+import datetime
+from sdtp import RowTable, InvalidDataException, SDMLTypeConverter
+from sdtp.sdtp_table_factory import RowTableFactory, TableBuilder
+
+def test_row_table_factory_type_converter():
+
+    schema = [
+        {"name": "date", "type": "datetime"},
+        {"name": "val", "type": "number"},
+    ]
+    # "NONE" should be interpreted as null, "2023-01-01" as datetime
+    rows = [
+        ["2023-01-01", 5],
+        ["NONE", 10]
+    ]
+    tc = SDMLTypeConverter(null_sentinels={"NONE"}, strict=True)
+    spec = {"type": "RowTable", "schema": schema, "rows": rows}
+    table = TableBuilder.build_table(spec, type_converter=tc)
+    assert table.rows[0][0].year == 2023
+    assert table.rows[1][0] is None
+
+def test_row_table_factory_type_converter_2():
+    # Custom type converter that treats "NULL" as null, and parses dates
+    tc = SDMLTypeConverter(
+        null_sentinels={'NULL'},
+        strict=True,
+        dayfirst=False
+    )
+
+    schema = [
+        {"name": "created", "type": "datetime"},
+        {"name": "note", "type": "string"}
+    ]
+    # "NULL" string should become None; date string should parse
+    rows = [
+        ["2023-07-06T12:30:00", "ok"],
+        ["7/6/2023", "day only"],
+        ["NULL", "empty"]
+    ]
+
+    spec = {"type": "RowTable", "schema": schema, "rows": rows}
+    table = RowTableFactory.build_table(spec, type_converter=tc)
+
+    # Row 1: datetime parses, note is 'ok'
+    assert isinstance(table.rows[0][0], datetime.datetime)
+    assert table.rows[0][0] == datetime.datetime(2023, 7, 6, 12, 30, 0)
+    assert table.rows[0][1] == "ok"
+    assert table.rows[1][0] == datetime.datetime(2023, 7, 6, 0, 0, 0)
+    assert table.rows[1][1] == "day only"
+    # Row 2: datetime cell becomes None, note is 'empty'
+    assert table.rows[2][0] is None
+    assert table.rows[2][1] == "empty"
 
 class SDMLTestTableFactory(SDMLTableFactory):
     '''
@@ -86,7 +139,7 @@ def test_add_table_factory():
     
     # test for None
     with pytest.raises(TypeError):
-        TableBuilder.register_factory_class(None)
+        TableBuilder.register_factory_class(None) # type:ignore
     # test for non-factory
     with pytest.raises(InvalidDataException):
         TableBuilder.register_factory_class('foo', None)

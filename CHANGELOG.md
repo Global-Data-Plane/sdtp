@@ -39,3 +39,28 @@
 ```sh
 pip install --index-url https://test.pypi.org/simple/ sdtp
 ```
+# SDTP 2025.10.02 Release Notes
+
+## 🔧 Patch Release Summary
+
+This patch addresses data normalization consistency and strengthens type conversion routines in the `SDMLTypeConverter` class. All changes are backward-compatible and pass full unit and smoke test suites.
+
+## ✅ Fixed
+
+* Improved `is_null()` logic:
+
+  * Now uses a normalized sentinel set (`lower()`-normalized) for robust string matching.
+  * Better error handling around `pd.isnull()` edge cases.
+
+* All type conversion methods (`convert_number`, `convert_datetime`, `convert_date`, etc.):
+
+  * Now consistently short-circuit null and non-scalar values before conversion attempts.
+  * Unified `_noneOrError_()` fallback logic across all conversion paths.
+
+* Added scalar check via `is_scalar()` to prevent incorrect parsing of lists, dicts, or other composite types.
+
+## 🧪 Testing
+
+* Full test suite passing
+* Manual smoke test of runtime conversions successful
+* Edge case coverage for strings like `'NaN'`, `'null'`, and `'None'` validated
