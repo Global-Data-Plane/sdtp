@@ -31,7 +31,10 @@ import datetime
 import functools
 import pandas as pd
 from sdtp import type_check, SDML_PYTHON_TYPES
+import math
+from dateutil import parser
 
+NULL_SENTINELS = {'None', 'none', 'nan', 'NaN', 'NaT', 'null', ''}
 
 def json_serialize(obj):
     # Convert dates, times, and datetimes to isostrings 
@@ -82,6 +85,8 @@ def jsonifiable_value(value, column_type):
     Returns
         A jsonifiable form of the value
     '''
+    if value is None:
+        return None
     if column_type in NON_JSONIFIABLE_TYPES:
         return value.isoformat()
     else:
@@ -89,7 +94,7 @@ def jsonifiable_value(value, column_type):
 
 def jsonifiable_row(row, column_types):
     '''
-    IReturn the jsonified form of the row, using jsonifiable_value for each element
+    Return the jsonified form of the row, using jsonifiable_value for each element
     Arguments:
         row -- the row to be converted
         column_types -- the types of each element of the row
@@ -122,108 +127,8 @@ def jsonifiable_column(column, column_type):
     else:
         return column
     
-def _convert_to_number(value):
-    # Return a numeric form of value, if possible, or throw an InValidDataException if it won't convert
-    if isinstance(value, int) or isinstance(value, float):
-        return value
-
-    # try an automated conversion to float.  If it fails, it still
-    # might be an int in base 2, 8, or 16, so pass the error to try
-    # all of those
-
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        pass
-    # if we get here, it must be a string or won't convert
-    if not isinstance(value, str):
-        raise InvalidDataException(f'Cannot convert {value} to number')
-
-    # Try to convert to binary, octal, decimal
-
-    for base in [2, 8, 16]:
-        try:
-            return int(value, base)
-        except ValueError:
-            pass
-    # Everything has failed, so toss the exception
-    raise InvalidDataException(f'Cannot convert {value} to number')
-
-
-def convert_to_type(sdml_type, value):
-    '''
-    Convert value to sdml_type, so that comparisons can be done.  This is used to convert
-    the values in a filter_spec to a form that can be used in a filter.
-    Throws an InvalidDataException if the type can't be converted.
-    An exception is Boolean, where "True, true, t" are all converted to True, but any
-    other values are converted to False
-
-    Arguments:
-        sdml_type (str): type to convert to
-        value (Any): value to be converted
-    Returns:
-        value cast to the correct type
-    '''
-    if type(value) in SDML_PYTHON_TYPES[sdml_type]:
-        return value
-    if sdml_type == "string":
-        if isinstance(value, str):
-            return value
-        try:
-            return str(value)
-        except ValueError:
-            raise InvalidDataException('Cannot convert value to string')
-    elif sdml_type == "number":
-        return _convert_to_number(value)
-    elif sdml_type == "boolean":
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value in {'True', 'true', 't', '1', '1.0'}
-        if isinstance(value, int):
-            return value != 0
-        if isinstance(value, float):
-            return value != 0.0
-        return False
-    # Everything else is a date or time
-
-    elif sdml_type == "datetime":
-        if type(value) == datetime.date:
-            return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
-        if isinstance(value, str):
-            try:
-                return datetime.datetime.fromisoformat(value)
-            except Exception:
-                raise InvalidDataException(f"Can't convert {value} to datetime")
-        raise InvalidDataException(f"Can't convert {value} to datetime")
-
-    elif sdml_type == "date":
-        if type(value) in SDML_PYTHON_TYPES["datetime"]:
-            return value.date()
-        if isinstance(value, str):
-            try:
-                return datetime.datetime.fromisoformat(value).date()
-            except Exception:
-                raise InvalidDataException(f"Can't convert {value} to date")
-        raise InvalidDataException(f"Can't convert {value} to date")
-    
-    elif sdml_type == "timeofday":
-        if type(value) in SDML_PYTHON_TYPES["datetime"]:
-            return value.time()
-        if isinstance(value, str):
-            try:
-                return datetime.time.fromisoformat(value)
-            except Exception:
-                try:
-                    return datetime.datetime.fromisoformat(value).time()
-                except Exception:
-                    raise InvalidDataException(f"Can't convert {value} to time")
-
-        raise InvalidDataException(f"Couldn't convert {value} to {sdml_type}")
-    
-    raise InvalidDataException(f"Don't recognize {sdml_type}")
         
-def convert_list_to_type(sdml_type, value_list):
+def convert_list_to_type(sdml_type, value_list, type_converter):
     '''
     Convert value_list to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
     Returns a default value if value can't be converted
@@ -232,11 +137,12 @@ def convert_list_to_type(sdml_type, value_list):
     Arguments:
         sdml_type: type to convert to
         value_list: list of values to be converted
+        typeConverter: the SDMLTypeConverter
     Returns:
         value_list with each element cast to the correct type
     '''
     try:
-        return  [convert_to_type(sdml_type, elem) for elem in value_list]
+        return  [type_converter.convert(sdml_type, elem) for elem in value_list]
         
         # result = []
         # for i in range(len(value_list)): result.append(convert_to_type(sdml_type, value_list[i]))
@@ -244,15 +150,15 @@ def convert_list_to_type(sdml_type, value_list):
     except Exception as exc:
         raise InvalidDataException(f'Failed to convert {value_list} to {sdml_type}')
     
-def convert_row_to_type_list(sdml_type_list, row):
+def convert_row_to_type_list(sdml_type_list, row, type_converter):
     # called from convert_rows_to_type_list, which should error check
     # to make sure that the row is the same length as sdml_type_list
-    return [convert_to_type(sdml_type_list[i], row[i]) for i in range(len(row))]
+    return [type_converter.convert(sdml_type_list[i], row[i]) for i in range(len(row))]
 
 
-def convert_rows_to_type_list(sdml_type_list, rows):
+def convert_rows_to_type_list(sdml_type_list, rows, type_converter):
     '''
-    Convert the list of rows to the 
+    Convert the list of rows to the appropriate sdml types,
     '''
     length = len(sdml_type_list)
     
@@ -264,9 +170,9 @@ def convert_rows_to_type_list(sdml_type_list, rows):
 
         if len(row) != length:
             raise InvalidDataException(f'Length mismatch: required number of columns {length}, length {row} = {len(row)}')
-    return  [convert_row_to_type_list(sdml_type_list, row) for row in rows]
+    return  [convert_row_to_type_list(sdml_type_list, row, type_converter) for row in rows]
     
-def convert_dict_to_type(sdml_type, value_dict):
+def convert_dict_to_type(sdml_type, value_dict, type_converter):
     '''
     Convert value_dict to sdml_type, so that comparisons can be done.  Currently only works for lists of string, number, and boolean.
 
@@ -282,7 +188,7 @@ def convert_dict_to_type(sdml_type, value_dict):
     result = {}
     try:
         for (key, value) in value_dict.items():
-            result[key] = convert_to_type(sdml_type, value)
+            result[key] = type_converter.convert(sdml_type, value)
         return result
     except Exception as exc:
         raise InvalidDataException(f'Failed to convert {value_dict} to {sdml_type}')
@@ -330,3 +236,160 @@ def resolve_auth_method(method: AuthMethod) -> Optional[str]:
     elif "value" in method:
         return method["value"]
     return None
+
+import numpy as np
+import datetime
+
+def is_scalar(value):
+    return (
+        np.isscalar(value) or
+        value is None or
+        isinstance(value, (str, bytes, datetime.date, datetime.datetime, datetime.time, bool))
+    )
+
+class SDMLTypeConverter:
+    '''
+    Converts Python structures to SDML objects, with a number of options.
+    Attributes:
+        null_sentinels: Strings which should be converted into None
+        strict: if True, raise an InvalidDataException for unparseable data.  If False, return None
+        dayfirst: Are strings of the form 2/1/25 January 2, 2025 or February 1, 2025?
+    '''
+    def __init__(self, null_sentinels=None, strict=True, dayfirst=False):
+        default_null_sentinels = {
+            'None', 'none', 'nan', 'NaN', 'NaT', 'null', 'Null', '', '<NA>'
+        }
+        self.null_sentinels = null_sentinels or default_null_sentinels
+        self.normalized_null_sentinels = {s.lower() for s in self.null_sentinels}
+        self.strict = strict
+        self.dayfirst = dayfirst
+        self.error_log = {}
+
+    def _noneOrError_(self, value, sdml_type):
+        self.error_log.setdefault(sdml_type, []).append(value)
+        if self.strict:
+            raise InvalidDataException(f"Can't convert {value} to {sdml_type}")
+        return math.nan if sdml_type == 'number' else None
+
+    def is_null(self, value):
+        try:
+            return value is None or pd.isnull(value) or (isinstance(value, str) and value.strip().lower() in self.normalized_null_sentinels)
+        except Exception:
+            return False
+        
+    
+    def convert(self, sdml_type, value):
+        # dispatch based on sdml_type
+
+
+        method = getattr(self, f'convert_{sdml_type}', self.convert_default)
+        return method(value)
+    
+    def convert_default(self, value):
+        return value  # fallback
+    
+    def convert_number(self, value):
+        if self.is_null(value):
+            return math.nan
+        
+        # Your number logic here
+        if not is_scalar(value):
+            return self._noneOrError_(value, 'number')
+
+        
+        if isinstance(value, int) or isinstance(value, float):
+            return value
+
+
+        # try an automated conversion to float.  If it fails, it still
+        # might be an int in base 2, 8, or 16, so pass the error to try
+        # all of those
+
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+        # if we get here, it must be a string or won't convert
+        if not isinstance(value, str):
+            return self._noneOrError_(value, 'number')
+        # Try to convert to binary, octal, decimal
+        for base in [2, 8, 16]:
+            try:
+                return int(value, base)
+            except ValueError:
+                pass
+        return self._noneOrError_(value, 'number')
+
+    def convert_boolean(self, value):
+        # Your boolean logic here
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value in {'True', 'true', 't', '1', '1.0'}
+        if isinstance(value, int):
+            return value != 0
+        if isinstance(value, float):
+            return value != 0.0
+        return False
+
+    def convert_datetime(self, value):
+
+        if self.is_null(value):
+            return None
+      
+        if not is_scalar(value):
+            return self._noneOrError_(value, 'datetime')
+        
+        if isinstance(value, datetime.datetime):
+            return value
+        if type(value) == datetime.date:
+            return datetime.datetime(value.year, value.month, value.day, 0, 0, 0)
+        if isinstance(value, str):
+            try:
+                return parser.parse(value, dayfirst=self.dayfirst, fuzzy=True)
+            except Exception:
+                pass
+        return self._noneOrError_(value, 'datetime')
+
+    def convert_date(self, value):
+        if self.is_null(value):
+            return None
+        
+        if not is_scalar(value):
+            return self._noneOrError_(value, 'date')
+        
+        if type(value) == datetime.date:
+            return value
+        if type(value) == datetime.datetime:
+            return value.date()
+        if isinstance(value, str):
+            try:
+                return parser.parse(value, dayfirst=self.dayfirst, fuzzy=True).date()
+            except Exception:
+                pass
+        return self._noneOrError_(value, 'date')
+    
+    def convert_timeofday(self, value):
+        
+        if self.is_null(value):
+            return None
+        if not is_scalar(value):
+            return self._noneOrError_(value, 'timeofday')
+        
+        if type(value) == datetime.time:
+            return value
+        if  type(value) == datetime.datetime:
+            return value.time()
+        if isinstance(value, str):
+            try:
+                return parser.parse(value, fuzzy=True).time()
+            except Exception:
+                pass
+        return self._noneOrError_(value, 'timeofday')
+
+    def convert_string(self, value):
+        try:
+            return str(value) if value is not None else None
+        except Exception:
+            return self._noneOrError_(value, 'string')
+        

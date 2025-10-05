@@ -64,6 +64,25 @@ SDML files are the configuration files for common Table objects:
 * The markup declares the table’s schema, type, and the parameters required for that table type.
 * The SDTP server reads this markup, looks up the appropriate Table class (by `"type"`), and uses the markup to construct a live Table instance.
 
+### SDML Markup Format
+
+An SDML table has two required fields:
+
+- **type**: the type of the table.  Table types primarily differ in how they produce rows.  A **RowTable** has its rows incorporated into the markup itself; a **RemoteSDMLTable** gets its rows from a remote Data Plane server.  The **RowTable** has its rows in a field; a **RemoteSDMLTable** has connection information to the remote server.
+
+- **schema**.  The list of columns of the table.  Each column is an object with fields **name** and **type**.  SDML types are **semantic**, not structural.  The current list is:
+  - boolean
+  - string
+  - number
+  - datetime
+  - date
+  - timeofday
+
+#### Representation of values
+Values are represented as JSON objects.  datetime, date, and timeofday are given in isoformat.  
+
+null values are `null` in the markup exchange and, in the Python reference server, are represented as `None`.
+
 ### Pre-written Table Implementations
 
 Currently, SDML supports parameterization of two built-in Table types:
@@ -88,6 +107,7 @@ The SDML file contains all the info needed to query the remote server. These par
 ### Reference Server Implementation
 
 The reference server reads the SDML files in the server's tables directory and loads them on startup.
+
 
 ## 3. RowTable
 

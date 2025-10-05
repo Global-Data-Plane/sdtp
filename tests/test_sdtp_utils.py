@@ -37,7 +37,7 @@ import os
 from sdtp import SDML_STRING, SDML_NUMBER, SDML_BOOLEAN, SDML_DATE, SDML_DATETIME, SDML_TIME_OF_DAY
 from sdtp import type_check, check_sdml_type_of_list
 from sdtp import jsonifiable_value, jsonifiable_row, jsonifiable_rows, jsonifiable_column
-from sdtp import convert_to_type, convert_list_to_type, convert_dict_to_type
+from sdtp import SDMLTypeConverter, convert_list_to_type, convert_dict_to_type
 from sdtp import InvalidDataException
 from sdtp.sdtp_utils import resolve_auth_method, AuthMethod
 # from sdtp_data.sdtp_utils import *
@@ -128,9 +128,10 @@ def test_jsonifiable_column():
 # 1. Strings.  
 
 def test_convert_string():
-  results = [('foo', 'foo'), (1, '1'), (1.2, '1.2'), ({'a': 1, 'b':[1, 2, 3]}, "{'a': 1, 'b': [1, 2, 3]}"), (None, 'None')]
+  results = [('foo', 'foo'), (1, '1'), (1.2, '1.2'), ({'a': 1, 'b':[1, 2, 3]}, "{'a': 1, 'b': [1, 2, 3]}"), (None, None)]
+  type_converter = SDMLTypeConverter()
   for test in results:
-    assert(convert_to_type(SDML_STRING, test[0]) == test[1])
+    assert(type_converter.convert(SDML_STRING, test[0]) == test[1])
 
 # Numbers.  Special cases:
 # all strings convert to floats
@@ -139,33 +140,47 @@ def test_convert_string():
 
 def test_convert_number():
   results = [(1, 1), (1.2, 1.2),  ('1', 1.0)]
+  type_converter = SDMLTypeConverter()
   for test in results:
-    assert(convert_to_type(SDML_NUMBER, test[0]) == test[1])
-  nans = [math.nan, 'nan']
+    assert(type_converter.convert(SDML_NUMBER, test[0]) == test[1])
+  nans = [math.nan,  'None', 'none', 'nan', 'NaN', 'NaT', 'null', 'Null', '', '<NA>']
   for nan in nans:
-    assert(math.isnan(convert_to_type(SDML_NUMBER, nan)))
-  exceptions = [None, 'foo', [1, 2]]
+    assert(math.isnan(type_converter.convert(SDML_NUMBER, nan)))
+  exceptions = ['foo', [1, 2]]
   for err in exceptions:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_NUMBER, err)
+      type_converter.convert(SDML_NUMBER, err)
       assert(repr(exc) == f'Cannot convert {err} to number')
+  type_converter.strict = False
+  for err in exceptions:
+    assert math.isnan(type_converter.convert(SDML_NUMBER, err))
 
 # Booleans.  Special cases:
 # {'True', 'true', 't', '1'} convert to True
 # Nonzero numbers convert to True
 # everything else converts to False
 def test_convert_bool():
-  assert(convert_to_type(SDML_BOOLEAN, True))
-  assert(not convert_to_type(SDML_BOOLEAN, False))
+  type_converter = SDMLTypeConverter()
+  assert(type_converter.convert(SDML_BOOLEAN, True))
+  assert(not type_converter.convert(SDML_BOOLEAN, False))
   true_vals = {'True', 'true', 't', '1', '1.0'}
   for val in true_vals:
-    assert(convert_to_type(SDML_BOOLEAN, val))
+    assert(type_converter.convert(SDML_BOOLEAN, val))
   numbers = [1, 1.0, 0.1, 5, 10, -3, math.nan]
   for num in numbers:
-    assert(convert_to_type(SDML_BOOLEAN, num))
+    assert(type_converter.convert(SDML_BOOLEAN, num))
   false_vals  = [None, 0, 0.0, '', [1, 2, 3], "f"]
   for false in false_vals:
-    assert(not convert_to_type(SDML_BOOLEAN, false))
+    assert(not type_converter.convert(SDML_BOOLEAN, false))
+
+NULL_SENTINELS = { 'None', 'none', 'nan', 'NaN', 'NaT', 'null', 'Null', '', '<NA>'}
+
+def test_null_conversion():
+  type_converter = SDMLTypeConverter(null_sentinels = NULL_SENTINELS)
+  for n in NULL_SENTINELS:
+    for sdml_type in {SDML_DATETIME, SDML_DATE, SDML_TIME_OF_DAY}:
+      assert(type_converter.convert(sdml_type, n) == None)
+# test_null_conversion()
 
 # Datetimes.  The only valid datetimes are datetimes, dates, and isoformat strings
 # that are read by datetime.datetime or datetime.date
@@ -174,20 +189,39 @@ def test_convert_datetime():
     (datetime.datetime(1, 1, 1, 1, 1, 1), datetime.datetime(1, 1, 1, 1, 1, 1)),
     (datetime.date(1, 1, 1), datetime.datetime(1, 1, 1, 0, 0, 0)),
     ('2021-01-01T00:01:00',datetime.datetime(2021, 1, 1, 0, 1, 0)),
-    ('2021-01-01', datetime.datetime(2021, 1, 1, 0, 0, 0))
+    ('2021-01-01', datetime.datetime(2021, 1, 1, 0, 0, 0)),
+    ("2023-01-05T12:34:56", datetime.datetime(2023, 1, 5, 12, 34, 56)),   # ISO
+    ("1/5/2023 12:34 PM",   datetime.datetime(2023, 1, 5, 12, 34, 0)),    # US style
+    ("05-Jan-2023 8:00",    datetime.datetime(2023, 1, 5, 8, 0, 0)),      # D-Mon-YYYY
+    ("2023-01-05 23:59:59", datetime.datetime(2023, 1, 5, 23, 59, 59)),   # ISO space
+    ("Jan 5 2023 2:45am",   datetime.datetime(2023, 1, 5, 2, 45, 0)),     # Text month
+    ("20230105T071122",     datetime.datetime(2023, 1, 5, 7, 11, 22)),    # Compact ISO
+    ("",                    None),                                        # Empty
+    (None,                  None),                                        # None
+    ("NaT",                 None),
   ]
+  type_converter = SDMLTypeConverter()
+  # print(type_converter.null_sentinels)
   for v in valid:
-    assert(convert_to_type(SDML_DATETIME, v[0]) == v[1])
-  invalid_strings = ['foo', '2021', '2021-01', '2021-1-1', '2021-01-01T0:0:0']
+    assert(type_converter.convert(SDML_DATETIME, v[0]) == v[1])
+  type_converter.dayfirst = True
+  assert type_converter.convert(SDML_DATETIME, "1/5/2023 12:34 PM") == datetime.datetime(2023, 5, 1, 12, 34, 0)
+  # invalid_strings = ['foo', '2021', '2021-01', '2021-1-1','2021-01-01T0:0:0']
+  invalid_strings = ['foo']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_DATETIME, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to datetime')
-  invalid = [None, 1, [1, 2, 3], True]
+      type_converter.convert(SDML_DATETIME, iv)
+      # assert(repr(exc) == f'Cannot convert {iv} to datetime')
+  invalid = [1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_DATETIME, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to datetime')
+      type_converter.convert(SDML_DATETIME, iv)
+      # assert(repr(exc) == f'Cannot convert {iv} to datetime')
+  type_converter.strict = False
+  for iv in invalid_strings:
+    assert type_converter.convert(SDML_DATETIME, iv) == None
+  for iv in invalid:    
+    assert type_converter.convert(SDML_DATETIME, iv) == None
   
 # Dates.  The only valid dates are datetimes, dates, and isoformat strings
 # that are read by datetime.datetime
@@ -196,21 +230,48 @@ def test_convert_date():
     (datetime.datetime(1, 1, 1, 1, 1, 1), datetime.date(1, 1, 1)),
     (datetime.date(1, 1, 1), datetime.date(1, 1, 1)),
     ('2021-01-01T00:01:00',datetime.date(2021, 1, 1)),
-    ('2021-01-01', datetime.date(2021, 1, 1))
+    ('2021-01-01', datetime.date(2021, 1, 1)),
+    ("2023-01-05", datetime.date(2023, 1, 5)),        # ISO
+    ("1/5/2023",   datetime.date(2023, 1, 5)),        # US style
+    ("05/01/2023", datetime.date(2023, 5, 1)),        # US style, ambiguous
+    ("Jan 5, 2023", datetime.date(2023, 1, 5)),       # Text month
+    ("5 Jan 2023", datetime.date(2023, 1, 5)),        # European, text month
+    ("20230105",   datetime.date(2023, 1, 5)),        # Compact
+    ("2023/01/05", datetime.date(2023, 1, 5)),        # ISO with slash
+    ("05-Jan-2023", datetime.date(2023, 1, 5)),       # D-Mon-YYYY
+    ("",           None),                             # Empty/null
+    (None,         None),                             # None
+    ("nan",        None),                             # Null sentinel
   ]
+  europe = [
+    ("1/5/2023",   datetime.date(2023, 5, 1)),        # US style
+    ("05/01/2023", datetime.date(2023, 1, 5)),        # US style, ambiguous
+    ("Jan 5, 2023", datetime.date(2023, 1, 5)),       # Text month
+    ("5 Jan 2023", datetime.date(2023, 1, 5)),        # European, text month
+  ]
+  type_converter = SDMLTypeConverter()
   for v in valid:
-    assert(convert_to_type(SDML_DATE, v[0]) == v[1])
-  invalid_strings = ['foo', '2021', '2021-01', '2021-1-1', '2021-01-01T0:0:0']
+    assert(type_converter.convert(SDML_DATE, v[0]) == v[1])
+  type_converter.dayfirst = True
+  for v in europe:
+    assert(type_converter.convert(SDML_DATE, v[0]) == v[1])
+  # invalid_strings = ['foo', '2021', '2021-01', '2021-1-1', '2021-01-01T0:0:0']
+  invalid_strings = ['foo']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_DATE, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to date')
-  invalid = [None, 1, [1, 2, 3], True]
+      type_converter.convert(SDML_DATE, iv)
+      # assert(repr(exc) == f'Cannot convert {iv} to date')
+  invalid = [1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_DATE, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to date')
-  
+      type_converter.convert(SDML_DATE, iv)
+  type_converter.strict = False
+  for iv in invalid:
+    assert type_converter.convert(SDML_DATE, iv) == None
+  for iv in invalid_strings:
+      # assert(repr(exc) == f'Cannot convert {iv} to date')
+    assert type_converter.convert(SDML_DATE, iv) == None
+ 
 # Times.  The only valid datetimes are datetimes, times, and isoformat strings
 # that are read by datetime.datetime 
 def test_convert_times():
@@ -221,20 +282,35 @@ def test_convert_times():
     (datetime.time(1), datetime.time(1, 0, 0)),
     ('2021-01-01T00:01:00',datetime.time(0, 1, 0)),
     ('2021-01-01',datetime.time(0, 0, 0)),
-    ('00:01:00', datetime.time(0, 1, 0))
+    ('00:01:00', datetime.time(0, 1, 0)),
+    ("12:34:56",   datetime.time(12, 34, 56)),        # Full
+    ("8:00",       datetime.time(8, 0, 0)),           # Hours/minutes
+    ("23:59",      datetime.time(23, 59, 0)),         # 24-hour
+    ("2:45am",     datetime.time(2, 45, 0)),          # 12-hour
+    ("",           None),                             # Empty
+    (None,         None),                             # None
+    ("null",       None),                             # Null sentinel
   ]
+  type_converter = SDMLTypeConverter()
   for v in valid:
-    assert(convert_to_type(SDML_TIME_OF_DAY, v[0]) == v[1])
-  invalid_strings = ['foo', '0:0:0', '0', '2021-01-01T0:0:0']
+    assert(type_converter.convert(SDML_TIME_OF_DAY, v[0]) == v[1])
+  # invalid_strings = ['foo', '0:0:0', '0', '2021-01-01T0:0:0']
+  invalid_strings = ['foo']
   for iv in invalid_strings:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_TIME_OF_DAY, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to date')
-  invalid = [None, 1, [1, 2, 3], True]
+      type_converter.convert(SDML_TIME_OF_DAY, iv)
+  invalid = [1, [1, 2, 3], True]
   for iv in invalid:
     with pytest.raises(InvalidDataException) as exc:
-      convert_to_type(SDML_TIME_OF_DAY, iv)
-      assert(repr(exc) == f'Cannot convert {iv} to date')
+      type_converter.convert(SDML_TIME_OF_DAY, iv)
+      # assert(repr(exc) == f'Cannot convert {iv} to date')
+  type_converter.strict = False
+  for iv in invalid_strings:
+    assert type_converter.convert(SDML_TIME_OF_DAY, iv) == None
+
+  for iv in invalid:
+      # assert(repr(exc) == f'Cannot convert {iv} to date')
+    assert type_converter.convert(SDML_TIME_OF_DAY, iv) == None
   
   
 # Test convert_list_to_type.  Since we've already tested value conversions, the only tests are 
@@ -246,15 +322,16 @@ def test_convert_times():
 
 def test_convert_list_to_type():
   conversions = [([], []), ([True, 1], [True, True])]
+  type_converter = SDMLTypeConverter()
   for conversion in conversions:
-    assert(convert_list_to_type(SDML_BOOLEAN, conversion[0]) == conversion[1])
+    assert(convert_list_to_type(SDML_BOOLEAN, conversion[0], type_converter) == conversion[1])
   exceptions = [
     (None, SDML_BOOLEAN, 'Failed to convert None to boolean'),
     ([1, 2, "foo"], SDML_NUMBER, 'Failed to convert [1, 2, "foo"] to number')
   ]
   for exception in exceptions:
     with pytest.raises(InvalidDataException) as exc:
-      convert_list_to_type(exception[1], exception[0])
+      convert_list_to_type(exception[1], exception[0], type_converter)
       assert(repr(exc) == exception[2])
 
 # Test convert_dict_to_type.  Since we've already tested value conversions, the only tests are 
@@ -270,13 +347,14 @@ def test_convert_dict_to_type():
     ({"a": 1}, SDML_BOOLEAN, {"a": True}),
     ({}, SDML_DATETIME, {})
   ]
+  type_converter = SDMLTypeConverter()
   for conversion in conversions:
-    assert(convert_dict_to_type(conversion[1], conversion[0]) == conversion[2])
+    assert(convert_dict_to_type(conversion[1], conversion[0], type_converter) == conversion[2])
   
   non_dicts = [None, {"a"}, "a", [1, 2, 3]]
   for non_dict in non_dicts:
     with pytest.raises(InvalidDataException) as exc:
-      convert_dict_to_type(non_dict, SDML_BOOLEAN) # Type doesn't matter
+      convert_dict_to_type(non_dict, SDML_BOOLEAN, type_converter) # Type doesn't matter
       assert(repr(exc) == f'Failed to conver {non_dict} to {SDML_BOOLEAN}')
 
 def test_env_auth_method_success(monkeypatch):
@@ -319,4 +397,4 @@ def test_value_auth_method():
 def test_invalid_auth_method():
     # Neither env, path, nor value
     method = {"bogus": "something"}
-    assert resolve_auth_method(method) is None
+    assert resolve_auth_method(method) is None # type:ignore

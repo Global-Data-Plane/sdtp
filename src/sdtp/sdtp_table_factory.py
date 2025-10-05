@@ -79,10 +79,12 @@ class RowTableFactory(SDMLTableFactory):
     '''
 
     @classmethod
-    def build_table(cls, spec, *args, **kwards):
+    def build_table(cls, spec, *args, **kwargs):
         cls.check_table_type(spec["type"])  
         table_spec = _make_table_schema(spec)
-        return RowTable(table_spec['schema'], table_spec["rows"])  # Type checking is done in the constructor
+        allowed_keys = {'type_converter', 'strict', 'dayfirst'}
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
+        return RowTable(table_spec['schema'], table_spec['rows'], **filtered_kwargs) # Type checking is done in the constructor
 
 
 class RemoteSDMLTableFactory(SDMLTableFactory):
