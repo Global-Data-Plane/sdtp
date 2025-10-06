@@ -202,7 +202,7 @@ class SDMLTable:
 
     def range_spec(self, column_name: str) -> list:
         '''
-        Get the dictionary {min_val, max_val} for column_name
+        Get the list [min_val, max_val] for column_name
         Arguments:
 
             column_name: name of the column to get the range spec for
@@ -227,7 +227,7 @@ class SDMLTable:
 
     def get_filtered_rows(self, filter_spec=None, columns=None, format = DEFAULT_FILTERED_ROW_RESULT_FORMAT):
         '''
-        Filter the rows according to the specific-ation given by filter_spec.
+        Filter the rows according to the specification given by filter_spec.
         Returns the rows for which the resulting filter returns True.
 
         Arguments:
