@@ -60,8 +60,8 @@ class SDTPServer(Blueprint):
     An SDTP Server.  This is just an overlay on a Flask Blueprint, added so 
     we can expose initialize methods to the application
     '''
-    def __init__(self, name, __name__):
-        super(SDTPServer, self).__init__(name, __name__)
+    def __init__(self, name, import_name, **kwargs):
+        super(SDTPServer, self).__init__(name, import_name, **kwargs)
         self.table_server = TableServer()
         self.logger = None
         self.ROUTES = [

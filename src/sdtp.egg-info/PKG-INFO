@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sdtp
-Version: 2025.10.2
+Version: 2025.10.25
 Summary: Simple Data Transfer Protocol (SDTP) reference implementation
 Author-email: The Regents of the University of California <opensource@ucop.edu>
 License-Expression: BSD-3-Clause

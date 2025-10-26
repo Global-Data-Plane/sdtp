@@ -789,7 +789,7 @@ class RemoteSDMLTable(SDMLTable):
         request = f'{self.url}/get_filtered_rows'
         data = {
             'table': self.table_name,
-            'format': 'sdml'
+            'result_format': 'sdml'
         }
         if filter_spec:
             data['filter'] = filter_spec

@@ -116,10 +116,11 @@ from .sdtp_filter import (
     GT,
     LE,
     LT,
+    REGEX,
     ANY,
     ALL,
     NONE,
-    NEQ
+    NEQ,
 )
 # from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
 from .table_server import (
@@ -215,6 +216,7 @@ __all__ = [
     'GT',
     'LE',
     'LT',
+    'REGEX',
     'ANY',
     'ALL',
     'NONE',
