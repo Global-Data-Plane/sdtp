@@ -57,6 +57,7 @@ from .sdtp_schema import (
 from .sdtp_table import (
     SDMLTable,
     SDMLFixedTable,
+    SDMLDataFrameTable,
     RowTable,
     RemoteSDMLTable
 )
@@ -165,6 +166,7 @@ __all__ = [
     # sdtp_table.py
     'SDMLTable',
     'SDMLFixedTable',
+    'SDMLDataFrameTable',
     'RowTable',
     'RemoteSDMLTable',
     # sdtp_table_factory.py
