@@ -178,7 +178,7 @@ __all__ = [
     'SDMLTableFactory',
     'RowTableFactory',
     'RemoteSDMLTableFactory',
-    'ContainerTableFacory'
+    'ContainerTableFactory',
     'TableBuilder',
     # sdtp_utils.py
     'InvalidDataException',
