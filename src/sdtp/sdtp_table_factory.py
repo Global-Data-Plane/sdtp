@@ -106,6 +106,39 @@ class RemoteSDMLTableFactory(SDMLTableFactory):
             
         ) 
 
+class ContainerTableFactory(SDMLTableFactory):
+    '''
+    Factory for ContainerTable - a Docker container that implements the SDTP protocol.
+    The actual URL is resolved at runtime by the ServiceResolver.
+    '''
+
+    @classmethod
+    def build_table(cls, spec, *args, **kwargs):
+        cls.check_table_type(spec["type"])
+
+        table_name = spec.get("table_name") or spec.get("name")
+        if not table_name:
+            raise InvalidDataException("ContainerTable must have a name")
+
+        schema = _make_table_schema(spec)
+
+        container_spec = spec.get("container") or spec.get("computation")
+        if not container_spec:
+            raise InvalidDataException("ContainerTable must have a 'container' section")
+
+        service_name = container_spec.get("service_name")
+        if not service_name:
+            raise InvalidDataException("ContainerTable must specify 'service_name'")
+
+        env = container_spec.get("env", {})
+
+        return ContainerTable(
+            table_name=table_name,
+            schema=schema['schema'],
+            service_name=service_name,
+            env=env
+        )
+
 class TableBuilder:
     '''
     A global table builder. This will build a table of any type.  This has four  methods, all class methods:

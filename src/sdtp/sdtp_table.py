@@ -855,4 +855,36 @@ class RemoteSDMLTable(SDMLTable):
             return [_row_dict(row, result_columns) for row in remoteRowTable.rows]
         else:
             return remoteRowTable
+
+class ContainerTable(RemoteSDMLTable):
+    '''
+    A table whose data is provided by a Docker container running in the same
+    deployment environment (docker-compose, Kubernetes, Cloud Run, etc.).
+    It behaves like a RemoteSDMLTable, but the URL is resolved at runtime
+    from the logical service_name.
+    '''
+
+    def __init__(self, table_name: str, schema: list, service_name: str, env: dict = None):
+        # URL will be resolved by the ServiceResolver at runtime
+        # We pass a placeholder; the real URL is set by the server
+        super().__init__(
+            table_name=table_name,
+            schema=schema,
+            url=None,                    # will be filled in by resolver
+            auth=None,                   # local container, usually no auth
+            header_dict=None
+        )
+        self.service_name = service_name
+        self.env = env or {}
+
+    def to_dictionary(self):
+        result = super().to_dictionary()
+        result.update({
+            "type": "ContainerTable",
+            "container": {
+                "service_name": self.service_name,
+                "env": self.env
+            }
+        })
+        return result
         
