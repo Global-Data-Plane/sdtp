@@ -35,8 +35,7 @@ table_spec is a dictionary which must have two fields, type and schema
 import os
 from abc import ABC, abstractmethod 
 import inspect
-from .sdtp_table import RowTable, RemoteSDMLTable
-from .sdtp_utils import InvalidDataException
+from .sdtp_table import RowTable, RemoteSDMLTable, ContainerTable
 from .sdtp_schema import _make_table_schema
 
 

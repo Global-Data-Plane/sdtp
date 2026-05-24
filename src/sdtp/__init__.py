@@ -50,6 +50,7 @@ from .sdtp_schema import (
     RowTableSchema,
     RemoteAuthSpec,
     RemoteTableSchema,
+    ContainerTableSchema,
     TableSchema
 )
 
@@ -59,13 +60,15 @@ from .sdtp_table import (
     SDMLFixedTable,
     SDMLDataFrameTable,
     RowTable,
-    RemoteSDMLTable
+    RemoteSDMLTable,
+    ContainerTable
 )
 
 from .sdtp_table_factory import (
     SDMLTableFactory,
     RowTableFactory,
     RemoteSDMLTableFactory,
+    ContainerTableFactory,
     TableBuilder
 )
 
@@ -93,7 +96,7 @@ from .sdtp_client import (
     SDTPClient,
     SDTPClientError,
     load_config
-    )
+)
 
 from .sdtp_filter import (
     SDQL_FILTER_OPERATORS,
@@ -162,6 +165,7 @@ __all__ = [
     'RowTableSchema',
     'RemoteAuthSpec',
     'RemoteTableSchema',
+    'ContainerTableSchema',
     'TableSchema',
     # sdtp_table.py
     'SDMLTable',
@@ -169,10 +173,12 @@ __all__ = [
     'SDMLDataFrameTable',
     'RowTable',
     'RemoteSDMLTable',
+    'ContainerTable',
     # sdtp_table_factory.py
     'SDMLTableFactory',
     'RowTableFactory',
     'RemoteSDMLTableFactory',
+    'ContainerTableFacory'
     'TableBuilder',
     # sdtp_utils.py
     'InvalidDataException',

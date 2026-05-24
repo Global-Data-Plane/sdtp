@@ -36,11 +36,10 @@ import pandas as pd
 
 import requests
 import json
-from typing import List, Dict, Any, Union, Callable
+from typing import List, Dict, Any, Union, Callable, Optional
 import os
 
 from .sdtp_schema import SDML_SCHEMA_TYPES, ColumnSpec, RowTableSchema, RemoteTableSchema, _make_table_schema 
-from typing import List
 from .sdtp_utils import InvalidDataException
 from .sdtp_utils import jsonifiable_column, jsonifiable_rows,  type_check, json_serialize
 from .sdtp_utils import SDMLTypeConverter, convert_list_to_type, convert_rows_to_type_list
@@ -864,7 +863,7 @@ class ContainerTable(RemoteSDMLTable):
     from the logical service_name.
     '''
 
-    def __init__(self, table_name: str, schema: list, service_name: str, env: dict = None):
+    def __init__(self, table_name: str, schema: list, service_name: str, env: Optional[dict] = None):
         # URL will be resolved by the ServiceResolver at runtime
         # We pass a placeholder; the real URL is set by the server
         super().__init__(

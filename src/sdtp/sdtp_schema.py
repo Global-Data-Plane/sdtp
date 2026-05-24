@@ -230,8 +230,18 @@ class RemoteTableSchema(BaseTableSchema):
     table_name: str
     auth: Optional[RemoteAuthSpec]
 
+# --- ContainerTableSchema ---
+class ContainerTableSchema(BaseTableSchema):
+    '''
+    The schema for a ContainerTable.  The type of a ContainerTable is "ContainerTable", and it must have "service"
+    and "table_name" fields.  
+    '''
+    type: Literal["RemoteSDMLTable"]
+    service: str
+    table_name: str
+
 # --- Unified Table Schema Union ---
-TableSchema = Union[RowTableSchema, RemoteTableSchema]
+TableSchema = Union[RowTableSchema, RemoteTableSchema, ContainerTableSchema]
 
 # --- Simple make_schema() dispatcher ---
 def _make_table_schema(obj: dict):
