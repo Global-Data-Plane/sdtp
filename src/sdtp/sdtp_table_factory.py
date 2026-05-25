@@ -37,6 +37,7 @@ from abc import ABC, abstractmethod
 import inspect
 from .sdtp_table import RowTable, RemoteSDMLTable, ContainerTable
 from .sdtp_schema import _make_table_schema
+from .sdtp_utils import InvalidDataException
 
 
 class SDMLTableFactory(ABC):
