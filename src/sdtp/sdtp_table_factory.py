@@ -1,16 +1,7 @@
-'''
-An SDMLTableFactory class and associated utilities.  The SDMLTableFactory builds
-an SDMLTable of the appropriate type.  Each Table type has an associated Factory
-class, and the factory class which builds the table  is registered with the
-TABLE_REGISTRY.
-Each SDMLFactory class has a single class method, 
-build_table(table_spec, *args, **kwargs)
-table_spec is a dictionary which must have two fields, type and schema
-'''
-
 # BSD 3-Clause License
 # Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
+
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 # 1. Redistributions of source code must retain the above copyright notice, this
@@ -32,199 +23,89 @@ table_spec is a dictionary which must have two fields, type and schema
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-from abc import ABC, abstractmethod 
 import inspect
-from .sdtp_table import RowTable, RemoteSDMLTable, ContainerTable
-from .sdtp_schema import _make_table_schema
+from .sdtp_schema import TableSpec
 from .sdtp_utils import InvalidDataException
 
-
-class SDMLTableFactory(ABC):
-    '''
-    A class which builds an SDMLTable of a specific type.  All SDMLTables have a schema, but after
-    that the specification varies, depending on the method the table uses to get the table rows.
-    Specific factories should subclass this and instantiate the class method build_table.
-    The tag is the table type, simply a string which indicates which class of table should be
-    built.
-    A new SDMLTableFactory class should be built for each concrete subclass of SDMLTable, and ideally
-    in the same file.  The SDMLTable subclass should put a "type" field in the intermediate form,
-    and the value of "type" should be the type built by the SDTP Table field
-    SDMLTableFactory is an abstract class -- each concrete subclass should call the init method on the 
-    table_type on initialization.  build_table is the method which actually builds the table; the superclass 
-    convenience version of the method throws an InvalidDataException if the spec has the wrong table type 
-    Every subclass should set the table_type.  This attribute 
-    registers the tables  which this Factory builds
-    '''
-   
-    @classmethod
-    def check_table_type(cls, table_type):
-      '''
-      Check to make sure the type is right.  If not, throw an InvalidDataException
-      '''
-      factory_class = TableBuilder.get_factory(table_type)
-      if cls != factory_class:
-          raise InvalidDataException(f"Wrong factory for {table_type}: expected {factory_class}, got {cls}")
-
-    @classmethod
-    @abstractmethod
-    def build_table(cls, spec, *args, **kwargs):
-        pass
-      
-
-class RowTableFactory(SDMLTableFactory):
-    '''
-    A factory to build RowTables -- in fact, all SDMLFixedTables.  build_table is very simple, just instantiating
-    a RowTable on the rows and schema of the specification
-    '''
-
-    @classmethod
-    def build_table(cls, spec, *args, **kwargs):
-        cls.check_table_type(spec["type"])  
-        table_spec = _make_table_schema(spec)
-        allowed_keys = {'type_converter', 'strict', 'dayfirst'}
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
-        return RowTable(table_spec['schema'], table_spec['rows'], **filtered_kwargs) # Type checking is done in the constructor
-
-
-class RemoteSDMLTableFactory(SDMLTableFactory):
-    '''
-    A factory to build RemoteSDMLTables.  build_table is very simple, just instantiating
-    a RemoteSDMLTables on the url and schema of the specification
-    '''
-    @classmethod
-    def build_table(cls, table_spec, *args, **kwargs):
-        cls.check_table_type(table_spec["type"])  
-        spec = _make_table_schema(table_spec)
-
-        return RemoteSDMLTable(
-            table_spec['table_name'],
-            spec['schema'],
-            table_spec['url'],
-            table_spec.get('auth'),
-            table_spec.get('header_dict')
-            
-        ) 
-
-class ContainerTableFactory(SDMLTableFactory):
-    '''
-    Factory for ContainerTable - a Docker container that implements the SDTP protocol.
-    The actual URL is resolved at runtime by the ServiceResolver.
-    '''
-
-    @classmethod
-    def build_table(cls, spec, *args, **kwargs):
-        cls.check_table_type(spec["type"])
-
-        table_name = spec.get("table_name") or spec.get("name")
-        if not table_name:
-            raise InvalidDataException("ContainerTable must have a name")
-
-        schema = _make_table_schema(spec)
-
-        container_spec = spec.get("container") or spec.get("computation")
-        if not container_spec:
-            raise InvalidDataException("ContainerTable must have a 'container' section")
-
-        service_name = container_spec.get("service_name")
-        if not service_name:
-            raise InvalidDataException("ContainerTable must specify 'service_name'")
-
-        env = container_spec.get("env", {})
-
-        return ContainerTable(
-            table_name=table_name,
-            schema=schema['schema'],
-            service_name=service_name,
-            env=env
-        )
-
 class TableBuilder:
-    '''
-    A global table builder. This will build a table of any type.  This has four  methods, all class methods:
-    (1) Build  a table from a specification
-    (2) register a class to build a table for a type
-    (3) Get the current mapping of table types to classes
-    (4) Get the class for a particular table type
-    '''
+    """
+    A global table builder registry. This validates incoming specification 
+    payloads using Pydantic schemas and instantiates concrete SDMLTable execution 
+    classes directly, completely bypassing the need for intermediate factory classes.
+    """
     table_registry = {}
+
     @classmethod
     def build_table(cls, spec, *args, **kwargs):
-        '''
-        Build a table from a spec.
-        Argments:
-          spec: an SDML table spec
-          *args: additional arguments required to build the table, if any
-          **kwargs: additional arguments required to build the table, if any
-        Returns:
-          The SDML Table
-        Raises:
-          Invalid Data Exception if the spec is not well-formed
-        '''
-        try:
-            table_type = spec['type']
-        except KeyError:
-            raise InvalidDataException(f'{spec} does not have a table type')
-        try:
-            factory_class = cls.table_registry[table_type]['class']
-        except KeyError:
-          print('hello')
-          raise InvalidDataException(f'{table_type} is  not have a valid table type.  Valid types are {list(cls.table_registry.keys())}')
-        return factory_class.build_table(spec, *args, **kwargs)
-    @classmethod
-
-    def register_factory_class(cls, table_type: str, factory_class, locked = False):
-        '''
-        Register an SDMLTableFactory class to build tables of type table_type.
-        If locked is True, then the SDMLTableFactory class can't be overriden by
-        a subsequent register_factory_class invocation
+        """
+        Build a table from a specification dictionary.
+        
         Arguments:
-          table_type: the type of the table
-          factory_class: the class to build it
-          locked (default False): if True, the factory_class can't be overwritten
+          spec (dict): An SDML table specification payload containing a 'type' and 'schema'.
+          *args: Additional positional arguments forwarded to the table constructor.
+          **kwargs: Additional keyword arguments forwarded to the table constructor.
+          
         Returns:
-          None
+          SDMLTable: An active instance of the requested table executor class.
+          
         Raises:
-          InvalidDataException if the type is already registered and locked, or if factory_class
-          is not an SDMLFactoryClass
-        '''
-        if not inspect.isclass(factory_class) or not issubclass(factory_class, SDMLTableFactory):
-          raise InvalidDataException(f"{factory_class} is not a subclass of SDMLTableFactory.")
+          InvalidDataException: If the specification is structurally invalid or type verification fails.
+        """
+        if not isinstance(spec, dict):
+            raise InvalidDataException(f"Table specification must be a dictionary, got {type(spec)}")
+            
+        if 'type' not in spec:
+            raise InvalidDataException("Specification dictionary does not have a table type ('type' field missing)")
+
+        # 1. Coordinate comprehensive structural validation using the Pydantic Master Union
+        try:
+            validated_spec = TableSpec.model_validate(spec)
+        except Exception as e:
+            raise InvalidDataException(f"Table configuration validation failed: {str(e)}") from e
+
+        # 2. Extract the target registration profile from the global mapping table
+        table_type = validated_spec.type
+        if table_type not in cls.table_registry:
+            raise InvalidDataException(
+                f"'{table_type}' is not a valid or registered table type. "
+                f"Valid choices are: {list(cls.table_registry.keys())}"
+            )
+
+        target_record = cls.table_registry[table_type]
+        executor_class = target_record['class']
+
+        # 3. Instantiate the execution runner directly using the verified Pydantic model object
+        return executor_class(validated_spec, *args, **kwargs)
+
+    @classmethod
+    def register_table_class(cls, table_type: str, table_class, locked: bool = False):
+        """
+        Register a concrete SDMLTable execution class to handle a given table type token.
+        Replaces the old legacy 'register_factory_class' routine.
+        
+        Arguments:
+          table_type (str): The unique type identifier string (e.g., 'RowTable').
+          table_class (Type): The concrete class definition implementing the driver.
+          locked (bool): If True, prevents subsequent registrations from overwriting this class.
+          
+        Raises:
+          InvalidDataException: If the type is already locked or the input is not a class.
+        """
+        if not inspect.isclass(table_class):
+            raise InvalidDataException(f"Provided handler '{table_class}' is not a valid Python class definition.")
    
-        if table_type in cls.table_registry.keys():
+        if table_type in cls.table_registry:
             record = cls.table_registry[table_type]
-            if record['class'] == factory_class:
+            if record['class'] == table_class:
                 return
             elif record['locked']:
-                raise InvalidDataException(f'The factory for {table_type} is locked')
-        cls.table_registry[table_type] = {'class': factory_class, 'locked': locked}
-    
+                raise InvalidDataException(f"The executor class registry for '{table_type}' is locked and cannot be modified.")
+                
+        cls.table_registry[table_type] = {'class': table_class, 'locked': locked}
+
     @classmethod
     def factory_class_registry(cls):
-        '''
-        Return the dictionary of table types to records (class, locked).  Note it returns 
-        a COPY of the registry, so it can't be accidentally overwritten
-        Arguments:
-          None
-        
-        '''
+        """
+        Return a copy of the current table registry mapping layout.
+        """
         return cls.table_registry.copy()
-    
-    @classmethod
-    def get_factory(cls, table_type):
-        '''
-        Get the class for table_type; return None if there is no class for tabletype
-        Arguments:
-          table_type: the type to get the class for
-        Returns:
-          the class which builds table_type, or None if there is no class
-        Raises:
-          None
-        '''
-        try:
-            return cls.table_registry[table_type]['class']
-        except KeyError:
-            return None
-
-TableBuilder.register_factory_class('RowTable', RowTableFactory, True)
-TableBuilder.register_factory_class('RemoteSDMLTable', RemoteSDMLTableFactory, True)

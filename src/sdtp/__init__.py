@@ -140,6 +140,9 @@ from .sdtp_server import (
     sdtp_server_blueprint,
     SDTPServer
 )
+from .sql_base_table import (
+  BaseSQLTable
+)
 
 # Public API surface for the sdtp package
 
@@ -239,5 +242,6 @@ __all__ = [
     'HeaderInfo',
     # sdtp_server.py
     'sdtp_server_blueprint',
-    'SDTPServer'
+    'SDTPServer',
+    'BaseSQLTable'
 ]
