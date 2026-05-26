@@ -22,6 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-httpserver",
+    "pytest-mock"
+]
 gcs = [
     "google-cloud-storage",
     "google-cloud-core"
@@ -31,4 +36,3 @@ gcs = [
 Homepage = "https://global-data-plane.github.io/sdtp/"
 Documentation = "https://global-data-plane.github.io/sdtp/"
 Source = "https://github.com/Global-Data-Plane/sdtp"
-

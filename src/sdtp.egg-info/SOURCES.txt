@@ -3,6 +3,7 @@ LICENSE
 README.md
 pyproject.toml
 src/sdtp/__init__.py
+src/sdtp/plugin_loader.py
 src/sdtp/sdtp_client.py
 src/sdtp/sdtp_filter.py
 src/sdtp/sdtp_schema.py
@@ -10,6 +11,9 @@ src/sdtp/sdtp_server.py
 src/sdtp/sdtp_table.py
 src/sdtp/sdtp_table_factory.py
 src/sdtp/sdtp_utils.py
+src/sdtp/service_resolver.py
+src/sdtp/sql_base_table.py
+src/sdtp/table_builder.py
 src/sdtp/table_server.py
 src/sdtp.egg-info/PKG-INFO
 src/sdtp.egg-info/SOURCES.txt
@@ -22,6 +26,7 @@ tests/test_factory.py
 tests/test_filter_helpers.py
 tests/test_filter_result_format.py
 tests/test_macroexpansion.py
+tests/test_pydantic_sql_container_tables.py
 tests/test_sdtp_client.py
 tests/test_sdtp_filter_atomic.py
 tests/test_sdtp_schema.py

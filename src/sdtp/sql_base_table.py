@@ -232,6 +232,9 @@ class BaseSQLTable(SDMLTable):
             return "", []
 
         operator = spec["operator"]
+        if operator == "IN_RANGE":
+            from sdtp.sdtp_filter import expand_in_range_spec
+            return self._compile_filter_spec(expand_in_range_spec(spec))
 
         # 1. Handle Set-Quantifier Compound Operators (ALL, ANY, NONE)
         # The basic idea is that ALL means all arguments are satified (SQL AND)
@@ -338,6 +341,8 @@ class BaseSQLTable(SDMLTable):
 
         # Step 1: Execute Projection Pushdown
         requested_columns = columns if columns else self.column_names()
+        for column in requested_columns:
+            self._validate_column(column)
         select_clause = ", ".join(requested_columns)
 
         # Step 2: Unpack and Compile Predicate Pushdown Tree

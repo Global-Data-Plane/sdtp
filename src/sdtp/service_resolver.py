@@ -1,3 +1,6 @@
+from .sdtp_utils import InvalidDataException
+
+
 class ServiceResolver:
     '''
     Resolves logical service names to actual URLs depending on deployment environment.

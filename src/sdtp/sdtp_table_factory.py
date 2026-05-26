@@ -24,7 +24,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import inspect
-from .sdtp_schema import TableSpec
+from .sdtp_schema import parse_table_spec
 from .sdtp_utils import InvalidDataException
 
 class TableBuilder:
@@ -59,7 +59,7 @@ class TableBuilder:
 
         # 1. Coordinate comprehensive structural validation using the Pydantic Master Union
         try:
-            validated_spec = TableSpec.model_validate(spec)
+            validated_spec = parse_table_spec(spec)
         except Exception as e:
             raise InvalidDataException(f"Table configuration validation failed: {str(e)}") from e
 
@@ -74,7 +74,9 @@ class TableBuilder:
         target_record = cls.table_registry[table_type]
         executor_class = target_record['class']
 
-        # 3. Instantiate the execution runner directly using the verified Pydantic model object
+        # 3. Instantiate either a legacy factory or a direct execution runner.
+        if hasattr(executor_class, "build_table"):
+            return executor_class.build_table(spec, *args, **kwargs)
         return executor_class(validated_spec, *args, **kwargs)
 
     @classmethod
@@ -104,8 +106,72 @@ class TableBuilder:
         cls.table_registry[table_type] = {'class': table_class, 'locked': locked}
 
     @classmethod
+    def register_factory_class(cls, table_type: str, factory_class=None, locked: bool = False):
+        """
+        Backward-compatible alias for older extension code that registered factory classes.
+        """
+        if table_type is None:
+            raise TypeError("table_type must not be None")
+        if not inspect.isclass(factory_class):
+            raise InvalidDataException(f"Provided handler '{factory_class}' is not a valid Python class definition.")
+
+        if table_type in cls.table_registry:
+            record = cls.table_registry[table_type]
+            if record["class"] == factory_class:
+                return
+            if record["locked"]:
+                raise InvalidDataException(f"The executor class registry for '{table_type}' is locked and cannot be modified.")
+
+        cls.table_registry[table_type] = {"class": factory_class, "locked": locked}
+
+    @classmethod
+    def get_factory(cls, table_type: str):
+        """
+        Backward-compatible accessor for the registered executor/factory class.
+        """
+        if table_type not in cls.table_registry:
+            raise InvalidDataException(f"'{table_type}' is not a valid or registered table type.")
+        return cls.table_registry[table_type]["class"]
+
+    @classmethod
     def factory_class_registry(cls):
         """
         Return a copy of the current table registry mapping layout.
         """
         return cls.table_registry.copy()
+
+
+class SDMLTableFactory:
+    """
+    Compatibility shim for the pre-Pydantic factory API.
+    """
+
+    @classmethod
+    def build_table(cls, table_spec, *args, **kwargs):
+        if not isinstance(table_spec, dict):
+            raise InvalidDataException(f"Table specification must be a dictionary, got {type(table_spec)}")
+        return parse_table_spec(table_spec)
+
+
+class RowTableFactory(SDMLTableFactory):
+    @classmethod
+    def build_table(cls, table_spec, *args, **kwargs):
+        from .sdtp_table import RowTable
+        spec = super().build_table(table_spec)
+        return RowTable(spec, *args, **kwargs)
+
+
+class RemoteSDMLTableFactory(SDMLTableFactory):
+    @classmethod
+    def build_table(cls, table_spec, *args, **kwargs):
+        from .sdtp_table import RemoteSDMLTable
+        spec = super().build_table(table_spec)
+        return RemoteSDMLTable(spec, *args, **kwargs)
+
+
+class ContainerTableFactory(SDMLTableFactory):
+    @classmethod
+    def build_table(cls, table_spec, *args, **kwargs):
+        from .sdtp_table import ContainerTable
+        spec = super().build_table(table_spec)
+        return ContainerTable(spec, *args, **kwargs)

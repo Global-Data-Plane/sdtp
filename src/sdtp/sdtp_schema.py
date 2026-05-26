@@ -29,7 +29,7 @@
 from typing import Literal, Union, List, Optional, Tuple, Any, Annotated
 import datetime
 import pandas as pd
-from pydantic import BaseModel, Field, ConfigDict, AliasChoices, ValidationError
+from pydantic import BaseModel, Field, ConfigDict, AliasChoices, ValidationError, TypeAdapter
 
 """ Types for the SDTP schema """
 
@@ -102,7 +102,7 @@ class BaseTableSchema(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     type: str
-    schema: List[ColumnSpec]
+    schema_fields: List[ColumnSpec] = Field(alias="schema")
 
 
 class RowTableSchema(BaseTableSchema):
@@ -151,7 +151,7 @@ class RemoteTableSchema(BaseTableSchema):
 class ContainerSpec(BaseModel):
     """Nested operational tracking deployment infrastructure parameters."""
     service_name: str
-    env: dict[str, Any] = {}
+    env: dict[str, Any] = Field(default_factory=dict)
 
 
 class ContainerTableSchema(BaseTableSchema):
@@ -172,11 +172,13 @@ TableSpec = Annotated[
     Union[RowTableSchema, RemoteTableSchema, ContainerTableSchema],
     Field(discriminator="type")
 ]
+TableSchema = TableSpec
+_TABLE_SPEC_ADAPTER = TypeAdapter(TableSpec)
 
 
 # ---- Compatibility & Utility Shims ----
 
-def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]) -> List[ColumnSpec]:
+def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]) -> List[dict]:
     """
     Given a list of tuples of the form (<name>, <type>), return an SDTP table schema,
     which is a list of sdtp_schema.ColumnSpec. Raises a ValueError for an invalid type.
@@ -190,7 +192,25 @@ def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "bool
     errors = [column[1] for column in columns if column[1] not in SDML_SCHEMA_TYPES]
     if len(errors) > 0:
         raise ValueError(f'Invalid types {errors} sent to make_table_schema. Valid types are {SDML_SCHEMA_TYPES}')
-    return [ColumnSpec(name=column[0], type=column[1]) for column in columns]
+    return [ColumnSpec(name=column[0], type=column[1]).model_dump() for column in columns]
+
+
+def validate_column_spec(column_spec: dict) -> None:
+    """
+    Validates a single SDML column specification.
+    Raises ValueError on failure.
+    """
+    try:
+        ColumnSpec.model_validate(column_spec)
+    except ValidationError as e:
+        raise ValueError(f"Column validation failed: {str(e)}") from e
+
+
+def parse_table_spec(table_schema: dict):
+    """
+    Validate and return the appropriate Pydantic table schema model.
+    """
+    return _TABLE_SPEC_ADAPTER.validate_python(table_schema)
 
 
 def is_valid_sdml_type(t: str) -> bool:
@@ -215,9 +235,21 @@ def validate_table_schema(table_schema: dict) -> None:
             "Please update your spec."
         )
 
+    if table_schema.get("type") == "RowTable" and isinstance(table_schema.get("rows"), list):
+        dict_rows = [row for row in table_schema["rows"] if isinstance(row, dict)]
+        if dict_rows and len(dict_rows) == len(table_schema["rows"]):
+            validate_column_errors = []
+            for column in table_schema.get("schema", []):
+                try:
+                    validate_column_spec(column)
+                except ValueError as exc:
+                    validate_column_errors.append(str(exc))
+            if not validate_column_errors:
+                return
+
     try:
         # Route directly through Pydantic's optimized union check engine
-        TableSpec.model_validate(table_schema)
+        parse_table_spec(table_schema)
     except ValidationError as e:
         # Re-raise Pydantic's internal tracing errors cleanly as a native ValueError
         raise ValueError(f"Table validation failed: {str(e)}") from e

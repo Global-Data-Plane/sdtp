@@ -62,7 +62,24 @@ class SDMLTable:
     def __init__(self, schema_fields: List[dict]):
         self.schema_fields = schema_fields
         # Every concrete subclass must populate this property with its matching Pydantic model instance
-        self.spec: Optional[Any] = None
+        self._spec: Optional[Any] = None
+
+    @property
+    def schema(self) -> List[dict]:
+        """Backward-compatible alias for schema_fields."""
+        return self.schema_fields
+
+    @schema.setter
+    def schema(self, value: List[dict]) -> None:
+        self.schema_fields = value
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @spec.setter
+    def spec(self, value) -> None:
+        self._spec = value
 
     def column_names(self) -> List[str]:
         """Return the names of the columns"""
@@ -320,7 +337,7 @@ class RowTable(SDMLFixedTable):
     def __init__(self, spec_or_schema: Union[RowTableSchema, List[dict]], rows: Optional[List[List[Any]]] = None, type_converter=None, converter_kwargs=None):
         if isinstance(spec_or_schema, RowTableSchema):
             self._static_spec = spec_or_schema
-            schema_fields = [col.model_dump() for col in spec_or_schema.schema]
+            schema_fields = [col.model_dump() for col in spec_or_schema.schema_fields]
             self.rows = spec_or_schema.rows
         else:
             schema_fields = spec_or_schema
@@ -404,8 +421,17 @@ class RemoteSDMLTable(SDMLTable):
         InvalidDataException if the table doesn't exist on the server, the 
         url is unreachable, the schema doesn't match the downloaded schema
     """ 
-    def __init__(self, spec: RemoteTableSchema): 
-        schema_fields = [col.model_dump() for col in spec.schema]
+    def __init__(self, spec: RemoteTableSchema, schema=None, url=None, auth=None, header_dict=None): 
+        if not isinstance(spec, (RemoteTableSchema, ContainerTableSchema)):
+            spec = RemoteTableSchema(
+                type="RemoteSDMLTable",
+                table_name=spec,
+                schema=schema,
+                url=url,
+                auth=auth,
+                header_dict=header_dict,
+            )
+        schema_fields = [col.model_dump() for col in spec.schema_fields]
         super().__init__(schema_fields)
         # ---------------------------------------------------------------------
         # ARCHITECTURAL NOTE: UNIFIED SERIALIZATION CONTRACT
@@ -533,7 +559,7 @@ class RemoteSDMLTable(SDMLTable):
                 raise InvalidDataException(f'get_filtered_rows to {self.url}: caused error response {response.status_code}')
             
             # The global direct-to-class TableBuilder resolves the incoming RowTable response matrix cleanly
-            from .table_builder import TableBuilder
+            from .sdtp_table_factory import TableBuilder
             return TableBuilder.build_table(response.json())
         except Exception as exc:
             raise InvalidDataException(f'Error in get_filtered_rows to {self.url}: {repr(exc)}')
@@ -577,7 +603,12 @@ class ContainerTable(RemoteSDMLTable):
 
 
 # Direct direct-to-class registrations on boot, completely omitting legacy factories
-from .table_builder import TableBuilder
-TableBuilder.register_table_class('RowTable', RowTable, locked=True)
-TableBuilder.register_table_class('RemoteSDMLTable', RemoteSDMLTable, locked=True)
-TableBuilder.register_table_class('ContainerTable', ContainerTable, locked=True)
+from .sdtp_table_factory import (
+    ContainerTableFactory,
+    RemoteSDMLTableFactory,
+    RowTableFactory,
+    TableBuilder,
+)
+TableBuilder.register_factory_class('RowTable', RowTableFactory, locked=True)
+TableBuilder.register_factory_class('RemoteSDMLTable', RemoteSDMLTableFactory, locked=True)
+TableBuilder.register_factory_class('ContainerTable', ContainerTableFactory, locked=True)
