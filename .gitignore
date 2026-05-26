@@ -18,3 +18,5 @@ notebooks/scratch/quickstart.sdml
 /testenv
 .venv/lib/python3.12/site-packages/pytz/zoneinfo/Atlantic/Bermuda
 /.venv
+reports/*
+reports/.*

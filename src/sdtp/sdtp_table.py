@@ -1,10 +1,12 @@
 # Copyright (c) 2024-2025, The Regents of the University of California (Regents)
 # All rights reserved.
 
+from __future__ import annotations
+
 import pandas as pd
 import requests
 import json
-from typing import List, Dict, Any, Union, Callable, Optional
+from typing import List, Dict, Any, Union, Callable, Optional, Literal, overload
 import os
 
 from .sdtp_schema import ColumnSpec, RowTableSchema, RemoteTableSchema, ContainerTableSchema
@@ -144,7 +146,19 @@ class SDMLTable:
         """
         raise NotImplementedError(f'_get_filtered_rows_from_filter has not been implemented in {type(self).__name__}')
 
-    def get_filtered_rows(self, filter_spec=None, columns=None, format=DEFAULT_FILTERED_ROW_RESULT_FORMAT):
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None) -> list: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["sdml"]) -> RowTable: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["dict"]) -> list[dict[str, Any]]: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["list", None]) -> list: ...
+
+    def get_filtered_rows(self, filter_spec=None, columns=None, format: Optional[str] = DEFAULT_FILTERED_ROW_RESULT_FORMAT):
         """
         Filter the rows according to the specification given by filter_spec.
         Returns the rows for which the resulting filter returns True.
@@ -212,7 +226,12 @@ class SDMLFixedTable(SDMLTable):
     @property
     def spec(self) -> RowTableSchema:
         """Dynamically build a RowTable representation for universal serialization contracts."""
-        return RowTableSchema(type="RowTable", schema=self.schema_fields, rows=self.get_rows())
+        schema = [ColumnSpec.model_validate(column) for column in self.schema_fields]
+        return RowTableSchema(type="RowTable", schema=schema, rows=self.get_rows())
+
+    @spec.setter
+    def spec(self, value) -> None:
+        self._spec = value
 
     def _get_column_values_and_type(self, column_name: str):
         try:
@@ -342,7 +361,8 @@ class RowTable(SDMLFixedTable):
         else:
             schema_fields = spec_or_schema
             self.rows = rows if rows is not None else []
-            self._static_spec = RowTableSchema(type="RowTable", schema=schema_fields, rows=self.rows)
+            schema = [ColumnSpec.model_validate(column) for column in schema_fields]
+            self._static_spec = RowTableSchema(type="RowTable", schema=schema, rows=self.rows)
 
         type_list = [col["type"] for col in schema_fields]
         tc = type_converter if type_converter is not None else SDMLTypeConverter(**(converter_kwargs or {}))
@@ -353,6 +373,10 @@ class RowTable(SDMLFixedTable):
     @property
     def spec(self) -> RowTableSchema:
         return self._static_spec
+
+    @spec.setter
+    def spec(self, value) -> None:
+        self._static_spec = value
 
     def _get_rows(self):
         return [row for row in self.rows]
@@ -371,29 +395,36 @@ def _generate_ordered_lists(remoteRowTable, localRemoteTable, requestedColumns):
     target_index_list = get_index_list(localRemoteTable)
     return [reorder_row(row, source_index_list, target_index_list) for row in remoteRowTable.rows]
 
-def _make_headers(auth_info, header_dict):
-    has_auth = auth_info is not None and (hasattr(auth_info, "type") or "type" in auth_info)
-    if not has_auth:
+def _make_headers(auth_info: Any, header_dict: Optional[dict]):
+    if auth_info is None:
         return header_dict.copy() if header_dict is not None else None
         
     # Standardize access paths regardless of whether auth_info is a Pydantic object or dictionary record
-    auth_type = auth_info.type if hasattr(auth_info, "type") else auth_info["type"]
+    auth_type = getattr(auth_info, "type", None)
+    if auth_type is None:
+        auth_type = auth_info["type"]
     auth_token = None
     headers = {}
 
     if auth_type == 'env':
-        env_var = auth_info.env_var if hasattr(auth_info, "env_var") else auth_info["env_var"]
+        env_var = getattr(auth_info, "env_var", None)
+        if env_var is None:
+            env_var = auth_info["env_var"]
         auth_token = os.environ.get(env_var)
         if not auth_token:
             raise ValueError(f"Environment variable {env_var} not set")
     elif auth_type == 'file':
-        path = auth_info.path if hasattr(auth_info, "path") else auth_info["path"]
+        path = getattr(auth_info, "path", None)
+        if path is None:
+            path = auth_info["path"]
         if not os.path.isfile(path):
             raise ValueError(f"Auth file {path} not found")
         with open(path, "r") as f:
             auth_token = f.read().strip()
     elif auth_type == 'token':
-        auth_token = auth_info.value if hasattr(auth_info, "value") else auth_info["value"]
+        auth_token = getattr(auth_info, "value", None)
+        if auth_token is None:
+            auth_token = auth_info["value"]
     else:
         raise ValueError(f"Unsupported auth type: {auth_type}")
 
@@ -421,12 +452,23 @@ class RemoteSDMLTable(SDMLTable):
         InvalidDataException if the table doesn't exist on the server, the 
         url is unreachable, the schema doesn't match the downloaded schema
     """ 
-    def __init__(self, spec: RemoteTableSchema, schema=None, url=None, auth=None, header_dict=None): 
+    @overload
+    def __init__(self, spec: RemoteTableSchema, schema=None, url=None, auth=None, header_dict=None): ...
+
+    @overload
+    def __init__(self, spec: ContainerTableSchema, schema=None, url=None, auth=None, header_dict=None): ...
+
+    @overload
+    def __init__(self, spec: str, schema: List[dict], url: str, auth=None, header_dict=None): ...
+
+    def __init__(self, spec: Union[RemoteTableSchema, ContainerTableSchema, str], schema=None, url=None, auth=None, header_dict=None): 
         if not isinstance(spec, (RemoteTableSchema, ContainerTableSchema)):
+            if schema is None or url is None:
+                raise InvalidDataException("Legacy RemoteSDMLTable construction requires schema and url")
             spec = RemoteTableSchema(
                 type="RemoteSDMLTable",
                 table_name=spec,
-                schema=schema,
+                schema=[ColumnSpec.model_validate(column) for column in schema],
                 url=url,
                 auth=auth,
                 header_dict=header_dict,
@@ -568,7 +610,19 @@ class RemoteSDMLTable(SDMLTable):
         filter_spec = None if filter is None else filter.to_filter_spec()
         return self._get_filtered_rows_from_remote(filter_spec, columns=[]).get_rows()
     
-    def get_filtered_rows(self, filter_spec=None, columns=None, format=DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None) -> list: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["sdml"]) -> RowTable: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["dict"]) -> list[dict[str, Any]]: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["list", None]) -> list: ...
+
+    def get_filtered_rows(self, filter_spec=None, columns=None, format: Optional[str] = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         if format is None: 
             format = DEFAULT_FILTERED_ROW_RESULT_FORMAT
         requested_columns = columns if columns else []

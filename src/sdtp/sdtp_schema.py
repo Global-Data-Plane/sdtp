@@ -26,7 +26,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import Literal, Union, List, Optional, Tuple, Any, Annotated
+from typing import Literal, Union, List, Optional, Any, Annotated, Sequence
 import datetime
 import pandas as pd
 from pydantic import BaseModel, Field, ConfigDict, AliasChoices, ValidationError, TypeAdapter
@@ -101,7 +101,6 @@ class BaseTableSchema(BaseModel):
     # Fixes the Pydantic v2 namespace collision guard for the field identifier named 'schema'
     model_config = ConfigDict(protected_namespaces=())
 
-    type: str
     schema_fields: List[ColumnSpec] = Field(alias="schema")
 
 
@@ -178,7 +177,7 @@ _TABLE_SPEC_ADAPTER = TypeAdapter(TableSpec)
 
 # ---- Compatibility & Utility Shims ----
 
-def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]) -> List[dict]:
+def make_table_schema(columns: Sequence[tuple[str, str]]) -> List[dict[str, str]]:
     """
     Given a list of tuples of the form (<name>, <type>), return an SDTP table schema,
     which is a list of sdtp_schema.ColumnSpec. Raises a ValueError for an invalid type.
@@ -192,7 +191,7 @@ def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "bool
     errors = [column[1] for column in columns if column[1] not in SDML_SCHEMA_TYPES]
     if len(errors) > 0:
         raise ValueError(f'Invalid types {errors} sent to make_table_schema. Valid types are {SDML_SCHEMA_TYPES}')
-    return [ColumnSpec(name=column[0], type=column[1]).model_dump() for column in columns]
+    return [ColumnSpec.model_validate({"name": column[0], "type": column[1]}).model_dump() for column in columns]
 
 
 def validate_column_spec(column_spec: dict) -> None:

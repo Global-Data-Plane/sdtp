@@ -59,7 +59,7 @@ class SDQLFilter(BaseModel):
   """
   operator: str
 
-  def to_filter_spec(self):
+  def to_filter_spec(self) -> Dict[str, Any]:
     '''
     Generate a dictionary form of the SDQLFilter.  This is primarily for use on the client side, where
     A SDQLFilter can be constructed, and then a JSONified form of the dictionary version can be passed to
@@ -70,7 +70,7 @@ class SDQLFilter(BaseModel):
     raise NotImplementedError("to_filter_spec must be implemented by subclass")
     
   
-  def matches(self, row, columns):
+  def matches(self, row, columns) -> bool:
     # override in subclass
     return False
 
@@ -80,7 +80,7 @@ class ColumnFilter(SDQLFilter):
   """
   column: str
 
-  def matches(self, row, columns):
+  def matches(self, row, columns) -> bool:
     """
     Every ColumnFilter picks out the appropriate value from the row and runs the test on that, 
     so do that once, here
@@ -91,7 +91,7 @@ class ColumnFilter(SDQLFilter):
     except ValueError:
       return False
   
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     # override in subclass
     return False
   
@@ -111,10 +111,10 @@ class InListFilter(ColumnFilter):
     self._compare_values = [parse_iso(v) for v in self.values]
 
   
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     return value in self._compare_values
   
-  def to_filter_spec(self):
+  def to_filter_spec(self) -> Dict[str, Any]:
     return {
       "operator": self.operator,
       "column": self.column,
@@ -133,7 +133,7 @@ class CompareFilter(ColumnFilter):
     super().model_post_init(context)
     self._compare_value = parse_iso(self.value) # type: ignore
 
-  def to_filter_spec(self):
+  def to_filter_spec(self) -> Dict[str, Any]:
     return {
       "operator": self.operator,
       "column": self.column,
@@ -144,7 +144,7 @@ class GEFilter(CompareFilter):
   """
   Implement >=
   """
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     try:
       return value >= self._compare_value
     except TypeError:
@@ -154,7 +154,7 @@ class GTFilter(CompareFilter):
   """
   Implement > 
   """
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     try:
       return value > self._compare_value
     except TypeError:
@@ -164,7 +164,7 @@ class LEFilter(CompareFilter):
   """
   Implement <=
   """
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     try:
       return value <= self._compare_value
     except TypeError:
@@ -174,7 +174,7 @@ class LTFilter(CompareFilter):
   """
   Implement < 
   """
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     try:
       return value < self._compare_value
     except TypeError:
@@ -193,10 +193,10 @@ class RegexFilter(ColumnFilter):
     super().model_post_init(context)
     self._regex = re.compile(self.expression)
 
-  def matches_value(self, value):
+  def matches_value(self, value) -> bool:
     return isinstance(value, str) and self._regex.fullmatch(value) is not None
   
-  def to_filter_spec(self):
+  def to_filter_spec(self) -> Dict[str, Any]:
     return  {
       "operator": "REGEX_MATCH",
       "column": self.column,
@@ -215,13 +215,13 @@ class CompoundFilter(SDQLFilter):
   """
   arguments: List[SDQLFilter]
 
-  def to_filter_spec(self):
+  def to_filter_spec(self) -> Dict[str, Any]:
     return {
       "operator": self.operator,
       "arguments": [f.to_filter_spec() for f in self.arguments]
     }
   
-  def arguments_match(self, row, columns):
+  def arguments_match(self, row, columns) -> List[bool]:
     return [argument.matches(row, columns) for argument in self.arguments]
   
 class AllFilter(CompoundFilter):
@@ -229,7 +229,7 @@ class AllFilter(CompoundFilter):
   An ALL Filter -- matches a row if ALL of the arguments match on the
   column
   """
-  def matches(self, row, columns):
+  def matches(self, row, columns) -> bool:
     return not (False in self.arguments_match(row, columns))
 
 class AnyFilter(CompoundFilter):
@@ -237,7 +237,7 @@ class AnyFilter(CompoundFilter):
   An ANY Filter -- matches a row if ANY of the arguments match on the
   column
   """ 
-  def matches(self, row, columns):
+  def matches(self, row, columns) -> bool:
     return True in self.arguments_match(row, columns)
 
 class NoneFilter(CompoundFilter):
@@ -247,7 +247,7 @@ class NoneFilter(CompoundFilter):
   Arguments:
     arguments: set of subfilters
   """
-  def matches(self, row, columns):
+  def matches(self, row, columns) -> bool:
     return not (True in self.arguments_match(row, columns))
 
 FILTER_CLASSES = {
@@ -310,7 +310,7 @@ def expand_in_range_spec(spec):
   return atomic_specs[0] if len(atomic_specs) == 1 else {"operator": "ALL", "arguments": atomic_specs}
 
 
-def make_filter(filter_spec):
+def make_filter(filter_spec: dict) -> Any:
   """
   Make a filter from a filter_spec.  Note that filter_spec should
   be free of errors (run filter_spec_errors first)

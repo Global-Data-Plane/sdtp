@@ -1,4 +1,4 @@
-
+from typing import Any, Literal, Optional, Union, overload
 
 from .sdtp_table import SDMLTable, RowTable, ALLOWED_FILTERED_ROW_RESULT_FORMATS, DEFAULT_FILTERED_ROW_RESULT_FORMAT
 from .sdtp_utils import InvalidDataException
@@ -285,7 +285,19 @@ class BaseSQLTable(SDMLTable):
         # 3. Delegate Dialect Customizations (e.g., Regex) to the Child Extension
         return self._compile_dialect_operator(operator, column, spec)
 
-    def get_filtered_rows(self, filter_spec=None, columns=None, format=DEFAULT_FILTERED_ROW_RESULT_FORMAT):
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None) -> list: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["sdml"]) -> RowTable: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["dict"]) -> list[dict[str, Any]]: ...
+
+    @overload
+    def get_filtered_rows(self, filter_spec=None, columns=None, *, format: Literal["list", None]) -> list: ...
+
+    def get_filtered_rows(self, filter_spec=None, columns=None, format: Optional[str] = DEFAULT_FILTERED_ROW_RESULT_FORMAT) -> Union[list, list[dict[str, Any]], RowTable]:
         """
         Intercept the query pipeline to execute high-performance projection and 
         predicate pushdowns directly inside the relational database engine.
