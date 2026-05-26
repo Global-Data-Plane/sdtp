@@ -89,6 +89,10 @@ class BaseSQLTable(SDMLTable):
         """
         raise NotImplementedError("_execute_sql must be implemented by the database subclass")
 
+    def get_column(self, column_name: str) -> list:
+        self._validate_column(column_name)
+        return [row[0] for row in self._execute_sql(f"SELECT {column_name} FROM {self.table_name}")]
+
     def _compile_dialect_operator(self, operator: str, column: str, spec: dict) -> tuple[str, list]:
         """
         An optional polymorphic hook to compile vendor-specific or dialect-dependent 

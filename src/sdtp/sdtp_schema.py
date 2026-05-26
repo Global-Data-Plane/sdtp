@@ -173,6 +173,18 @@ TableSpec = Annotated[
 ]
 TableSchema = TableSpec
 _TABLE_SPEC_ADAPTER = TypeAdapter(TableSpec)
+_EXTERNAL_TABLE_SCHEMA_REGISTRY: dict[str, type[BaseTableSchema]] = {}
+
+
+def register_table_schema(table_type: str, schema_class: type[BaseTableSchema]) -> None:
+    """
+    Register a Pydantic table schema supplied by an external table extension.
+    """
+    if not isinstance(table_type, str) or not table_type:
+        raise ValueError("table_type must be a non-empty string")
+    if not isinstance(schema_class, type) or not issubclass(schema_class, BaseTableSchema):
+        raise ValueError("schema_class must be a BaseTableSchema subclass")
+    _EXTERNAL_TABLE_SCHEMA_REGISTRY[table_type] = schema_class
 
 
 # ---- Compatibility & Utility Shims ----
@@ -209,6 +221,9 @@ def parse_table_spec(table_schema: dict):
     """
     Validate and return the appropriate Pydantic table schema model.
     """
+    table_type = table_schema.get("type") if isinstance(table_schema, dict) else None
+    if table_type in _EXTERNAL_TABLE_SCHEMA_REGISTRY:
+        return _EXTERNAL_TABLE_SCHEMA_REGISTRY[table_type].model_validate(table_schema)
     return _TABLE_SPEC_ADAPTER.validate_python(table_schema)
 
 
