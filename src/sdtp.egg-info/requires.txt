@@ -7,3 +7,8 @@ pyyaml
 [gcs]
 google-cloud-storage
 google-cloud-core
+
+[test]
+pytest
+pytest-httpserver
+pytest-mock

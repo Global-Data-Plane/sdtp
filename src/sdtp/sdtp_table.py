@@ -12,6 +12,7 @@ import os
 from .sdtp_schema import ColumnSpec, RowTableSchema, RemoteTableSchema, ContainerTableSchema
 from .sdtp_utils import InvalidDataException, type_check, convert_list_to_type, convert_rows_to_type_list, SDMLTypeConverter
 from .sdtp_filter import SDQLFilter, make_filter
+from .service_resolver import ServiceResolver
 
 def _row_dict(row, columns):
     result = {}
@@ -646,14 +647,20 @@ class ContainerTable(RemoteSDMLTable):
     A table whose data is provided by a Docker container running in the same
     deployment environment (docker-compose, Kubernetes, Cloud Run, etc.).
     It behaves like a RemoteSDMLTable, but the URL is resolved at runtime
-    from the logical service_name.
+    from the logical service_name via a ServiceResolver.
+
+    The deployment type (one of "docker-compose", "kubernetes", "cloud-run")
+    is read from the SDTP_DEPLOYMENT environment variable at construction
+    time, defaulting to "docker-compose" to match ServiceResolver's default.
     """
     def __init__(self, spec: ContainerTableSchema):
         # Translate to RemoteTableSchema properties for superclass proxy processing
-        
+
         super().__init__(spec)
         self.service_name = spec.container.service_name
         self.env = spec.container.env
+        self.deployment = os.environ.get('SDTP_DEPLOYMENT', 'docker-compose')
+        self.url = ServiceResolver().resolve(self.service_name, self.deployment)
 
 
 # Direct direct-to-class registrations on boot, completely omitting legacy factories

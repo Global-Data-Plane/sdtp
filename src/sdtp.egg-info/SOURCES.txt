@@ -20,7 +20,9 @@ src/sdtp.egg-info/SOURCES.txt
 src/sdtp.egg-info/dependency_links.txt
 src/sdtp.egg-info/requires.txt
 src/sdtp.egg-info/top_level.txt
+tests/test_base_sql.py
 tests/test_compound_filters.py
+tests/test_container_table.py
 tests/test_data_plane.py
 tests/test_factory.py
 tests/test_filter_helpers.py
@@ -36,4 +38,5 @@ tests/test_sdtp_table_and_filter.py
 tests/test_sdtp_table_factory.py
 tests/test_sdtp_utils.py
 tests/test_serialization.py
+tests/test_service_resolver.py
 tests/test_table_server.py
