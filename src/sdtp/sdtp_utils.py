@@ -229,7 +229,10 @@ def resolve_auth_method(method: AuthMethod) -> Optional[str]:
         return os.environ.get(method["env"])
     elif "path" in method:
         try:
-            with open(os.path.expanduser(method["path"]), "r") as f:
+            path = os.path.expanduser(method["path"])
+            if os.stat(path).st_mode & 0o444 == 0:
+                return None
+            with open(path, "r") as f:
                 return f.read().strip()
         except Exception:
             return None

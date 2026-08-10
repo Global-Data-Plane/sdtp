@@ -104,6 +104,60 @@ The SDML file contains all the info needed to query the remote server. These par
 2. The name of the table on the remote server
 3. Specification of authentication information, if authentication is required
 
+#### ContainerTable (New in 2026)
+A `ContainerTable` is a table whose rows are dynamically produced by running a Docker container that implements the SDTP protocol.
+
+This is the preferred way to implement computed, derived, or enriched tables in the Global Data Plane. It allows complex logic, custom dependencies, and heavy computation to be cleanly isolated while still appearing as a normal GDP table to users and other systems.
+Key Characteristics
+- The container is treated as a local remote SDTP server.
+- The container must implement the standard SDTP REST protocol.
+- Communication happens over the local network (or localhost in some deployments).
+- The container is declared statically in SDML and started by the deployment system (`docker-compose`, `Kubernetes`, `Cloud Run Compose`, etc.).
+
+##### Required Fields in SDML
+```
+{
+  "name": "MonthlyFinancialSummary",
+  "type": "ContainerTable",
+  "schema": [ ... array of column definitions ... ],
+  "container": {
+    "image": "ghcr.io/ultisim/tapclicks-financials:v1.4.2",
+    "service_name": "tapclicks-financials",
+    "env": {
+      "MONTH": "2026-04",
+      "LOG_LEVEL": "INFO",
+      "API_KEY": "secret-value"
+    }
+  }
+}
+```
+##### Field Descriptions
+
+- image: The full Docker image name and tag to run.
+- service_name: Logical name used for internal networking (e.g. http://tapclicks-financials:8080). The deployment system resolves this to the actual address.
+- env: Environment variables passed to the container (recommended for configuration and secrets).
+
+##### Behavior
+
+- When the SDTP server starts, it registers the ContainerTable.
+- When a query arrives for this table, the server forwards the request to the container using the SDTP protocol.
+- The container is expected to return rows matching the declared schema.
+- The container may be long-running or started on-demand depending on the deployment configuration.
+
+##### Example Use Cases
+
+- Monthly financial roll-ups from raw TapClicks exports
+- Battery test data processing and derived metrics (Coreshell)
+- Enrichment of raw data with reference tables
+- Complex custom calculations that require heavy libraries or long runtimes
+
+#####  Best Practices
+-
+- Keep containers small and focused.
+- Use environment variables for configuration rather than baking values into the image.
+- Implement proper health checks so the SDTP server can detect unhealthy containers.
+- Version images explicitly (:v1.4.2 instead of :latest).
+
 ### Reference Server Implementation
 
 The reference server reads the SDML files in the server's tables directory and loads them on startup.

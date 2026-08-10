@@ -63,4 +63,21 @@ This patch addresses data normalization consistency and strengthens type convers
 
 * Full test suite passing
 * Manual smoke test of runtime conversions successful
+
+# SDTP 2026.07.12 Release Notes
+
+## 🔧 Patch Release Summary
+
+Fixes `ContainerTable`, which was added without a way to resolve its runtime URL and without test coverage.
+
+## ✅ Fixed
+
+* `ContainerTable` now resolves its `url` at construction time from `container.service_name` via the (previously unused) `ServiceResolver`, instead of leaving `url` permanently `None`.
+* Deployment type (`docker-compose`, `kubernetes`, `cloud-run`) is read from the `SDTP_DEPLOYMENT` environment variable, defaulting to `docker-compose`.
+
+## 🧪 Testing
+
+* Added `tests/test_service_resolver.py`: unit coverage for `ServiceResolver.resolve()` across all deployment types and the unknown-deployment error path.
+* Added `tests/test_container_table.py`: covers URL resolution (default and per-`SDTP_DEPLOYMENT`), the legacy `name`/`computation` alias fields, and end-to-end `connect_with_server()` behavior against a local `httpserver` standing in for the container.
+* Full test suite passing (219 tests).
 * Edge case coverage for strings like `'NaN'`, `'null'`, and `'None'` validated

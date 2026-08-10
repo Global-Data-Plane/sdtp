@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sdtp"
-version = "2025.10.2"
+version = "2026.8.10"
 description = "Simple Data Transfer Protocol (SDTP) reference implementation"
 authors = [
     { name = "The Regents of the University of California", email = "opensource@ucop.edu" }
@@ -22,6 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-httpserver",
+    "pytest-mock"
+]
 gcs = [
     "google-cloud-storage",
     "google-cloud-core"
@@ -31,4 +36,3 @@ gcs = [
 Homepage = "https://global-data-plane.github.io/sdtp/"
 Documentation = "https://global-data-plane.github.io/sdtp/"
 Source = "https://github.com/Global-Data-Plane/sdtp"
-

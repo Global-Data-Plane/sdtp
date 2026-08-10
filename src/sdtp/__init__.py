@@ -45,11 +45,13 @@ from .sdtp_schema import (
     is_valid_sdml_type,
     validate_column_spec,
     validate_table_schema,
+    register_table_schema,
     ColumnSpec,
     BaseTableSchema,
     RowTableSchema,
     RemoteAuthSpec,
     RemoteTableSchema,
+    ContainerTableSchema,
     TableSchema
 )
 
@@ -57,14 +59,17 @@ from .sdtp_schema import (
 from .sdtp_table import (
     SDMLTable,
     SDMLFixedTable,
+    SDMLDataFrameTable,
     RowTable,
-    RemoteSDMLTable
+    RemoteSDMLTable,
+    ContainerTable
 )
 
 from .sdtp_table_factory import (
     SDMLTableFactory,
     RowTableFactory,
     RemoteSDMLTableFactory,
+    ContainerTableFactory,
     TableBuilder
 )
 
@@ -92,7 +97,7 @@ from .sdtp_client import (
     SDTPClient,
     SDTPClientError,
     load_config
-    )
+)
 
 from .sdtp_filter import (
     SDQL_FILTER_OPERATORS,
@@ -116,10 +121,11 @@ from .sdtp_filter import (
     GT,
     LE,
     LT,
+    REGEX,
     ANY,
     ALL,
     NONE,
-    NEQ
+    NEQ,
 )
 # from .sdtp_table import SDMLTable, SDMLFixedTable, SDMLDataFrameTable, RowTable, RemoteSDMLTable, SDMLTableFactory, RowTableFactory, RemoteSDMLTableFactory, FileTable, FileTableFactory, GCSTable, GCSTableFactory, HTTPTable, HTTPTableFactory
 from .table_server import (
@@ -134,6 +140,9 @@ from .table_server import (
 from .sdtp_server import (
     sdtp_server_blueprint,
     SDTPServer
+)
+from .sql_base_table import (
+  BaseSQLTable
 )
 
 # Public API surface for the sdtp package
@@ -155,21 +164,26 @@ __all__ = [
     'is_valid_sdml_type',
     'validate_column_spec',
     'validate_table_schema',
+    'register_table_schema',
     'ColumnSpec',
     'BaseTableSchema',
     'RowTableSchema',
     'RemoteAuthSpec',
     'RemoteTableSchema',
+    'ContainerTableSchema',
     'TableSchema',
     # sdtp_table.py
     'SDMLTable',
     'SDMLFixedTable',
+    'SDMLDataFrameTable',
     'RowTable',
     'RemoteSDMLTable',
+    'ContainerTable',
     # sdtp_table_factory.py
     'SDMLTableFactory',
     'RowTableFactory',
     'RemoteSDMLTableFactory',
+    'ContainerTableFactory',
     'TableBuilder',
     # sdtp_utils.py
     'InvalidDataException',
@@ -215,6 +229,7 @@ __all__ = [
     'GT',
     'LE',
     'LT',
+    'REGEX',
     'ANY',
     'ALL',
     'NONE',
@@ -229,5 +244,6 @@ __all__ = [
     'HeaderInfo',
     # sdtp_server.py
     'sdtp_server_blueprint',
-    'SDTPServer'
+    'SDTPServer',
+    'BaseSQLTable'
 ]

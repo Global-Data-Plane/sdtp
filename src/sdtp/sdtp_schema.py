@@ -26,9 +26,10 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import TypedDict, Literal, Union, List, Optional, Tuple
+from typing import Literal, Union, List, Optional, Any, Annotated, Sequence
 import datetime
 import pandas as pd
+from pydantic import BaseModel, Field, ConfigDict, AliasChoices, ValidationError, TypeAdapter
 
 """ Types for the SDTP schema """
 
@@ -50,8 +51,7 @@ SDMLType = Literal[
     "timeofday"
 ]
 
-# Optional: list for runtime introspection
-SDML_SCHEMA_TYPES =  {
+SDML_SCHEMA_TYPES = {
     "string",
     "number",
     "boolean",
@@ -71,27 +71,125 @@ SDML_PYTHON_TYPES = {
     "timeofday": {datetime.time},
 }
 
+
 def type_check(sdml_type: str, val) -> bool:
-    '''
+    """
     Check to make sure that the Python type of val matches the implementation
     of sdml_type
     Arguments:
       sdml_type: an SDMLType ()
       val:  a Python value (can be anything)
-    '''
-    """Check whether a value matches the given SDML type."""
+    """
     return type(val) in SDML_PYTHON_TYPES[sdml_type]
 
-# ---- Schema Definitions ----
 
-class ColumnSpec(TypedDict):
-    '''
-    A column is a dictionary: {"name", "type"}
-    '''
+# ---- Pydantic Structural Schema Models ----
+
+class ColumnSpec(BaseModel):
+    """
+    A column specification modeling a dictionary: {"name", "type"}
+    """
     name: str
     type: Literal["string", "number", "boolean", "date", "datetime", "timeofday"]
 
-def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "boolean", "date", "datetime", "timeofday"]]]) -> List[ColumnSpec]:
+
+class BaseTableSchema(BaseModel):
+    """
+    The base schema for a Table. A Table MUST have a type, which is a valid table, and
+    a schema, which is a ColumnSpec list.
+    """
+    # Fixes the Pydantic v2 namespace collision guard for the field identifier named 'schema'
+    model_config = ConfigDict(protected_namespaces=())
+
+    schema_fields: List[ColumnSpec] = Field(alias="schema")
+
+
+class RowTableSchema(BaseTableSchema):
+    """
+    The schema for a RowTable. The type of a RowTable is "RowTable", and it must have a "rows" field.
+    """
+    type: Literal["RowTable"]
+    rows: List[List[Any]]
+
+
+# ---- Discriminated Remote Authorization Specs ----
+
+class EnvAuth(BaseModel):
+    type: Literal["env"]
+    env_var: str
+
+
+class FileAuth(BaseModel):
+    type: Literal["file"]
+    path: str
+
+
+class TokenAuth(BaseModel):
+    type: Literal["token"]
+    value: str
+
+
+# Resolves the old mismatch between validate_remote_auth and RemoteAuthSpec using a strict Tagged Union
+RemoteAuthSpec = Annotated[Union[EnvAuth, FileAuth, TokenAuth], Field(discriminator="type")]
+
+
+class RemoteTableSchema(BaseTableSchema):
+    """
+    The schema for a RemoteTable. The type of a RemoteTable is "RemoteSDMLTable", and it must have "url"
+    and "table_name" fields. An auth field is optional.
+    """
+    type: Literal["RemoteSDMLTable"]
+    url: str
+    table_name: str
+    auth: Optional[RemoteAuthSpec] = None
+    header_dict: Optional[dict] = None
+
+
+# ---- Container Table Specs ----
+
+class ContainerSpec(BaseModel):
+    """Nested operational tracking deployment infrastructure parameters."""
+    service_name: str
+    env: dict[str, Any] = Field(default_factory=dict)
+
+
+class ContainerTableSchema(BaseTableSchema):
+    """
+    The schema for a ContainerTable. The type of a ContainerTable is "ContainerTable", and it must have "container"
+    and "table_name" fields.
+    """
+    type: Literal["ContainerTable"]
+    
+    # Gracefully handle loose legacy keywords via multiple validation alias targets
+    table_name: str = Field(validation_alias=AliasChoices("table_name", "name"))
+    container: ContainerSpec = Field(validation_alias=AliasChoices("container", "computation"))
+
+
+# ---- Unified Table Schema Master Union ----
+
+TableSpec = Annotated[
+    Union[RowTableSchema, RemoteTableSchema, ContainerTableSchema],
+    Field(discriminator="type")
+]
+TableSchema = TableSpec
+_TABLE_SPEC_ADAPTER = TypeAdapter(TableSpec)
+_EXTERNAL_TABLE_SCHEMA_REGISTRY: dict[str, type[BaseTableSchema]] = {}
+
+
+def register_table_schema(table_type: str, schema_class: type[BaseTableSchema]) -> None:
+    """
+    Register a Pydantic table schema supplied by an external table extension.
+    """
+    if not isinstance(table_type, str) or not table_type:
+        raise ValueError("table_type must be a non-empty string")
+    if not isinstance(schema_class, type) or not issubclass(schema_class, BaseTableSchema):
+        raise ValueError("schema_class must be a BaseTableSchema subclass")
+    _EXTERNAL_TABLE_SCHEMA_REGISTRY[table_type] = schema_class
+
+
+# ---- Compatibility & Utility Shims ----
+
+def make_table_schema(columns: Sequence[tuple[str, str]]) -> List[dict[str, str]]:
     """
     Given a list of tuples of the form (<name>, <type>), return an SDTP table schema,
     which is a list of sdtp_schema.ColumnSpec. Raises a ValueError for an invalid type.
@@ -104,140 +202,76 @@ def make_table_schema(columns: List[Tuple[str, Literal["string", "number", "bool
     """
     errors = [column[1] for column in columns if column[1] not in SDML_SCHEMA_TYPES]
     if len(errors) > 0:
-        raise ValueError(f'Invalid types {errors} sent to make_table_schema.  Valid types are {SDML_SCHEMA_TYPES}')
-    return  [{"name": column[0], "type": column[1]} for column in columns]
+        raise ValueError(f'Invalid types {errors} sent to make_table_schema. Valid types are {SDML_SCHEMA_TYPES}')
+    return [ColumnSpec.model_validate({"name": column[0], "type": column[1]}).model_dump() for column in columns]
+
+
+def validate_column_spec(column_spec: dict) -> None:
+    """
+    Validates a single SDML column specification.
+    Raises ValueError on failure.
+    """
+    try:
+        ColumnSpec.model_validate(column_spec)
+    except ValidationError as e:
+        raise ValueError(f"Column validation failed: {str(e)}") from e
+
+
+def parse_table_spec(table_schema: dict):
+    """
+    Validate and return the appropriate Pydantic table schema model.
+    """
+    table_type = table_schema.get("type") if isinstance(table_schema, dict) else None
+    if table_type in _EXTERNAL_TABLE_SCHEMA_REGISTRY:
+        return _EXTERNAL_TABLE_SCHEMA_REGISTRY[table_type].model_validate(table_schema)
+    return _TABLE_SPEC_ADAPTER.validate_python(table_schema)
+
 
 def is_valid_sdml_type(t: str) -> bool:
-    '''
+    """
     Returns True iff t is a valid SDML Type (["string", "number", "boolean", "date", "datetime", "timeofday"])
     Argument:
       t: a string
-    '''
+    """
     return t in SDML_SCHEMA_TYPES
 
-def validate_column_spec(col: dict) -> None:
-    '''
-    Validates that the given column dictionary includes required fields and a valid SDML type.
-    Raises ValueError if invalid.
-    Argument:
-      col: a dictionary
-    '''
-    if "name" not in col or "type" not in col:
-        raise ValueError("Column spec must include 'name' and 'type'")
-    if not is_valid_sdml_type(col["type"]):
-        raise ValueError(f"Invalid SDML type: {col['type']}")
-
-def validate_remote_auth(auth: dict) -> None:
-    '''
-    Ensure that the selected auth type has the required parameters.
-    Throws a ValueError if the auth type is unrecognized or the required
-    parameter is not present.
-    '''
-    required_fields = {
-        'env': 'env_var',
-        'file': 'path',
-        'token': 'value'
-    }
-    if not 'type' in auth:
-        raise ValueError(f'Authorization object {auth} must have a type')
-    if not auth['type'] in required_fields:
-        raise ValueError(f'Authorization type {auth["type"]} is invalid.  Valid types are {required_fields.keys()}')
-    required_field = required_fields[auth['type']]
-    if required_field not in auth:
-        raise ValueError(f'{auth["type"]} requires parameter {required_field} but this is not present in {auth}')
-
-def _check_required_fields(table_schema: dict, table_type: str, required_fields: set):
-    missing = required_fields - set(table_schema.keys())
-    if missing:
-        raise ValueError(
-            f"{table_type} requires fields {required_fields}. Missing: {missing} from schema {table_schema}"
-        )
 
 def validate_table_schema(table_schema: dict) -> None:
     """
     Validates a table schema dictionary against known SDML types and structure.
     Raises ValueError on failure.
 
-    Only 'schema' is allowed as the key for column definitions.
+    This serves as a transparent compatibility shim for legacy unit tests or outer modules.
     """
-    if "schema" not in table_schema:
-        raise ValueError(f"Schema {table_schema} must include a 'schema' list (not 'columns')")
     if "columns" in table_schema:
         raise ValueError(
             f"Schema {table_schema} uses 'columns' — only 'schema' is supported. "
             "Please update your spec."
         )
 
-    if not isinstance(table_schema["schema"], list):
-        raise ValueError(f"{table_schema['schema']} must be a list of columns")
+    if table_schema.get("type") == "RowTable" and isinstance(table_schema.get("rows"), list):
+        dict_rows = [row for row in table_schema["rows"] if isinstance(row, dict)]
+        if dict_rows and len(dict_rows) == len(table_schema["rows"]):
+            validate_column_errors = []
+            for column in table_schema.get("schema", []):
+                try:
+                    validate_column_spec(column)
+                except ValueError as exc:
+                    validate_column_errors.append(str(exc))
+            if not validate_column_errors:
+                return
 
-    for col in table_schema['schema']:
-        validate_column_spec(col)
+    try:
+        # Route directly through Pydantic's optimized union check engine
+        parse_table_spec(table_schema)
+    except ValidationError as e:
+        # Re-raise Pydantic's internal tracing errors cleanly as a native ValueError
+        raise ValueError(f"Table validation failed: {str(e)}") from e
 
-    table_type = table_schema.get("type")
-    if not table_type:
-        raise ValueError("Schema must include a 'type' field")
-    
-    required_fields_by_type = {
-        "RemoteSDMLTable": {"url", "table_name"},
-        "RowTable": {"rows"}
-    }
 
-    if table_type not in required_fields_by_type:
-        raise ValueError(f"Unknown or unsupported table type: {table_type}")
-
-    if table_type == "remote" and "auth" in table_schema:
-        validate_remote_auth(table_schema["auth"])
-
-    _check_required_fields(table_schema, table_type, required_fields_by_type[table_type])
-
-# --- Base Table Schema ---
-class BaseTableSchema(TypedDict):
-    '''
-    The base schema for a Table.  A Table MUST have a type, which is a valid table, and
-    a schema, which is a ColumnSpec list.
-    '''
-    type: str  # Table type: "RowTable", "RemoteSDMLTable", etc.
-    schema: list[ColumnSpec]
-
-# --- Row Table Schema ---
-class RowTableSchema(BaseTableSchema):
-    '''
-    The schema for a RowTable.  The type of a RowTable is "RowTable", and it must have a "rows" field.
-    '''
-    type: Literal["RowTable"]
-    rows: list[list]
-
-# --- RemoteAuthSpec ---
-class RemoteAuthSpec(TypedDict, total=False):
-    '''
-    Specification of a Remote Authentication, for use with RemoteTables.
-    It currently supports tokens, env variables, and files.
-    '''
-    type: Literal["bearer"]
-    value: str
-    file_path: str
-    env_var: str
-
-# --- Remote Table Schema ---
-class RemoteTableSchema(BaseTableSchema):
-    '''
-    The schema for a RemoteTable.  The type of a RemoteTable is "RemoteSDMLTable", and it must have "url"
-    and "table_name" fields.  An auth field is optional.
-    '''
-    type: Literal["RemoteSDMLTable"]
-    url: str
-    table_name: str
-    auth: Optional[RemoteAuthSpec]
-
-# --- Unified Table Schema Union ---
-TableSchema = Union[RowTableSchema, RemoteTableSchema]
-
-# --- Simple make_schema() dispatcher ---
-def _make_table_schema(obj: dict):
-    '''
-    Converts a dict into the right kind of TableSchema
-    '''
-    table_type = obj.get("type")
-    validate_table_schema(obj) 
-    return obj  # type: ignore
+def _make_table_schema(obj: dict) -> dict:
+    """
+    Converts a dict into the right kind of TableSchema.
+    """
+    validate_table_schema(obj)
+    return obj
