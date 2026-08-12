@@ -263,7 +263,7 @@ class BaseSQLTable(SDMLTable):
             elif operator == "ANY":
                 return " OR ".join(sub_clauses), params
             elif operator == "NONE":
-                return f"NOT ({" OR ".join(sub_clauses)})", params
+                return f"NOT ({' OR '.join(sub_clauses)})", params
 
         # 2. Extract Atomic Column Constraints
         column = spec.get("column")
