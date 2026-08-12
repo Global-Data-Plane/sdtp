@@ -81,3 +81,17 @@ Fixes `ContainerTable`, which was added without a way to resolve its runtime URL
 * Added `tests/test_container_table.py`: covers URL resolution (default and per-`SDTP_DEPLOYMENT`), the legacy `name`/`computation` alias fields, and end-to-end `connect_with_server()` behavior against a local `httpserver` standing in for the container.
 * Full test suite passing (219 tests).
 * Edge case coverage for strings like `'NaN'`, `'null'`, and `'None'` validated
+
+# SDTP 2026.8.11 Release Notes
+
+## 🔧 Patch Release Summary
+
+Fixes a Python 3.11 (and earlier) compatibility break introduced in 2026.8.10: `sql_base_table.py` used an f-string with the same quote character nested inside itself, which only parses under PEP 701's relaxed grammar (Python 3.12+). This silently violated the package's own stated `requires-python = ">=3.8"` — `import sdtp` raised a `SyntaxError` on 3.8–3.11.
+
+## ✅ Fixed
+
+* `SQLBaseTable`'s `NONE`-operator filter clause (`f"NOT ({" OR ".join(sub_clauses)})"`) now uses a differently-quoted inner string, valid on all supported Python versions.
+
+## 🧪 Testing
+
+* Verified `import sdtp` succeeds on a real Python 3.11 interpreter (previously failed with `SyntaxError: f-string: expecting '}'`).
